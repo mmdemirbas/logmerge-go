@@ -1,0 +1,124 @@
+package main
+
+import (
+	"bufio"
+	"container/heap"
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+)
+
+const (
+	totalReadBufferSize    = 1024 * 1024 * 10
+	writeBufferSize        = 1024 * 1024 * 10
+	maxConcurrentFileCount = 100
+)
+
+func mergeLogs(basePath string) error {
+	// Find files to process
+	files, err := listFiles(basePath)
+	if err != nil {
+		return fmt.Errorf("failed to detect files: %v", err)
+	}
+	return mergeFiles(basePath, files)
+}
+
+func mergeFiles(basePath string, files []string) error {
+	// Open all files and create scanners
+	var (
+		outputNames = make(map[string]string)
+		scanners    = make(map[string]*bufio.Scanner)
+		fileHandles = make(map[string]*os.File)
+	)
+	for _, file := range files {
+		relativePath, err := filepath.Rel(basePath, file)
+		if err != nil {
+			return fmt.Errorf("failed to calculate relative path for file %s: %v", file, err)
+		}
+		f, err := os.Open(file)
+		if err != nil {
+			return fmt.Errorf("failed to open file %s: %v", file, err)
+		}
+		outputNames[file] = relativePath
+		scanners[file] = bufio.NewScanner(bufio.NewReaderSize(f, totalReadBufferSize/len(files)))
+		fileHandles[file] = f
+	}
+	defer func() {
+		for _, f := range fileHandles {
+			_ = f.Close()
+		}
+	}()
+
+	printDuration(fmt.Sprintf("Merge %d files", len(files)), func() {
+		MergeScanners(files, outputNames, scanners)
+	})
+	return nil
+}
+
+func MergeScanners(sourceNames []string, outputNames map[string]string, scanners map[string]*bufio.Scanner) {
+	writer := bufio.NewWriterSize(os.Stdout, writeBufferSize)
+	defer writer.Flush()
+
+	// Initialize heap
+	h := &MinHeap{}
+	heap.Init(h)
+
+	// Populate heap with the first entry from each file
+	for _, sourceName := range sourceNames {
+		scanner := scanners[sourceName]
+		entry := parseLine(sourceName, scanner)
+		if entry != nil {
+			heap.Push(h, entry)
+		}
+	}
+
+	// Calculate max output name length
+	maxOutputNameLen := 0
+	for _, outputName := range outputNames {
+		if len(outputName) > maxOutputNameLen {
+			maxOutputNameLen = len(outputName)
+		}
+	}
+
+	// Merge logs
+	for h.Len() > 0 {
+		current := heap.Pop(h).(*LogLine)
+
+		// Aggregate lines until finding a timestamped line from the same source
+		var aggregatedLines []string
+		sourceName := current.SourceName
+		scanner := scanners[sourceName]
+		next := parseLine(sourceName, scanner)
+		for next != nil && next.Timestamp == noTimestamp {
+			aggregatedLines = append(aggregatedLines, next.RawLine)
+			next = parseLine(sourceName, scanner)
+		}
+
+		outputName := outputNames[sourceName]
+
+		var timeString string
+		if current.Timestamp == noTimestamp {
+			timeString = ""
+		} else {
+			timeString = current.Timestamp.Format(time.RFC3339)
+		}
+
+		writeOut(writer, timeString, maxOutputNameLen, outputName, current.RawLine)
+		for _, line := range aggregatedLines {
+			writeOut(writer, "", maxOutputNameLen, outputName, line)
+		}
+
+		// Put the current line to the heap
+		if next != nil {
+			heap.Push(h, next)
+		}
+	}
+}
+
+func writeOut(writer *bufio.Writer, timeString string, maxOutputNameLen int, outputName string, logLine string) {
+	_, err := writer.WriteString(fmt.Sprintf("%-25s %-*s | %s\n", timeString, maxOutputNameLen, outputName, logLine))
+	if err != nil {
+		panic(fmt.Sprintf("failed to write to stdout: %v", err))
+	}
+}

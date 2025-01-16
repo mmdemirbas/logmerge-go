@@ -1,0 +1,116 @@
+#!/usr/bin/env just --justfile
+
+BINARY_NAME := "logmerge"
+
+# Paths
+
+BIN_DIR := "bin"
+OUT_DIR := "out"
+CPU_PROF_FILE := "cpu.prof"
+MEM_PROF_FILE := "mem.prof"
+TRACE_FILE := "trace.out"
+OUTPUT_FILE := "output.log"
+
+# Test params
+
+RUN_ARGS := "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1734940586637_0046-short-success"
+
+# Display this help message
+@help:
+    echo "Usage: just <recipe-name>"
+    echo ""
+    just --list --unsorted
+
+# clean test build
+[group("common")]
+all: clean test build
+
+# Clean binaries and profiling data
+[group("common")]
+clean:
+    rm -rf {{ BIN_DIR }} {{ OUT_DIR }}
+
+# go build flags:
+# CGO_ENABLED=0    => Disable CGO (dynamic linking). This will create a fully static binary.
+# -ldflags="-s -w" => Strip the debug information from the binary.
+
+# Build binaries
+[group("common")]
+build:
+    mkdir -p {{ BIN_DIR }}
+    CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o {{ BIN_DIR }}/{{ BINARY_NAME }}-macos-arm64 *.go
+    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o {{ BIN_DIR }}/{{ BINARY_NAME }}-windows-amd64.exe *.go
+
+# Run unit tests
+[group("test")]
+test:
+    go test -v ./...
+
+# Run TestParseTimestamp test once for each timestamp parsing method
+[group("test")]
+test-all-methods:
+    TIMESTAMP_PARSE_METHOD=manual go test -v ./... -run TestParseTimestamp
+    TIMESTAMP_PARSE_METHOD=builtin go test -v ./... -run TestParseTimestamp
+    TIMESTAMP_PARSE_METHOD=regex go test -v ./... -run TestParseTimestamp
+    TIMESTAMP_PARSE_METHOD=mixed go test -v ./... -run TestParseTimestamp
+
+# Run benchmark tests and capture CPU and memory profiles
+[group("test")]
+benchmark:
+    mkdir -p {{ OUT_DIR }}
+    go test -bench=. -benchmem ./... -run=^$ \
+      -benchtime=5s \
+      -cpuprofile={{ OUT_DIR }}/{{ CPU_PROF_FILE }} \
+      -memprofile={{ OUT_DIR }}/{{ MEM_PROF_FILE }} \
+      -trace={{ OUT_DIR }}/{{ TRACE_FILE }}
+    mv logmerge.test {{ OUT_DIR }}/logmerge.test || true
+
+# Run application
+[group("run")]
+run method="manual" run_name="default":
+    rm -rf {{ OUT_DIR }}/{{ run_name }} > /dev/null 2>&1 || true
+    mkdir -p {{ OUT_DIR }}/{{ run_name }}
+    go run $(ls *.go | grep -v _test.go) {{ RUN_ARGS }} \
+        > {{ OUT_DIR }}/{{ run_name }}/{{ method }}.out \
+        2> {{ OUT_DIR }}/{{ run_name }}/{{ method }}.err
+
+# Run application once for each timestamp parsing method
+[group("run")]
+run-all-methods:
+    TIMESTAMP_PARSE_METHOD=manual just run manual
+    TIMESTAMP_PARSE_METHOD=builtin just run builtin
+
+#    TIMESTAMP_PARSE_METHOD=regex just run regex
+#    TIMESTAMP_PARSE_METHOD=mixed just run mixed
+
+# Run application with profiling and capture CPU and memory profiles
+[group("run")]
+profile:
+    mkdir -p {{ OUT_DIR }}
+    ENABLE_PPROF=true just run manual
+
+# Browse captured CPU profile in a web browser
+[group("inspect")]
+inspect-cpu:
+    go tool pprof -http=:8080 {{ OUT_DIR }}/{{ CPU_PROF_FILE }}
+
+# Browse captured memory profile in a web browser
+[group("inspect")]
+inspect-mem:
+    go tool pprof -http=:8080 {{ OUT_DIR }}/{{ MEM_PROF_FILE }}
+
+# View execution trace
+[group("inspect")]
+inspect-trace:
+    echo "Launching trace viewer..."
+    go tool trace {{ OUT_DIR }}/{{ TRACE_FILE }}
+
+# Browse captured CPU profile in an interactive shell
+[group("inspect")]
+inspect-cpu-interactive:
+    go tool pprof {{ OUT_DIR }}/{{ CPU_PROF_FILE }}
+
+# Browse captured memory profile in an interactive shell
+[group("inspect")]
+inspect-mem-interactive:
+    go tool pprof {{ OUT_DIR }}/{{ MEM_PROF_FILE }}

@@ -1,0 +1,7 @@
+/.idea/
+/out/
+/log/
+*.test
+*.err
+*.out
+*.log
