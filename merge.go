@@ -6,12 +6,21 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
 const (
 	totalReadBufferSize = 1024 * 1024 * 500
 	writeBufferSize     = 1024 * 1024 * 100
+)
+
+var (
+	bufferPool = sync.Pool{
+		New: func() interface{} {
+			return make([]byte, 0, 4096) // typical line size
+		},
+	}
 )
 
 func mergeLogs(basePath string) error {
@@ -109,10 +118,13 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 }
 
 func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, outputName string, logLine string) {
-	// Preallocate a buffer to avoid multiple small writes
-	// Initial size: 25 (timestamp) + 1 (space) + maxOutputNameLen + 3 ( | ) + len(logLine) + 1 (\n)
-	bufSize := 30 + maxOutputNameLen + len(logLine)
-	buf := make([]byte, 0, bufSize)
+	buf := bufferPool.Get().([]byte)
+	buf = buf[:0] // reset buffer
+
+	//// Preallocate a buffer to avoid multiple small writes
+	//// Initial size: 25 (timestamp) + 1 (space) + maxOutputNameLen + 3 ( | ) + len(logLine) + 1 (\n)
+	//bufSize := 30 + maxOutputNameLen + len(logLine)
+	//buf := make([]byte, 0, bufSize)
 
 	// Handle timestamp
 	if timestamp != noTimestamp {
@@ -147,4 +159,5 @@ func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, o
 
 	// Single write operation
 	writer.Write(buf)
+	bufferPool.Put(buf)
 }
