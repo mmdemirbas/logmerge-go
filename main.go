@@ -3,12 +3,14 @@ package main
 import (
 	"os"
 	"runtime/pprof"
+	"time"
 )
 
 type LogLine struct {
 	SourceName string
 	RawLine    string
-	Ordinal    [2]uint64 // epoch nanos-like timestamp { nanos-like value, timeoffset minutes }
+	// Parsed values
+	Timestamp time.Time
 }
 
 func main() {

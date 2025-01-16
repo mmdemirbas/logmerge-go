@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 const (
@@ -89,16 +90,23 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 		sourceName := current.SourceName
 		scanner := scanners[sourceName]
 		next := parseLine(sourceName, scanner)
-		for next != nil && next.Ordinal == noTimestamp {
+		for next != nil && next.Timestamp == noTimestamp {
 			aggregatedLines = append(aggregatedLines, next.RawLine)
 			next = parseLine(sourceName, scanner)
 		}
 
 		outputName := outputNames[sourceName]
 
-		writeOut(writer, current.Ordinal, maxOutputNameLen, outputName, current.RawLine)
+		var timeString string
+		if current.Timestamp == noTimestamp {
+			timeString = ""
+		} else {
+			timeString = current.Timestamp.Format(time.RFC3339)
+		}
+
+		writeOut(writer, timeString, maxOutputNameLen, outputName, current.RawLine)
 		for _, line := range aggregatedLines {
-			writeOut(writer, noTimestamp, maxOutputNameLen, outputName, line)
+			writeOut(writer, "", maxOutputNameLen, outputName, line)
 		}
 
 		// Put the current line to the heap
@@ -108,9 +116,8 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 	}
 }
 
-func writeOut(writer *bufio.Writer, ordinal [2]uint64, maxOutputNameLen int, outputName string, logLine string) {
-	// TODO: Print ordinal as timestamp in an efficient way
-	_, err := writer.WriteString(fmt.Sprintf("%-25d %-*s | %s\n", ordinal, maxOutputNameLen, outputName, logLine))
+func writeOut(writer *bufio.Writer, timeString string, maxOutputNameLen int, outputName string, logLine string) {
+	_, err := writer.WriteString(fmt.Sprintf("%-25s %-*s | %s\n", timeString, maxOutputNameLen, outputName, logLine))
 	if err != nil {
 		panic(fmt.Sprintf("failed to write to stdout: %v", err))
 	}
