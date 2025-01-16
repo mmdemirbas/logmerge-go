@@ -2,20 +2,19 @@ package main
 
 import (
 	"bufio"
-	"time"
 )
 
 var (
 	// Return the minimum time for the lines with no timestamp, so that those lines are listed first.
 	// Otherwise, we could miss the correct order for the upcoming lines with timestamps.
-	noTimestamp = time.Time{}
+	noTimestamp = [2]uint64{0, 0}
 )
 
 func parseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 	if scanner.Scan() {
 		line := scanner.Text()
 		return &LogLine{
-			Timestamp:  ParseTimestamp(line),
+			Ordinal:    ParseTimestamp(line),
 			SourceName: sourceName,
 			RawLine:    line,
 		}
@@ -23,7 +22,7 @@ func parseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 	return nil
 }
 
-func ParseTimestamp(line string) time.Time {
+func ParseTimestamp(line string) [2]uint64 {
 	defer func() {
 		if r := recover(); r != nil {
 			err := r.(error)
@@ -46,7 +45,7 @@ func ParseTimestamp(line string) time.Time {
 	}
 
 	// Pre-allocate timezone for common case
-	utc := time.UTC
+	timeOffsetMinutes := 0
 
 	// Parse year with fewer branches
 	year, count := parseDigits(line, &i, 4)
@@ -155,12 +154,55 @@ func ParseTimestamp(line string) time.Time {
 			}
 
 			if tzHour != 0 || tzMin != 0 {
-				utc = time.FixedZone("", sign*(tzHour*3600+tzMin*60))
+				timeOffsetMinutes = sign * (tzHour*60 + tzMin)
 			}
 		}
 	}
 
-	return time.Date(year, time.Month(month), day, hour, minute, second, nsec, utc)
+	// epoch nanos-like timestamp
+	return ToOrdinal(year, month, day, hour, minute, second, nsec, timeOffsetMinutes)
+}
+
+func ToOrdinal(year int, month int, day int, hour int, minute int, second int, nsec int, timeOffsetMinutes int) [2]uint64 {
+	offsetSign := 1
+	if timeOffsetMinutes < 0 {
+		offsetSign = 0
+		timeOffsetMinutes = -timeOffsetMinutes
+	}
+	v1 := uint64(((((((((((year-1969)*12+(month-1))*31)+(day-1))*24)+hour)*60)+minute-timeOffsetMinutes)*60)+second)*1_000_000_000 + nsec)
+	v2 := uint64(timeOffsetMinutes*2 + offsetSign)
+	//printErr("ordinal[0] = ((((((((((%d-1969)*12+(%d-1))*31)+(%d-1))*24)+%d)*60)+%d-%d)*60)+%d) = %d\n", year, month, day, hour, minute, timeOffsetMinutes, second, v1)
+	//printErr("ordinal[1] = (((%d)*1440)+%d)*2+%d = %d\n", nsec, timeOffsetMinutes, offsetSign, v2)
+	return [2]uint64{v1, v2}
+}
+
+func FromOrdinal(ordinal [2]uint64) (year int, month int, day int, hour int, minute int, second int, nsec int, timeOffsetMinutes int) {
+	v1 := ordinal[0]
+	v2 := ordinal[1]
+
+	offsetSign := int(v2 % 2)
+	if offsetSign == 0 {
+		offsetSign = -1
+	}
+	v2 /= 2
+	timeOffsetMinutes = int(v2%1440) * offsetSign
+	v2 /= 1440
+
+	nsec = int(v1 % 1_000_000_000)
+	v1 /= 1_000_000_000
+	second = int(v1 % 60)
+	v1 /= 60
+	shiftedMinutes := int(v1 % 60)
+	minute = shiftedMinutes + timeOffsetMinutes
+	v1 /= 60
+	hour = int(v1 % 24)
+	v1 /= 24
+	day = int(v1%31) + 1
+	v1 /= 31
+	month = int(v1%12) + 1
+	v1 /= 12
+	year = int(v1) + 1969
+	return
 }
 
 func parseDigits(line string, i *int, maxCount int) (val, count int) {
