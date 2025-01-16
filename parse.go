@@ -2,9 +2,7 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"os"
-	"regexp"
 	"time"
 )
 
@@ -27,18 +25,6 @@ var (
 		"2006-01-02 15:04:05", // Basic date-time without milliseconds
 		"06-1-2 15:04:05",     // Custom format (e.g., 25-1-15 19:11:07)
 	}
-
-	// Regular expressions for extracting timestamps in unique formats
-	regexTimestampPatterns = []string{
-		`((?:19|20)\d{2}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}[,.]\d+)`,                 // e.g., 2025-01-15 05:26:33,179
-		`((?:19|20)\d{2}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}[,.]\d+[-+]\d{2}:?\d{2})`, // e.g., 2024-12-23T15:55:26.569+0800
-		`((?:19|20)\d{2}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:[-+]\d{2}:\d{2})?)`,    // e.g., 2025-01-15 19:24:08-08:00
-		`((?:19|20)\d{2}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2})`,                        // e.g., 2025-01-07 22:46:00
-		`((?:19|20)\d{6} \d{2}:\d{2}:\d{2}\.\d{6})`,                                // e.g., 20250115 19:29:15.463310
-		`(\d{2}-\d{1,2}-\d{2} \d{2}:\d{2}:\d{2})`,                                  // e.g., 25-1-15 19:11:07
-	}
-
-	timestampRegex = regexp.MustCompile(`^\D*(?:((?:19|20)?\d{2})-(\d{1,2})-(\d{1,2})|((?:19|20)\d{2})(\d{2})(\d{2}))[ _T](\d{1,2}):(\d{1,2}):(\d{1,2})(?:[,.](\d{1,9}))?(Z|([+-])(\d{2}):?(\d{2}))?`)
 )
 
 func init() {
@@ -74,10 +60,6 @@ func ParseTimestamp(line string) time.Time {
 		return manual(line)
 	case "builtin":
 		return builtin(line)
-	case "regex":
-		return regex(line)
-	case "mixed":
-		return mixed(line)
 	default:
 		panic("Unknown timestamp parsing method: " + TimestampParseMethod)
 	}
@@ -289,87 +271,5 @@ func builtin(line string) time.Time {
 			}
 		}
 	}
-	return noTimestamp
-}
-
-func regex(line string) time.Time {
-	submatch := timestampRegex.FindStringSubmatch(line)
-	if len(submatch) > 0 {
-		year := submatch[1]
-		month := submatch[2]
-		day := submatch[3]
-		year2 := submatch[4]
-		month2 := submatch[5]
-		day2 := submatch[6]
-		hour := submatch[7]
-		minute := submatch[8]
-		second := submatch[9]
-		subsecond := submatch[10]
-		offset := submatch[11]
-		offsetSign := submatch[12]
-		offsetHour := submatch[13]
-		offsetMinute := submatch[14]
-
-		// Use alternative year, month, and day if the first set is empty
-		if year == "" {
-			year = year2
-			month = month2
-			day = day2
-		}
-
-		// If the year is 2-digits, convert it to 4-digits
-		if len(year) == 2 {
-			// To be consistent with Go: NN >= 69 is 19NN, otherwise 20NN
-			if year >= "69" {
-				year = "19" + year
-			} else {
-				year = "20" + year
-			}
-		}
-
-		// Build a timestamp string in RFC3339Nano format
-		s := fmt.Sprintf("%04s-%02s-%02sT%02s:%02s:%02s", year, month, day, hour, minute, second)
-
-		// Add subsecond if it exists
-		if subsecond != "" {
-			// Pad to nanoseconds
-			for len(subsecond) < 9 {
-				subsecond += "0"
-			}
-			s += "." + subsecond
-		}
-
-		// Add timezone offset if it exists
-		if offset == "" || offset == "Z" {
-			s += "Z"
-		} else {
-			s += offsetSign + offsetHour + ":" + offsetMinute
-		}
-
-		// Parse the timestamp
-		ts, err := time.Parse(time.RFC3339Nano, s)
-		if err == nil {
-			return ts
-		}
-		printErr("Error parsing timestamp: %v\n", err)
-	}
-
-	// Default to noTimestamp if no valid timestamp is found
-	return noTimestamp
-}
-
-func mixed(line string) time.Time {
-	// Try extracting a timestamp using regular expressions
-	for _, pattern := range regexTimestampPatterns {
-		if matches := regexp.MustCompile(pattern).FindStringSubmatch(line); matches != nil {
-			for _, format := range timeFormats {
-				if ts, err := time.Parse(format, matches[1]); err == nil {
-					return ts
-				}
-			}
-		}
-	}
-
-	// Default to noTimestamp if no valid timestamp is found
 	return noTimestamp
 }
