@@ -70,14 +70,14 @@ func parseOptions() *string {
 }
 
 func printUsage() {
-	printErr("logmerge")
-	printErr("  Merge multiple log files into a single file while preserving the chronological order of log lines.")
-	printErr("  All well-known timestamp formats are supported.")
-	printErr("  Output is written to stdout. Use redirection to save it to a file.")
-	printErr("  Program messages are written to stderr to avoid mixing with log lines.")
-	printErr("")
-	printErr("  Usage: %s <path>...\n", os.Args[0])
-	printErr("")
-	printErr("  <path>...  Path to the log files or directories containing log files")
-	printErr("")
+	printErr("logmerge\n")
+	printErr("  Merge multiple log files into a single file while preserving the chronological order of log lines.\n")
+	printErr("  All well-known timestamp formats are supported.\n")
+	printErr("  Output is written to stdout. Use redirection to save it to a file.\n")
+	printErr("  Program messages are written to stderr to avoid mixing with log lines.\n")
+	printErr("\n")
+	printErr("  Usage: %s <path>...\n\n", os.Args[0])
+	printErr("\n")
+	printErr("  <path>...  Path to the log files or directories containing log files\n")
+	printErr("\n")
 }

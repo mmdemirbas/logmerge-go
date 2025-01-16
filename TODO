@@ -55,3 +55,5 @@
   - Opt in to remove log level from raw line
   - Custom source name format
   - Custom timestamp format
+  - Default local timezone if no timezone information in the timestamp
+  - Treat Z as non-UTC timezone to handle mis-configured logs

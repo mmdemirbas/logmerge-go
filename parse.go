@@ -39,8 +39,6 @@ var (
 	}
 
 	timestampRegex = regexp.MustCompile(`^\D*(?:((?:19|20)?\d{2})-(\d{1,2})-(\d{1,2})|((?:19|20)\d{2})(\d{2})(\d{2}))[ _T](\d{1,2}):(\d{1,2}):(\d{1,2})(?:[,.](\d{1,9}))?(Z|([+-])(\d{2}):?(\d{2}))?`)
-
-	cachedOffsets = make(map[string]*time.Location)
 )
 
 func init() {
@@ -65,6 +63,12 @@ func parseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 }
 
 func ParseTimestamp(line string) time.Time {
+	defer func() {
+		if r := recover(); r != nil {
+			err := r.(error)
+			printErr("Error parsing timestamp: %v at line: %s\n", err, line)
+		}
+	}()
 	switch TimestampParseMethod {
 	case "manual":
 		return manual(line)
@@ -82,23 +86,37 @@ func ParseTimestamp(line string) time.Time {
 func manual(line string) time.Time {
 	// regex:
 	// `^\D*(?:(\d{2,4})-(\d{1,2})-(\d{1,2})|(\d{4})(\d{2})(\d{2}))[ _T](\d{1,2}):(\d{1,2}):(\d{1,2})(?:[,.](\d{1,9}))?(Z|([+-])(\d{2}):?(\d{2}))?`
-	i := 0
 	n := len(line)
+	if n < 12 {
+		return noTimestamp
+	}
 
 	// Skip non-digits
-	for i < n && (line[i] < '0' || line[i] > '9') {
+	i := 0
+	for {
+		c := line[i]
+		if c >= '0' && c <= '9' {
+			break
+		}
 		i++
+		if i == n {
+			return noTimestamp
+		}
+	}
+
+	if i+12 > n {
+		return noTimestamp
 	}
 
 	// Year: 20250123 or 2025-01-23 or 25-1-23
 	year, count := parseDigits(line, &i, 4)
-	switch count {
-	case 4:
+	switch {
+	case count == 4:
 		// Return early if not a reasonable log year
-		if year <= 1900 || year >= 2100 {
+		if year < 1969 || year > 2050 {
 			return noTimestamp
 		}
-	case 2:
+	case count == 2:
 		// To match Go's behavior
 		if year < 69 {
 			year += 2000
@@ -110,7 +128,7 @@ func manual(line string) time.Time {
 	}
 
 	// Month: 0112 or 01-12 or 1-12
-	if i < n && line[i] == '-' {
+	if line[i] == '-' {
 		i++
 	}
 	month, count := parseDigits(line, &i, 2)
@@ -119,7 +137,7 @@ func manual(line string) time.Time {
 	}
 
 	// Day
-	if i < n && line[i] == '-' {
+	if line[i] == '-' {
 		i++
 	}
 	day, count := parseDigits(line, &i, 2)
@@ -128,35 +146,45 @@ func manual(line string) time.Time {
 	}
 
 	// Hour
-	if i < n && (line[i] == ' ' || line[i] == 'T' || line[i] == '_') {
+	c := line[i]
+	if c == ' ' || c == 'T' || c == '_' {
 		i++
 	}
 	hour, count := parseDigits(line, &i, 2)
-	if count == 0 {
-		return time.Date(year, time.Month(month), day, hour, 0, 0, 0, time.UTC)
+	if count == 0 || i+4 > n {
+		return noTimestamp
 	}
 
 	// Minute
-	if i < n && (line[i] == ':' || line[i] == '.') {
+	c = line[i]
+	if c == ':' || c == '.' {
 		i++
 	}
 	minute, count := parseDigits(line, &i, 2)
 	if count == 0 {
-		return time.Date(year, time.Month(month), day, hour, minute, 0, 0, time.UTC)
+		return noTimestamp
 	}
 
 	// Second
-	if i < n && (line[i] == ':' || line[i] == '.') {
+	c = line[i]
+	if c == ':' || c == '.' {
 		i++
 	}
 	second, count := parseDigits(line, &i, 2)
 	if count == 0 {
-		return time.Date(year, time.Month(month), day, hour, minute, second, 0, time.UTC)
+		return noTimestamp
 	}
 
 	// Subsecond
-	if i < n && (line[i] == ',' || line[i] == '.') {
+	if i == n {
+		return time.Date(year, time.Month(month), day, hour, minute, second, 0, time.UTC)
+	}
+	c = line[i]
+	if c == ',' || c == '.' {
 		i++
+		if i == n {
+			return time.Date(year, time.Month(month), day, hour, minute, second, 0, time.UTC)
+		}
 	}
 	subsecond, count := parseDigits(line, &i, 9)
 	for count < 9 {
@@ -164,49 +192,82 @@ func manual(line string) time.Time {
 		count++
 	}
 
-	// Timezone offset
-	loc := time.UTC
-	if i < n {
-		if line[i] == 'Z' {
-			i++
-		} else if line[i] == '+' || line[i] == '-' {
-			offsetStart := i
-			sign := 1
-			if line[i] == '-' {
-				sign = -1
-			}
-			i++
-			tzHour, _ := parseDigits(line, &i, 2)
-			tzMinute := 0
-			if i < n && line[i] == ':' {
-				i++
-				tzMinute, _ = parseDigits(line, &i, 2)
-			}
-			offset := sign * (tzHour*3600 + tzMinute*60)
-			if offset != 0 {
-				offsetString := line[offsetStart:i]
-				if loc = cachedOffsets[offsetString]; loc == nil {
-					loc = time.FixedZone("", offset)
-					cachedOffsets[offsetString] = loc
-				}
-			}
-		}
+	if i == n {
+		return time.Date(year, time.Month(month), day, hour, minute, second, subsecond, time.UTC)
 	}
 
+	// Timezone offset
+	c = line[i]
+	if c == 'Z' {
+		return time.Date(year, time.Month(month), day, hour, minute, second, subsecond, time.UTC)
+	}
+	if c != '+' && c != '-' {
+		return time.Date(year, time.Month(month), day, hour, minute, second, subsecond, time.UTC)
+	}
+
+	var sign int
+	if line[i] == '-' {
+		sign = -1
+	} else {
+		sign = 1
+	}
+
+	i++
+	if i == n {
+		return time.Date(year, time.Month(month), day, hour, minute, second, subsecond, time.UTC)
+	}
+
+	tzHour, count := parseDigits(line, &i, 2)
+	if count == 0 {
+		return time.Date(year, time.Month(month), day, hour, minute, second, subsecond, time.UTC)
+	}
+	if i == n {
+		loc := time.UTC
+		if tzHour != 0 {
+			loc = time.FixedZone("", sign*tzHour*3600)
+		}
+		return time.Date(year, time.Month(month), day, hour, minute, second, subsecond, loc)
+	}
+
+	tzMinute := 0
+	c = line[i]
+	if c == ':' {
+		i++
+		if i == n {
+			loc := time.UTC
+			if tzHour != 0 {
+				loc = time.FixedZone("", sign*tzHour*3600)
+			}
+			return time.Date(year, time.Month(month), day, hour, minute, second, subsecond, loc)
+		}
+	}
+	tzMinute, count = parseDigits(line, &i, 2)
+	loc := time.UTC
+	if tzHour != 0 || tzMinute != 0 {
+		loc = time.FixedZone("", sign*tzHour*3600+sign*tzMinute*60)
+	}
 	return time.Date(year, time.Month(month), day, hour, minute, second, subsecond, loc)
 }
 
-func parseDigits(line string, i *int, maxCount int) (int, int) {
-	val := 0
-	count := 0
-	n := len(line)
-	for count < maxCount && *i < n && '0' <= line[*i] && line[*i] <= '9' {
-		d := int(line[*i] - '0')
-		val = val*10 + d
-		*i++
+func parseDigits(line string, i *int, maxCount int) (val, count int) {
+	// Pre-calculate end boundary to avoid repeated len() calls
+	end := *i + maxCount
+	if end > len(line) {
+		end = len(line)
+	}
+
+	// Use direct slice indexing instead of repeated bounds checking
+	s := line[*i:end]
+	for j := 0; j < len(s); j++ {
+		c := s[j]
+		if c < '0' || c > '9' {
+			break
+		}
+		val = val*10 + int(c-'0')
 		count++
 	}
-	return val, count
+	*i += count
+	return
 }
 
 func builtin(line string) time.Time {
@@ -323,7 +384,7 @@ func regex(line string) time.Time {
 		if err == nil {
 			return ts
 		}
-		printErr("Error parsing timestamp: %v", err)
+		printErr("Error parsing timestamp: %v\n", err)
 	}
 
 	// Default to noTimestamp if no valid timestamp is found
