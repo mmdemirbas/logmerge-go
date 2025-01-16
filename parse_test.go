@@ -30,7 +30,7 @@ func TestParseTimestamp(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(TimestampParseMethod+"-"+tt.input, func(t *testing.T) {
+		t.Run(tt.input, func(t *testing.T) {
 			ts := ParseTimestamp(tt.input)
 			actual := ts.Format(time.RFC3339Nano)
 			assertStringEquals(t, tt.expected, actual, tt.input)

@@ -24,6 +24,7 @@
 
 - UX
   - Complete unit tests
+  - Use named return values to document code better and enjoy better autocomplete.
   - Add metrics - Processed lines / files, in/out throughput, speed, etc.
   - Add a progress bar based on processed size and file count
   - Decide a standard naming for binaries across all projects - Research

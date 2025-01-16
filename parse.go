@@ -2,39 +2,14 @@ package main
 
 import (
 	"bufio"
-	"os"
 	"time"
 )
 
 var (
-	// TimestampParseMethod is the method used to parse timestamps
-	TimestampParseMethod string
-
 	// Return the minimum time for the lines with no timestamp, so that those lines are listed first.
 	// Otherwise, we could miss the correct order for the upcoming lines with timestamps.
 	noTimestamp = time.Time{}
-
-	timeFormats = []string{
-		time.RFC3339,
-		"2006-01-02 15:04:05,000",
-		"2006-01-02 15:04:05-07:00",
-		"20060102 15:04:05.000000",      // Custom format (e.g., I20250115 19:29:15.463310)
-		"2006-01-02T15:04:05.000-07:00", // ISO 8601 with milliseconds and timezone
-		"2006-01-02 15:04:05,000 -07:00",
-		"2006-01-02T15:04:05,000-0700",
-		"2006-01-02 15:04:05", // Basic date-time without milliseconds
-		"06-1-2 15:04:05",     // Custom format (e.g., 25-1-15 19:11:07)
-	}
 )
-
-func init() {
-	if TimestampParseMethod == "" {
-		TimestampParseMethod = os.Getenv("TIMESTAMP_PARSE_METHOD")
-		if TimestampParseMethod == "" {
-			TimestampParseMethod = "manual"
-		}
-	}
-}
 
 func parseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 	if scanner.Scan() {
@@ -55,17 +30,7 @@ func ParseTimestamp(line string) time.Time {
 			printErr("Error parsing timestamp: %v at line: %s\n", err, line)
 		}
 	}()
-	switch TimestampParseMethod {
-	case "manual":
-		return manual(line)
-	case "builtin":
-		return builtin(line)
-	default:
-		panic("Unknown timestamp parsing method: " + TimestampParseMethod)
-	}
-}
 
-func manual(line string) time.Time {
 	// Early length check
 	if len(line) < 12 {
 		return noTimestamp
@@ -217,59 +182,4 @@ func parseDigits(line string, i *int, maxCount int) (val, count int) {
 	}
 	*i += count
 	return
-}
-
-func builtin(line string) time.Time {
-	// skip non digits to find the first digit
-	i := 0
-	n := len(line)
-	for i < n && (line[i] < '0' || line[i] > '9') {
-		i++
-	}
-
-	// skip allowed chars (0123456789TZ:.,+- and space) to find the end of the timestamp
-	j := i
-	// skip year
-	for j < n && ((line[j] >= '0' && line[j] <= '9') || line[j] == '-') {
-		j++
-	}
-	// skip date-time separator
-	if j < n && (line[j] == ' ' || line[j] == 'T') {
-		j++
-	}
-	// skip time without subsecond
-	for j < n && ((line[j] >= '0' && line[j] <= '9') || line[j] == '-' || line[j] == ':') {
-		j++
-	}
-	// skip subsecond
-	if j < n && (line[j] == '.' || line[j] == ',') {
-		j++
-		for j < n && (line[j] >= '0' && line[j] <= '9') {
-			j++
-		}
-	}
-	// skip offset sign
-	if j < n && (line[j] == 'Z') {
-		j++
-	} else if j < n && (line[j] == '+' || line[j] == '-') {
-		j++
-		// skip offset hour assuming two-digits
-		j += 2
-		// skip offset hour-minute separator
-		if j < n && line[j] == ':' {
-			j++
-		}
-		// skip offset minute assuming two-digits
-		j += 2
-	}
-
-	//parse the timestamp
-	if j > i {
-		for _, format := range timeFormats {
-			if ts, err := time.Parse(format, line[i:j]); err == nil {
-				return ts
-			}
-		}
-	}
-	return noTimestamp
 }

@@ -46,12 +46,6 @@ build:
 test:
     go test -v ./...
 
-# Run TestParseTimestamp test once for each timestamp parsing method
-[group("test")]
-test-all-methods:
-    TIMESTAMP_PARSE_METHOD=manual go test -v ./... -run TestParseTimestamp
-    TIMESTAMP_PARSE_METHOD=builtin go test -v ./... -run TestParseTimestamp
-
 # Run benchmark tests and capture CPU and memory profiles
 [group("test")]
 benchmark:
@@ -65,18 +59,12 @@ benchmark:
 
 # Run application
 [group("run")]
-run method="manual" run_name="default":
-    rm -rf {{ OUT_DIR }}/{{ run_name }}{{ method }}.out {{ OUT_DIR }}/{{ run_name }}{{ method }}.err  > /dev/null 2>&1 || true
-    mkdir -p {{ OUT_DIR }}/{{ run_name }}
+run run_name="default":
+    rm -rf {{ OUT_DIR }}/{{ run_name }}.out {{ OUT_DIR }}/{{ run_name }}.err  > /dev/null 2>&1 || true
+    mkdir -p {{ OUT_DIR }}
     go run $(ls *.go | grep -v _test.go) {{ RUN_ARGS }} \
-        > {{ OUT_DIR }}/{{ run_name }}/{{ method }}.out \
-        2> {{ OUT_DIR }}/{{ run_name }}/{{ method }}.err
-
-# Run application once for each timestamp parsing method
-[group("run")]
-run-all-methods:
-    TIMESTAMP_PARSE_METHOD=manual just run manual
-    TIMESTAMP_PARSE_METHOD=builtin just run builtin
+        > {{ OUT_DIR }}/{{ run_name }}.out \
+        2> {{ OUT_DIR }}/{{ run_name }}.err
 
 # Run application with profiling and capture CPU and memory profiles
 [group("run")]
