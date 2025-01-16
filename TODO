@@ -1,7 +1,35 @@
-- Testing
-  - Complete unit tests
+- Performance
+  - Avoid frequent string manipulations (e.g., fmt.Sprintf); use byte slices where possible.
+  - Avoid Time calculations. Just keep the parsed fields in a struct, which will be more efficient.
+  - Use byte slices ([]byte) instead of strings for parsing and I/O.
+  - Use sync.Pool to recycle buffers and reduce allocations.
+  - Use bufio with large buffer sizes for both reading and writing.
+  - Avoid allocations. Look for memory re-use opportunities.
+  - Experiment splitting files into chunks and sorting and merging in multiple steps.
+    BE CAREFUL! Do not break the data by adding intermediate file names by mistake!
+  - Read files concurrently
+  - Close files as soon as they are done
+  - Take max open file descriptor limit into account. If there are too many files, we couldn't open all of them simultaneously.
+    Consider using temporary intermediate files to store the sorted lines and merge them later using efficient algorithms
+    like merge sort.
+  - Create an alternative solution with sort and awk to compare performance.
+  - Lines could be exteremely long. Instead of reading line by line, read only necessary part to parse the timestamp.
+    Then read the rest of the line and following timestamp-less lines while transferring them to the output.
+    In that case we don't need extra memory or buffer. (maybe)
+  - Implement an alternative in Rust.
+  - Consider adaptive sorting like Timsort just like 'sort' command in Unix.
+    Depending on input size and distribution, tools dynamically choose between sorting algorithms
+    like quicksort, mergesort, or insertion sort.
+  - 'sort' and 'awk': Algorithms are optimized for CPU cache by working on small, contiguous chunks of data that fit in the L1/L2 cache.
 
-- User experience
+- UX
+  - Complete unit tests
+  - Add metrics - Processed lines / files, in/out throughput, speed, etc.
+  - Add a progress bar based on processed size and file count
+  - Decide a standard naming for binaries across all projects - Research
+  - Add method comments
+  - Write README - Document exact behaviour (how timestamp-less lines combined together and sorted first etc)
+  - Define install recipe in justfile to install the binary to the system (and uninstall maybe)
   - Make sure that the lines from the same file prioritized over the lines from other files if they have the same timestamp
     - This could go more complex:
       - If the lines from the same file have the same timestamp, they should be sorted by the order they appear in the file
@@ -9,10 +37,9 @@
         or by the order they have visited latest. So, the lines from the same files will be grouped together which makes following easier.
         We could keep track of frequencies etc maybe but this requires careful consideraton and we should avoid unnecessary complexity
         for a small unnoticable favor to user.
-  - Add a progress bar
-  - Add standard unix-style options (-h, -q, -v, etc.)
 
 - Customizations
+  - Add standard unix-style options (-h, -q, -v, etc.)
   - Multiple input paths
   - Dry-run
   - Write buffer size
@@ -28,33 +55,3 @@
   - Opt in to remove log level from raw line
   - Custom source name format
   - Custom timestamp format
-
-- Performance
-  - Avoid frequent string manipulations (e.g., fmt.Sprintf); use byte slices where possible.
-  - Avoid Time calculations. Just keep the parsed fields in a struct, which will be more efficient.
-  - Use byte slices ([]byte) instead of strings for parsing and I/O.
-  - Use sync.Pool to recycle buffers and reduce allocations.
-  - Use bufio with large buffer sizes for both reading and writing.
-  - Avoid allocations. Look for memory re-use opportunities.
-  - Experiment splitting files into chunks and sorting and merging in multiple steps.
-  - Read files concurrently
-  - Close files as soon as they are done
-  - Take max open file descriptor limit into account. If there are too many files, we couldn't open all of them simultaneously.
-    Consider using temporary intermediate files to store the sorted lines and merge them later using efficient algorithms
-    like merge sort.
-  - Create an alternative solution with sort and awk to compare performance.
-  - Lines could be exteremely log. Instead of reading line by line, read only necessary to parse the timestamp.
-    Then read the rest of the line and following timestamp-less lines while transferring them to the output.
-    In that case we don't need extra memory or buffer. (maybe)
-  - Implement an alternative in Rust.
-  - Consider adaptive sorting like Timsort just like 'sort' command in Unix.
-    Depending on input size and distribution, tools dynamically choose between sorting algorithms
-    like quicksort, mergesort, or insertion sort.
-  - 'sort' and 'awk': Algorithms are optimized for CPU cache by working on small, contiguous chunks of data that fit in the L1/L2 cache.
-
-- Developer experience
-  - Add metrics - Processed lines / files, in/out throughput, speed, etc.
-  - Decide a standard naming for binaries across all projects - Research
-  - Add method comments
-  - Write README - Document exact behaviour (how timestamp-less lines combined together and sorted first etc)
-  - Define install recipe in justfile to install the binary to the system (and uninstall maybe)
