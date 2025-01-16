@@ -10,9 +10,8 @@ import (
 )
 
 const (
-	totalReadBufferSize    = 1024 * 1024 * 10
-	writeBufferSize        = 1024 * 1024 * 10
-	maxConcurrentFileCount = 100
+	totalReadBufferSize = 1024 * 1024 * 500
+	writeBufferSize     = 1024 * 1024 * 100
 )
 
 func mergeLogs(basePath string) error {
@@ -97,16 +96,9 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 
 		outputName := outputNames[sourceName]
 
-		var timeString string
-		if current.Timestamp == noTimestamp {
-			timeString = ""
-		} else {
-			timeString = current.Timestamp.Format(time.RFC3339)
-		}
-
-		writeOut(writer, timeString, maxOutputNameLen, outputName, current.RawLine)
+		writeOut(writer, current.Timestamp, maxOutputNameLen, outputName, current.RawLine)
 		for _, line := range aggregatedLines {
-			writeOut(writer, "", maxOutputNameLen, outputName, line)
+			writeOut(writer, noTimestamp, maxOutputNameLen, outputName, line)
 		}
 
 		// Put the current line to the heap
@@ -116,9 +108,26 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 	}
 }
 
-func writeOut(writer *bufio.Writer, timeString string, maxOutputNameLen int, outputName string, logLine string) {
-	_, err := writer.WriteString(fmt.Sprintf("%-25s %-*s | %s\n", timeString, maxOutputNameLen, outputName, logLine))
-	if err != nil {
-		panic(fmt.Sprintf("failed to write to stdout: %v", err))
+func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, outputName string, logLine string) {
+	// format: fmt.Sprintf("%-25s %-*s | %s\n", timeString, maxOutputNameLen, outputName, logLine)
+	var timeString string
+	if timestamp == noTimestamp {
+		timeString = ""
+	} else {
+		timeString = timestamp.Format(time.RFC3339)
 	}
+	writer.WriteString(timeString)
+	padLen := 25 - len(timeString)
+	for i := 0; i < padLen; i++ {
+		writer.WriteRune(' ')
+	}
+	writer.WriteString(" ")
+	writer.WriteString(outputName)
+	padLen = maxOutputNameLen - len(outputName)
+	for i := 0; i < padLen; i++ {
+		writer.WriteRune(' ')
+	}
+	writer.WriteString(" | ")
+	writer.WriteString(logLine)
+	writer.WriteRune('\n')
 }
