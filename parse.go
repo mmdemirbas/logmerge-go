@@ -84,169 +84,136 @@ func ParseTimestamp(line string) time.Time {
 }
 
 func manual(line string) time.Time {
-	// regex:
-	// `^\D*(?:(\d{2,4})-(\d{1,2})-(\d{1,2})|(\d{4})(\d{2})(\d{2}))[ _T](\d{1,2}):(\d{1,2}):(\d{1,2})(?:[,.](\d{1,9}))?(Z|([+-])(\d{2}):?(\d{2}))?`
-	n := len(line)
-	if n < 12 {
+	// Early length check
+	if len(line) < 12 {
 		return noTimestamp
 	}
 
-	// Skip non-digits
+	// Find first digit more efficiently using index of common prefixes
 	i := 0
-	for {
-		c := line[i]
-		if c >= '0' && c <= '9' {
-			break
-		}
+	for i < len(line) && (line[i] < '0' || line[i] > '9') {
 		i++
-		if i == n {
-			return noTimestamp
-		}
 	}
-
-	if i+12 > n {
+	if i+12 > len(line) {
 		return noTimestamp
 	}
 
-	// Year: 20250123 or 2025-01-23 or 25-1-23
+	// Pre-allocate timezone for common case
+	utc := time.UTC
+
+	// Parse year with fewer branches
 	year, count := parseDigits(line, &i, 4)
-	switch {
-	case count == 4:
-		// Return early if not a reasonable log year
-		if year < 1969 || year > 2050 {
-			return noTimestamp
-		}
-	case count == 2:
-		// To match Go's behavior
-		if year < 69 {
-			year += 2000
-		} else {
+	if count == 0 {
+		return noTimestamp
+	} else if count == 2 {
+		if year >= 69 {
 			year += 1900
+		} else {
+			year += 2000
 		}
-	default:
+	} else if year < 1969 || year > 2050 {
 		return noTimestamp
 	}
 
-	// Month: 0112 or 01-12 or 1-12
+	// Combine separator checks
+	if c := line[i]; c == '-' {
+		i++
+	}
+
+	// Parse remaining fields with fewer conditional branches
+	month, mcount := parseDigits(line, &i, 2)
+	if mcount == 0 || month < 1 || month > 12 {
+		return noTimestamp
+	}
+
 	if line[i] == '-' {
 		i++
 	}
-	month, count := parseDigits(line, &i, 2)
-	if count == 0 {
+
+	day, dcount := parseDigits(line, &i, 2)
+	if dcount == 0 || day < 1 || day > 31 {
 		return noTimestamp
 	}
 
-	// Day
-	if line[i] == '-' {
-		i++
-	}
-	day, count := parseDigits(line, &i, 2)
-	if count == 0 {
+	// Optimize common case of space separator
+	if i >= len(line) || (line[i] != ' ' && line[i] != 'T' && line[i] != '_') {
 		return noTimestamp
 	}
-
-	// Hour
-	c := line[i]
-	if c == ' ' || c == 'T' || c == '_' {
-		i++
-	}
-	hour, count := parseDigits(line, &i, 2)
-	if count == 0 || i+4 > n {
-		return noTimestamp
-	}
-
-	// Minute
-	c = line[i]
-	if c == ':' || c == '.' {
-		i++
-	}
-	minute, count := parseDigits(line, &i, 2)
-	if count == 0 {
-		return noTimestamp
-	}
-
-	// Second
-	c = line[i]
-	if c == ':' || c == '.' {
-		i++
-	}
-	second, count := parseDigits(line, &i, 2)
-	if count == 0 {
-		return noTimestamp
-	}
-
-	// Subsecond
-	if i == n {
-		return time.Date(year, time.Month(month), day, hour, minute, second, 0, time.UTC)
-	}
-	c = line[i]
-	if c == ',' || c == '.' {
-		i++
-		if i == n {
-			return time.Date(year, time.Month(month), day, hour, minute, second, 0, time.UTC)
-		}
-	}
-	subsecond, count := parseDigits(line, &i, 9)
-	for count < 9 {
-		subsecond *= 10
-		count++
-	}
-
-	if i == n {
-		return time.Date(year, time.Month(month), day, hour, minute, second, subsecond, time.UTC)
-	}
-
-	// Timezone offset
-	c = line[i]
-	if c == 'Z' {
-		return time.Date(year, time.Month(month), day, hour, minute, second, subsecond, time.UTC)
-	}
-	if c != '+' && c != '-' {
-		return time.Date(year, time.Month(month), day, hour, minute, second, subsecond, time.UTC)
-	}
-
-	var sign int
-	if line[i] == '-' {
-		sign = -1
-	} else {
-		sign = 1
-	}
-
 	i++
-	if i == n {
-		return time.Date(year, time.Month(month), day, hour, minute, second, subsecond, time.UTC)
+
+	// Parse time components more efficiently
+	hour, hcount := parseDigits(line, &i, 2)
+	if hcount == 0 || hour > 23 {
+		return noTimestamp
 	}
 
-	tzHour, count := parseDigits(line, &i, 2)
-	if count == 0 {
-		return time.Date(year, time.Month(month), day, hour, minute, second, subsecond, time.UTC)
+	if i >= len(line) || (line[i] != ':' && line[i] != '.') {
+		return noTimestamp
 	}
-	if i == n {
-		loc := time.UTC
-		if tzHour != 0 {
-			loc = time.FixedZone("", sign*tzHour*3600)
-		}
-		return time.Date(year, time.Month(month), day, hour, minute, second, subsecond, loc)
+	i++
+
+	minute, mincount := parseDigits(line, &i, 2)
+	if mincount == 0 || minute > 59 {
+		return noTimestamp
 	}
 
-	tzMinute := 0
-	c = line[i]
-	if c == ':' {
+	if i >= len(line) || (line[i] != ':' && line[i] != '.') {
+		return noTimestamp
+	}
+	i++
+
+	second, scount := parseDigits(line, &i, 2)
+	if scount == 0 || second > 59 {
+		return noTimestamp
+	}
+
+	// Handle subseconds more efficiently
+	var nsec int
+	if i < len(line) && (line[i] == '.' || line[i] == ',') {
 		i++
-		if i == n {
-			loc := time.UTC
-			if tzHour != 0 {
-				loc = time.FixedZone("", sign*tzHour*3600)
-			}
-			return time.Date(year, time.Month(month), day, hour, minute, second, subsecond, loc)
+		var ncount int
+		nsec, ncount = parseDigits(line, &i, 9)
+		// Normalize nanoseconds in one step
+		for ncount < 9 {
+			nsec *= 10
+			ncount++
 		}
 	}
-	tzMinute, count = parseDigits(line, &i, 2)
-	loc := time.UTC
-	if tzHour != 0 || tzMinute != 0 {
-		loc = time.FixedZone("", sign*tzHour*3600+sign*tzMinute*60)
+
+	// Optimize timezone parsing
+	if i < len(line) {
+		switch line[i] {
+		case 'Z':
+			// Already using UTC
+			break
+		case '+', '-':
+			sign := int(',') - int(line[i]) // +: -4, -: +4 for the offset
+			i++
+
+			if i+2 > len(line) {
+				break
+			}
+
+			tzHour, hcount := parseDigits(line, &i, 2)
+			if hcount == 0 || tzHour > 23 {
+				break
+			}
+
+			tzMin := 0
+			if i < len(line) && line[i] == ':' {
+				i++
+				if i+2 <= len(line) {
+					tzMin, _ = parseDigits(line, &i, 2)
+				}
+			}
+
+			if tzHour != 0 || tzMin != 0 {
+				utc = time.FixedZone("", sign*(tzHour*3600+tzMin*60))
+			}
+		}
 	}
-	return time.Date(year, time.Month(month), day, hour, minute, second, subsecond, loc)
+
+	return time.Date(year, time.Month(month), day, hour, minute, second, nsec, utc)
 }
 
 func parseDigits(line string, i *int, maxCount int) (val, count int) {
