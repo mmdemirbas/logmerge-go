@@ -109,25 +109,42 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 }
 
 func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, outputName string, logLine string) {
-	// format: fmt.Sprintf("%-25s %-*s | %s\n", timeString, maxOutputNameLen, outputName, logLine)
-	var timeString string
-	if timestamp == noTimestamp {
-		timeString = ""
+	// Preallocate a buffer to avoid multiple small writes
+	// Initial size: 25 (timestamp) + 1 (space) + maxOutputNameLen + 3 ( | ) + len(logLine) + 1 (\n)
+	bufSize := 30 + maxOutputNameLen + len(logLine)
+	buf := make([]byte, 0, bufSize)
+
+	// Handle timestamp
+	if timestamp != noTimestamp {
+		// RFC3339 is always 25 bytes or less
+		buf = timestamp.AppendFormat(buf, time.RFC3339)
+		// Pad to 25 characters
+		for i := len(buf); i < 25; i++ {
+			buf = append(buf, ' ')
+		}
 	} else {
-		timeString = timestamp.Format(time.RFC3339)
+		// No timestamp case - just add 25 spaces
+		buf = append(buf, "                         "...)
 	}
-	writer.WriteString(timeString)
-	padLen := 25 - len(timeString)
-	for i := 0; i < padLen; i++ {
-		writer.WriteRune(' ')
+
+	// Add space after timestamp
+	buf = append(buf, ' ')
+
+	// Add output name
+	buf = append(buf, outputName...)
+
+	// Pad output name
+	for i := len(outputName); i < maxOutputNameLen; i++ {
+		buf = append(buf, ' ')
 	}
-	writer.WriteString(" ")
-	writer.WriteString(outputName)
-	padLen = maxOutputNameLen - len(outputName)
-	for i := 0; i < padLen; i++ {
-		writer.WriteRune(' ')
-	}
-	writer.WriteString(" | ")
-	writer.WriteString(logLine)
-	writer.WriteRune('\n')
+
+	// Add separator
+	buf = append(buf, ' ', '|', ' ')
+
+	// Add log line and newline
+	buf = append(buf, logLine...)
+	buf = append(buf, '\n')
+
+	// Single write operation
+	writer.Write(buf)
 }
