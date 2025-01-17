@@ -13,9 +13,12 @@ import (
 const (
 	totalReadBufferSize = 1024 * 1024 * 500
 	writeBufferSize     = 1024 * 1024 * 100
+	includeTimestamp    = false
+	includeOutputName   = false
 )
 
 var (
+	// TODO: Buffer is used only for output and not shared between goroutines. So we could remove the sync.Pool and use a slice directly as a buffer.
 	bufferPool = sync.Pool{
 		New: func() interface{} {
 			return make([]byte, 0, 4096) // typical line size
@@ -121,37 +124,36 @@ func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, o
 	buf := bufferPool.Get().([]byte)
 	buf = buf[:0] // reset buffer
 
-	//// Preallocate a buffer to avoid multiple small writes
-	//// Initial size: 25 (timestamp) + 1 (space) + maxOutputNameLen + 3 ( | ) + len(logLine) + 1 (\n)
-	//bufSize := 30 + maxOutputNameLen + len(logLine)
-	//buf := make([]byte, 0, bufSize)
-
-	// Handle timestamp
-	if timestamp != noTimestamp {
-		// RFC3339 is always 25 bytes or less
-		buf = timestamp.AppendFormat(buf, time.RFC3339)
-		// Pad to 25 characters
-		for i := len(buf); i < 25; i++ {
-			buf = append(buf, ' ')
+	if includeTimestamp {
+		// Handle timestamp
+		if timestamp != noTimestamp {
+			// RFC3339 is always 25 bytes or less
+			buf = timestamp.AppendFormat(buf, time.RFC3339)
+			// Pad to 25 characters
+			for i := len(buf); i < 25; i++ {
+				buf = append(buf, ' ')
+			}
+		} else {
+			// No timestamp case - just add 25 spaces
+			buf = append(buf, "                         "...)
 		}
-	} else {
-		// No timestamp case - just add 25 spaces
-		buf = append(buf, "                         "...)
-	}
 
-	// Add space after timestamp
-	buf = append(buf, ' ')
-
-	// Add output name
-	buf = append(buf, outputName...)
-
-	// Pad output name
-	for i := len(outputName); i < maxOutputNameLen; i++ {
+		// Add space after timestamp
 		buf = append(buf, ' ')
 	}
 
-	// Add separator
-	buf = append(buf, ' ', '|', ' ')
+	if includeOutputName {
+		// Add output name
+		buf = append(buf, outputName...)
+
+		// Pad output name
+		for i := len(outputName); i < maxOutputNameLen; i++ {
+			buf = append(buf, ' ')
+		}
+
+		// Add separator
+		buf = append(buf, ' ', '-', ' ')
+	}
 
 	// Add log line and newline
 	buf = append(buf, logLine...)

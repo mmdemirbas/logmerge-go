@@ -6,6 +6,7 @@ BINARY_NAME := "logmerge"
 
 BIN_DIR := "bin"
 OUT_DIR := "out"
+LOG_DIR := "log"
 CPU_PROF_FILE := "cpu.prof"
 MEM_PROF_FILE := "mem.prof"
 TRACE_FILE := "trace.out"
@@ -60,16 +61,15 @@ benchmark:
 # Run application
 [group("run")]
 run run_name="default":
-    rm -rf {{ OUT_DIR }}/{{ run_name }}  > /dev/null 2>&1 || true
-    mkdir -p {{ OUT_DIR }}/{{ run_name }}
+    rm -rf {{ LOG_DIR }}/{{ run_name }}  > /dev/null 2>&1 || true
+    mkdir -p {{ LOG_DIR }}/{{ run_name }}
     go run $(ls *.go | grep -v _test.go) {{ RUN_ARGS }} \
-        > {{ OUT_DIR }}/{{ run_name }}/manual.out \
-        2> {{ OUT_DIR }}/{{ run_name }}/manual.err
+        > {{ LOG_DIR }}/{{ run_name }}/manual.out \
+        2> {{ LOG_DIR }}/{{ run_name }}/manual.err
 
 # Run application with profiling and capture CPU and memory profiles
 [group("run")]
 profile:
-    mkdir -p {{ OUT_DIR }}
     ENABLE_PPROF=true just run manual
 
 # Browse captured CPU profile in a web browser

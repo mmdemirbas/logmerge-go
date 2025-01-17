@@ -1,3 +1,6 @@
+- BUG
+  - SOME LINES ARE SKIPPED!!!
+
 - Performance
   - Avoid frequent string manipulations (e.g., fmt.Sprintf); use byte slices where possible.
   - Avoid Time calculations. Just keep the parsed fields in a struct, which will be more efficient.
@@ -23,6 +26,7 @@
   - 'sort' and 'awk': Algorithms are optimized for CPU cache by working on small, contiguous chunks of data that fit in the L1/L2 cache.
 
 - UX
+  - Aggressively simplify the code so we can easily implement advanced algorithms and features in the future.
   - Complete unit tests
   - Use named return values to document code better and enjoy better autocomplete.
   - Add metrics - Processed lines / files, in/out throughput, speed, etc.
