@@ -81,11 +81,6 @@ func mergeFiles(basePath string, files []string) error {
 func MergeScanners(sourceNames []string, outputNames map[string]string, scanners map[string]*bufio.Scanner) {
 	writer := bufio.NewWriterSize(os.Stdout, writeBufferSize)
 	defer writer.Flush()
-
-	// Initialize heap
-	h := &MinHeap{}
-	heap.Init(h)
-
 	// Calculate max output name length
 	maxOutputNameLen := 0
 	for _, outputName := range outputNames {
@@ -93,6 +88,10 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 			maxOutputNameLen = len(outputName)
 		}
 	}
+
+	// Initialize heap
+	h := &MinHeap{}
+	heap.Init(h)
 
 	// Populate heap with the first entry from each file
 	for _, sourceName := range sourceNames {
@@ -106,24 +105,16 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 	// Merge logs
 	for h.Len() > 0 {
 		current := heap.Pop(h).(*LogLine)
-
-		// TODO: Eliminate aggregatedLines by directly writing to the output buffer
+		sourceName := current.SourceName
+		outputName := outputNames[sourceName]
+		scanner := scanners[sourceName]
+		writeOut(writer, current.Timestamp, maxOutputNameLen, outputName, current.RawLine)
 
 		// Aggregate lines until finding a timestamped line from the same source
-		var aggregatedLines []string
-		sourceName := current.SourceName
-		scanner := scanners[sourceName]
 		next := ParseLine(sourceName, scanner)
 		for next != nil && next.Timestamp == noTimestamp {
-			aggregatedLines = append(aggregatedLines, next.RawLine)
+			writeOut(writer, noTimestamp, maxOutputNameLen, outputName, next.RawLine)
 			next = ParseLine(sourceName, scanner)
-		}
-
-		outputName := outputNames[sourceName]
-
-		writeOut(writer, current.Timestamp, maxOutputNameLen, outputName, current.RawLine)
-		for _, line := range aggregatedLines {
-			writeOut(writer, noTimestamp, maxOutputNameLen, outputName, line)
 		}
 
 		// Put the current line to the heap

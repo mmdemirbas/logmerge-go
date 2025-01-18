@@ -62,10 +62,14 @@ benchmark:
 [group("run")]
 run run_name="default":
     rm -rf {{ LOG_DIR }}/{{ run_name }}  > /dev/null 2>&1 || true
-    mkdir -p {{ LOG_DIR }}/{{ run_name }}
-    go run $(ls *.go | grep -v _test.go) {{ RUN_ARGS }} \
+    mkdir -p {{ LOG_DIR }}/{{ run_name }} {{ BIN_DIR }}
+    go build -ldflags="-s -w" -o {{ BIN_DIR }}/{{ BINARY_NAME }} *.go
+    {{ BIN_DIR }}/{{ BINARY_NAME }} {{ RUN_ARGS }} \
         > {{ LOG_DIR }}/{{ run_name }}/manual.out \
         2> {{ LOG_DIR }}/{{ run_name }}/manual.err
+#    go run $(ls *.go | grep -v _test.go) {{ RUN_ARGS }} \
+#        > {{ LOG_DIR }}/{{ run_name }}/manual.out \
+#        2> {{ LOG_DIR }}/{{ run_name }}/manual.err
 
 # Run application with profiling and capture CPU and memory profiles
 [group("run")]
