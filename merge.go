@@ -21,7 +21,7 @@ var (
 	// TODO: Buffer is used only for output and not shared between goroutines. So we could remove the sync.Pool and use a slice directly as a buffer.
 	bufferPool = sync.Pool{
 		New: func() interface{} {
-			return make([]byte, 0, 4096) // typical line size
+			return make([]byte, 0, 100*1024)
 		},
 	}
 )
@@ -161,7 +161,6 @@ func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, o
 	}
 
 	// Add log line and newline
-	// FIXME: Maybe rest of the line could be bigger than the buffer. It must be chunked
 	bufStart := len(buf)
 	buf = append(buf, logLine...)
 	buf = append(buf, '\n')
