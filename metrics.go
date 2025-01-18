@@ -47,10 +47,6 @@ var (
 	LinesRead              int64
 	LinesWithTimestamps    int64
 	LinesWithoutTimestamps int64
-
-	// Measurement overhead
-
-	MeasureDurationCallCount int64
 )
 
 func MeasureStart() time.Time {
@@ -65,7 +61,6 @@ func MeasureDuration(f func()) (duration int64) {
 	startTime := MeasureStart()
 	f()
 	duration = MeasureEnd(startTime)
-	MeasureDurationCallCount++
 	return
 }
 
@@ -106,20 +101,6 @@ func PrintMetrics(basePath *string, err error) {
 	fmt.Fprintf(os.Stderr, "  lines read        : %12d ≈ %s\n", LinesRead, countSpeed(LinesRead))
 	fmt.Fprintf(os.Stderr, "  lines with ts     : %12d ~ %s\n", LinesWithTimestamps, percent(LinesWithTimestamps, LinesRead))
 	fmt.Fprintf(os.Stderr, "  lines without ts  : %12d ~ %s\n", LinesWithoutTimestamps, percent(LinesWithoutTimestamps, LinesRead))
-	fmt.Fprintf(os.Stderr, "Overhead:\n")
-	var (
-		callCount       = 1_000_000
-		totalTime int64 = 0
-	)
-	for i := 0; i < callCount; i++ {
-		totalTime += MeasureDuration(func() {
-			time.Now()
-		})
-	}
-	averageTime := totalTime / int64(callCount)
-	fmt.Fprintf(os.Stderr, "  measure call cnt : %12d\n", MeasureDurationCallCount)
-	fmt.Fprintf(os.Stderr, "  time.Now() avg.  : %12v\n", averageTime)
-	fmt.Fprintf(os.Stderr, "  estimate overhead: %12v ~ %s\n", 2*averageTime*MeasureDurationCallCount, timePercent(2*averageTime*MeasureDurationCallCount))
 	fmt.Fprintf(os.Stderr, "===============================================================================================\n")
 	fmt.Fprintf(os.Stderr, "File list (%d files):\n", len(MatchedFiles))
 	for i, file := range MatchedFiles {
