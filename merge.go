@@ -119,21 +119,19 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 		current := heap.Pop(h).(*LogLine)
 		HeapPopDuration += MeasureSince(startOfHeapPop)
 
-		startOfWriteFirstLine := time.Now()
+		startOfInnerReadWrite := time.Now()
 		sourceName := current.SourceName
 		outputName := outputNames[sourceName]
 		scanner := scanners[sourceName]
 		writeOut(writer, current.Timestamp, outputName, current.RawLine)
-		WriteFirstLineDuration += MeasureSince(startOfWriteFirstLine)
 
 		// Aggregate lines until finding a timestamped line from the same source
-		startOfWriteNextLines := time.Now()
 		next := ParseLine(sourceName, scanner)
 		for next != nil && next.Timestamp == noTimestamp {
 			writeOut(writer, noTimestamp, outputName, next.RawLine)
 			next = ParseLine(sourceName, scanner)
 		}
-		WriteNextLinesDuration += MeasureSince(startOfWriteNextLines)
+		InnerReadWriteDuration += MeasureSince(startOfInnerReadWrite)
 
 		// Put the current line to the heap
 		if next != nil {

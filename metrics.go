@@ -30,10 +30,9 @@ var (
 	HeapInitDuration             int64
 	HeapPopulateDuration         int64
 	MergeLoopDuration            int64
-	WriteFirstLineDuration       int64
-	WriteNextLinesDuration       int64
-	InnerHeapPushDuration        int64
 	HeapPopDuration              int64
+	InnerReadWriteDuration       int64
+	InnerHeapPushDuration        int64
 	ParseTimestampDuration       int64
 	WriteLineDuration            int64
 	AppendFormatDuration         int64
@@ -68,7 +67,7 @@ func MeasureSince(startNanos time.Time) int64 {
 func PrintMetrics(basePath *string, err error) {
 	restOfMainDuration := TotalMainDuration - (ParseOptionsDuration + ListFilesDuration + OpenFilesDuration + MergeScannersDuration)
 	restOfMergeScannersDuration := MergeScannersDuration - (NewWriterDuration + MaxOutputNameLenCalcDuration + HeapInitDuration + +HeapPopulateDuration + MergeLoopDuration)
-	restOfMergeLoopDuration := MergeLoopDuration - (HeapPopDuration + WriteFirstLineDuration + WriteNextLinesDuration + InnerHeapPushDuration)
+	restOfMergeLoopDuration := MergeLoopDuration - (HeapPopDuration + InnerReadWriteDuration + InnerHeapPushDuration)
 	restOfMergeScannersBreakdownDuration := MergeScannersDuration - (ParseTimestampDuration + WriteLineDuration)
 	writtenBytesOverhead := BytesWrittenForTimestamps + BytesWrittenForOutputNames
 	writtenBytes := BytesWrittenForRawLines + writtenBytesOverhead
@@ -93,8 +92,7 @@ func PrintMetrics(basePath *string, err error) {
 	fmt.Fprintf(os.Stderr, "    heap populate       : %8s ~ %12v\n", timePercent(HeapPopulateDuration), duration(HeapPopulateDuration))
 	fmt.Fprintf(os.Stderr, "    merge loop          : %8s ~ %12v\n", timePercent(MergeLoopDuration), duration(MergeLoopDuration))
 	fmt.Fprintf(os.Stderr, "      heap pop          : %8s ~ %12v\n", timePercent(HeapPopDuration), duration(HeapPopDuration))
-	fmt.Fprintf(os.Stderr, "      write first line  : %8s ~ %12v\n", timePercent(WriteFirstLineDuration), duration(WriteFirstLineDuration))
-	fmt.Fprintf(os.Stderr, "      write next lines  : %8s ~ %12v\n", timePercent(WriteNextLinesDuration), duration(WriteNextLinesDuration))
+	fmt.Fprintf(os.Stderr, "      read/write        : %8s ~ %12v\n", timePercent(InnerReadWriteDuration), duration(InnerReadWriteDuration))
 	fmt.Fprintf(os.Stderr, "      inner heap push   : %8s ~ %12v\n", timePercent(InnerHeapPushDuration), duration(InnerHeapPushDuration))
 	fmt.Fprintf(os.Stderr, "      rest..            : %8s ~ %12v\n", timePercent(restOfMergeLoopDuration), duration(restOfMergeLoopDuration))
 	fmt.Fprintf(os.Stderr, "    rest..              : %8s ~ %12v\n", timePercent(restOfMergeScannersDuration), duration(restOfMergeScannersDuration))
