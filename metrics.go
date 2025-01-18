@@ -53,15 +53,8 @@ func MeasureStart() time.Time {
 	return time.Now()
 }
 
-func MeasureEnd(startNanos time.Time) int64 {
+func MeasureSince(startNanos time.Time) int64 {
 	return time.Since(startNanos).Nanoseconds()
-}
-
-func MeasureDuration(f func()) (duration int64) {
-	startTime := MeasureStart()
-	f()
-	duration = MeasureEnd(startTime)
-	return
 }
 
 func PrintMetrics(basePath *string, err error) {

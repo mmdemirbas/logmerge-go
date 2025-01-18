@@ -13,46 +13,40 @@ var (
 	includedLenientSuffixes = []string{".log", ".err", ".error", ".warn", ".warning", ".info", ".txt", ".out", ".debug", ".trace"}
 )
 
-func ListFiles(basePath string) ([]string, error) {
-	var (
-		files []string
-		err   error
-	)
+func ListFiles(basePath string) (files []string, err error) {
+	startOfListFiles := MeasureStart()
 
-	ListFilesDuration = MeasureDuration(func() {
-		stat, err1 := os.Stat(basePath)
-		err = err1
-		if err != nil {
-			return
-		}
-		switch {
-		case stat.IsDir():
-			err = filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
-				if err != nil {
-					return err
-				}
-				if info.IsDir() {
-					DirsScanned++
-				} else {
-					FilesScanned++
-					if ShouldIncludeFile(path) {
-						FilesMatched++
-						files = append(files, path)
-					}
-				}
-				return nil
-			})
-		default:
-			FilesScanned++
-			if ShouldIncludeFile(basePath) {
-				FilesMatched++
-				files = append(files, basePath)
+	stat, err := os.Stat(basePath)
+
+	switch {
+	case err != nil:
+	case stat.IsDir():
+		err = filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
 			}
+			if info.IsDir() {
+				DirsScanned++
+			} else {
+				FilesScanned++
+				if ShouldIncludeFile(path) {
+					FilesMatched++
+					files = append(files, path)
+				}
+			}
+			return nil
+		})
+	default:
+		FilesScanned++
+		if ShouldIncludeFile(basePath) {
+			FilesMatched++
+			files = append(files, basePath)
 		}
-	})
+	}
 
 	MatchedFiles = files
-	return files, err
+	ListFilesDuration = MeasureSince(startOfListFiles)
+	return
 }
 
 func ShouldIncludeFile(filePath string) bool {

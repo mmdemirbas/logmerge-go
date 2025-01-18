@@ -17,44 +17,47 @@ func ParseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 
 	// TODO: Read only enough chars to parse the timestamp, will remove need to read buffers maybe.
 
+	startOfParseLineFull := MeasureStart()
+
 	var (
 		line      string
 		scan      bool
 		timestamp time.Time
 		result    *LogLine = nil
 	)
-	ParseLineFullDuration += MeasureDuration(func() {
-		ReadLineDuration += MeasureDuration(func() {
-			if scanner.Scan() {
-				scan = true
-				line = scanner.Text()
-			} else {
-				scan = false
-				line = ""
-			}
-		})
-		if scan {
-			ReadLinePostDuration += MeasureDuration(func() {
-				LinesRead++
-				BytesRead += int64(len(line))
+	if scanner.Scan() {
+		scan = true
+		line = scanner.Text()
+	} else {
+		scan = false
+		line = ""
+	}
+	ReadLineDuration += MeasureSince(startOfParseLineFull)
 
-				ParseTimestampDuration += MeasureDuration(func() {
-					timestamp = ParseTimestamp(line)
-				})
+	if scan {
+		startOfReadLinePost := MeasureStart()
 
-				if timestamp.Equal(noTimestamp) {
-					LinesWithoutTimestamps++
-				} else {
-					LinesWithTimestamps++
-				}
-				result = &LogLine{
-					Timestamp:  timestamp,
-					SourceName: sourceName,
-					RawLine:    line,
-				}
-			})
+		LinesRead++
+		BytesRead += int64(len(line))
+
+		startOfParseTimestamp := MeasureStart()
+		timestamp = ParseTimestamp(line)
+		ParseTimestampDuration += MeasureSince(startOfParseTimestamp)
+
+		if timestamp.Equal(noTimestamp) {
+			LinesWithoutTimestamps++
+		} else {
+			LinesWithTimestamps++
 		}
-	})
+		result = &LogLine{
+			Timestamp:  timestamp,
+			SourceName: sourceName,
+			RawLine:    line,
+		}
+
+		ReadLinePostDuration += MeasureSince(startOfReadLinePost)
+	}
+	ParseLineFullDuration += MeasureSince(startOfParseLineFull)
 
 	return result
 }

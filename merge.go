@@ -36,45 +36,39 @@ func MergeLogs(basePath string) error {
 }
 
 func mergeFiles(basePath string, files []string) error {
+	startOfOpenFiles := MeasureStart()
+
 	var (
-		err         error
 		outputNames = make(map[string]string)
 		scanners    = make(map[string]*bufio.Scanner)
 		fileHandles = make(map[string]*os.File)
 	)
-	OpenFilesDuration = MeasureDuration(func() {
-		for _, file := range files {
-			relativePath, err1 := filepath.Rel(basePath, file)
-			if err1 != nil {
-				err = fmt.Errorf("failed to calculate relative path for file %s: %v", file, err1)
-				return
-			}
-
-			f, err1 := os.Open(file)
-			if err1 != nil {
-				err = fmt.Errorf("failed to open file %s: %v", file, err1)
-				return
-			}
-
-			outputNames[file] = relativePath
-			scanners[file] = bufio.NewScanner(bufio.NewReaderSize(f, totalReadBufferSize/len(files)))
-			fileHandles[file] = f
+	for _, file := range files {
+		relativePath, err := filepath.Rel(basePath, file)
+		if err != nil {
+			return fmt.Errorf("failed to calculate relative path for file %s: %v", file, err)
 		}
-	})
-	if err != nil {
-		return err
-	}
 
+		f, err := os.Open(file)
+		if err != nil {
+			return fmt.Errorf("failed to open file %s: %v", file, err)
+		}
+
+		outputNames[file] = relativePath
+		scanners[file] = bufio.NewScanner(bufio.NewReaderSize(f, totalReadBufferSize/len(files)))
+		fileHandles[file] = f
+	}
 	defer func() {
 		for _, f := range fileHandles {
 			_ = f.Close()
 		}
 	}()
+	OpenFilesDuration = MeasureSince(startOfOpenFiles)
 
-	// TODO: Consider simplifying metric collection codes like: err := AddMetric(&MetricName, func() error { ... })
-	MergeScannersDuration = MeasureDuration(func() {
-		MergeScanners(files, outputNames, scanners)
-	})
+	startOfMergeScanners := MeasureStart()
+	MergeScanners(files, outputNames, scanners)
+	MergeScannersDuration = MeasureSince(startOfMergeScanners)
+
 	return nil
 }
 
@@ -125,58 +119,60 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 }
 
 func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, outputName string, logLine string) {
-	WriteLineDuration += MeasureDuration(func() {
-		buf := bufferPool.Get().([]byte)
-		buf = buf[:0] // reset buffer
+	startOfWriteLine := MeasureStart()
 
-		if includeTimestamp {
-			// Handle timestamp
-			bufStart := len(buf)
-			if timestamp != noTimestamp {
-				// RFC3339 is always 25 bytes or less
-				buf = timestamp.AppendFormat(buf, time.RFC3339)
-				// Pad to 25 characters
-				for i := len(buf); i < 25; i++ {
-					buf = append(buf, ' ')
-				}
-			} else {
-				// No timestamp case - just add 25 spaces
-				buf = append(buf, "                         "...)
-			}
+	buf := bufferPool.Get().([]byte)
+	buf = buf[:0] // reset buffer
 
-			// Add space after timestamp
-			buf = append(buf, ' ')
-			BytesWrittenForTimestamps += int64(len(buf) - bufStart)
-		}
-
-		if includeOutputName {
-			// Add output name
-			bufStart := len(buf)
-			buf = append(buf, outputName...)
-
-			// Pad output name
-			for i := len(outputName); i < maxOutputNameLen; i++ {
+	if includeTimestamp {
+		// Handle timestamp
+		bufStart := len(buf)
+		if timestamp != noTimestamp {
+			// RFC3339 is always 25 bytes or less
+			buf = timestamp.AppendFormat(buf, time.RFC3339)
+			// Pad to 25 characters
+			for i := len(buf); i < 25; i++ {
 				buf = append(buf, ' ')
 			}
-
-			// Add separator
-			buf = append(buf, ' ', '-', ' ')
-			BytesWrittenForOutputNames += int64(len(buf) - bufStart)
+		} else {
+			// No timestamp case - just add 25 spaces
+			buf = append(buf, "                         "...)
 		}
 
-		// Add log line and newline
-		// FIXME: Maybe rest of the line could be bigger than the buffer. It must be chunked
+		// Add space after timestamp
+		buf = append(buf, ' ')
+		BytesWrittenForTimestamps += int64(len(buf) - bufStart)
+	}
+
+	if includeOutputName {
+		// Add output name
 		bufStart := len(buf)
-		buf = append(buf, logLine...)
-		buf = append(buf, '\n')
-		BytesWrittenForRawLines += int64(len(buf) - bufStart)
+		buf = append(buf, outputName...)
 
-		// Single write operation
-		nn, err := writer.Write(buf)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to write to output: %v\n", err)
+		// Pad output name
+		for i := len(outputName); i < maxOutputNameLen; i++ {
+			buf = append(buf, ' ')
 		}
-		BytesWritten += int64(nn)
-		bufferPool.Put(buf)
-	})
+
+		// Add separator
+		buf = append(buf, ' ', '-', ' ')
+		BytesWrittenForOutputNames += int64(len(buf) - bufStart)
+	}
+
+	// Add log line and newline
+	// FIXME: Maybe rest of the line could be bigger than the buffer. It must be chunked
+	bufStart := len(buf)
+	buf = append(buf, logLine...)
+	buf = append(buf, '\n')
+	BytesWrittenForRawLines += int64(len(buf) - bufStart)
+
+	// Single write operation
+	nn, err := writer.Write(buf)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to write to output: %v\n", err)
+	}
+	BytesWritten += int64(nn)
+	bufferPool.Put(buf)
+
+	WriteLineDuration += MeasureSince(startOfWriteLine)
 }
