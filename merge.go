@@ -75,6 +75,7 @@ func mergeFiles(basePath string, files []string) error {
 func MergeScanners(sourceNames []string, outputNames map[string]string, scanners map[string]*bufio.Scanner) {
 	writer := bufio.NewWriterSize(os.Stdout, writeBufferSize)
 	defer writer.Flush()
+
 	// Calculate max output name length
 	maxOutputNameLen := 0
 	for _, outputName := range outputNames {

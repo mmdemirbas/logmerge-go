@@ -17,11 +17,6 @@ type LogLine struct {
 func main() {
 	startOfMain := MeasureStart()
 
-	var (
-		basePath *string
-		err      error
-	)
-
 	// Enable profiling only if configured
 	if os.Getenv("ENABLE_PPROF") == "true" {
 		fmt.Fprintf(os.Stderr, "Profiling enabled\n")
@@ -41,7 +36,10 @@ func main() {
 	}
 
 	startOfParseOptions := MeasureStart()
-	// If there is no argument provided, print usage and exit.
+	var (
+		basePath *string
+		err      error
+	)
 	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr, "logmerge\n")
 		fmt.Fprintf(os.Stderr, "  Merge multiple log files into a single file while preserving the chronological order of log lines.\n")
