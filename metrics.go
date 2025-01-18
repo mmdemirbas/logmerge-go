@@ -56,8 +56,7 @@ var (
 func MeasureDuration(f func()) (duration time.Duration) {
 	startTime := time.Now()
 	f()
-	endTime := time.Now()
-	duration = endTime.Sub(startTime)
+	duration = time.Since(startTime)
 	MeasureDurationCallCount++
 	return
 }
