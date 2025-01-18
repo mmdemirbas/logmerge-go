@@ -38,6 +38,7 @@ func MergeLogs(basePath string) error {
 func mergeFiles(basePath string, files []string) error {
 	startOfOpenFiles := time.Now()
 
+	// TODO: Consider keeping output name and scanner together for optimization
 	var (
 		outputNames = make(map[string]string)
 		scanners    = make(map[string]*bufio.Scanner)
@@ -80,10 +81,16 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 
 	// Calculate max output name length
 	startOfMaxOutputNameLenCalc := time.Now()
-	maxOutputNameLen := 0
-	for _, outputName := range outputNames {
-		if len(outputName) > maxOutputNameLen {
-			maxOutputNameLen = len(outputName)
+	if includeOutputName {
+		maxOutputNameLen := 0
+		for _, outputName := range outputNames {
+			if len(outputName) > maxOutputNameLen {
+				maxOutputNameLen = len(outputName)
+			}
+		}
+		// pad output names to max length
+		for sourceName, outputName := range outputNames {
+			outputNames[sourceName] = fmt.Sprintf("%-*s - ", maxOutputNameLen, outputName)
 		}
 	}
 	MaxOutputNameLenCalcDuration = MeasureSince(startOfMaxOutputNameLenCalc)
@@ -120,14 +127,14 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 		sourceName := current.SourceName
 		outputName := outputNames[sourceName]
 		scanner := scanners[sourceName]
-		writeOut(writer, current.Timestamp, maxOutputNameLen, outputName, current.RawLine)
+		writeOut(writer, current.Timestamp, outputName, current.RawLine)
 		WriteFirstLineDuration += MeasureSince(startOfWriteFirstLine)
 
 		// Aggregate lines until finding a timestamped line from the same source
 		startOfWriteNextLines := time.Now()
 		next := ParseLine(sourceName, scanner)
 		for next != nil && next.Timestamp == noTimestamp {
-			writeOut(writer, noTimestamp, maxOutputNameLen, outputName, next.RawLine)
+			writeOut(writer, noTimestamp, outputName, next.RawLine)
 			next = ParseLine(sourceName, scanner)
 		}
 		WriteNextLinesDuration += MeasureSince(startOfWriteNextLines)
@@ -143,7 +150,7 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 	MergeLoopDuration = MeasureSince(startOfMergeLoop)
 }
 
-func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, outputName string, logLine string) {
+func writeOut(writer *bufio.Writer, timestamp time.Time, outputName string, logLine string) {
 	startOfWriteLine := time.Now()
 
 	buf := bufferPool.Get().([]byte)
@@ -154,7 +161,9 @@ func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, o
 		bufStart := len(buf)
 		if timestamp != noTimestamp {
 			// RFC3339 is always 25 bytes or less
+			startOfAppendFormat := time.Now()
 			buf = timestamp.AppendFormat(buf, time.RFC3339)
+			AppendFormatDuration += MeasureSince(startOfAppendFormat)
 			// Pad to 25 characters
 			for i := len(buf); i < 25; i++ {
 				buf = append(buf, ' ')
@@ -174,13 +183,6 @@ func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, o
 		bufStart := len(buf)
 		buf = append(buf, outputName...)
 
-		// Pad output name
-		for i := len(outputName); i < maxOutputNameLen; i++ {
-			buf = append(buf, ' ')
-		}
-
-		// Add separator
-		buf = append(buf, ' ', '-', ' ')
 		BytesWrittenForOutputNames += int64(len(buf) - bufStart)
 	}
 

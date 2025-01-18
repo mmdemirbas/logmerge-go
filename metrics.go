@@ -43,6 +43,7 @@ var (
 	ReadLinePostDuration   int64
 	ParseTimestampDuration int64
 	WriteLineDuration      int64
+	AppendFormatDuration   int64
 
 	// Byte count stats
 
@@ -117,6 +118,7 @@ func PrintMetrics(basePath *string, err error) {
 	fmt.Fprintf(os.Stderr, "      read line post    : %8s ~ %12v\n", timePercent(ReadLinePostDuration), duration(ReadLinePostDuration))
 	fmt.Fprintf(os.Stderr, "        parse timestamp : %8s ~ %12v\n", timePercent(ParseTimestampDuration), duration(ParseTimestampDuration))
 	fmt.Fprintf(os.Stderr, "    write line          : %8s ~ %12v\n", timePercent(WriteLineDuration), duration(WriteLineDuration))
+	fmt.Fprintf(os.Stderr, "      append format     : %8s ~ %12v\n", timePercent(AppendFormatDuration), duration(AppendFormatDuration))
 	fmt.Fprintf(os.Stderr, "    rest..              : %8s ~ %12v\n", timePercent(restOfMergeScannersBreakdownDuration), duration(restOfMergeScannersBreakdownDuration))
 	fmt.Fprintf(os.Stderr, "  rest..                : %8s ~ %12v\n", timePercent(restOfMainDuration), duration(restOfMainDuration))
 	fmt.Fprintf(os.Stderr, "Byte count stats\n")
