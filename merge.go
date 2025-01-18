@@ -13,8 +13,8 @@ import (
 const (
 	totalReadBufferSize = 1024 * 1024 * 500
 	writeBufferSize     = 1024 * 1024 * 100
-	includeTimestamp    = false
-	includeOutputName   = false
+	includeTimestamp    = true
+	includeOutputName   = true
 )
 
 var (
@@ -36,34 +36,44 @@ func mergeLogs(basePath string) error {
 }
 
 func mergeFiles(basePath string, files []string) error {
-	// Open all files and create scanners
 	var (
 		outputNames = make(map[string]string)
 		scanners    = make(map[string]*bufio.Scanner)
 		fileHandles = make(map[string]*os.File)
 	)
-	for _, file := range files {
-		relativePath, err := filepath.Rel(basePath, file)
-		if err != nil {
-			return fmt.Errorf("failed to calculate relative path for file %s: %v", file, err)
+	openFilesDuration, err := measureDuration(func() error {
+		for _, file := range files {
+			relativePath, err := filepath.Rel(basePath, file)
+			if err != nil {
+				return fmt.Errorf("failed to calculate relative path for file %s: %v", file, err)
+			}
+			f, err := os.Open(file)
+			if err != nil {
+				return fmt.Errorf("failed to open file %s: %v", file, err)
+			}
+			outputNames[file] = relativePath
+			scanners[file] = bufio.NewScanner(bufio.NewReaderSize(f, totalReadBufferSize/len(files)))
+			fileHandles[file] = f
 		}
-		f, err := os.Open(file)
-		if err != nil {
-			return fmt.Errorf("failed to open file %s: %v", file, err)
-		}
-		outputNames[file] = relativePath
-		scanners[file] = bufio.NewScanner(bufio.NewReaderSize(f, totalReadBufferSize/len(files)))
-		fileHandles[file] = f
+		return nil
+	})
+	GlobalMetrics.AddOpenFilesDuration(int64(openFilesDuration))
+	if err != nil {
+		return err
 	}
+
 	defer func() {
 		for _, f := range fileHandles {
 			_ = f.Close()
 		}
 	}()
 
-	printDuration(fmt.Sprintf("Merge %d files", len(files)), func() {
+	// TODO: Consider simplifying metric collection codes like: err := GlobalMetrics.AddMetric(&GlobalMetrics.MetricName, func() error { ... })
+	mergeScannersDuration, err := measureDuration(func() error {
 		MergeScanners(files, outputNames, scanners)
+		return nil
 	})
+	GlobalMetrics.AddMergeScannersDuration(int64(mergeScannersDuration))
 	return nil
 }
 
@@ -96,6 +106,8 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 	for h.Len() > 0 {
 		current := heap.Pop(h).(*LogLine)
 
+		// TODO: Eliminate aggregatedLines by directly writing to the output buffer
+
 		// Aggregate lines until finding a timestamped line from the same source
 		var aggregatedLines []string
 		sourceName := current.SourceName
@@ -121,45 +133,61 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 }
 
 func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, outputName string, logLine string) {
-	buf := bufferPool.Get().([]byte)
-	buf = buf[:0] // reset buffer
+	writeLineDuration, _ := measureDuration(func() error {
+		buf := bufferPool.Get().([]byte)
+		buf = buf[:0] // reset buffer
 
-	if includeTimestamp {
-		// Handle timestamp
-		if timestamp != noTimestamp {
-			// RFC3339 is always 25 bytes or less
-			buf = timestamp.AppendFormat(buf, time.RFC3339)
-			// Pad to 25 characters
-			for i := len(buf); i < 25; i++ {
+		if includeTimestamp {
+			// Handle timestamp
+			bufStart := len(buf)
+			if timestamp != noTimestamp {
+				// RFC3339 is always 25 bytes or less
+				buf = timestamp.AppendFormat(buf, time.RFC3339)
+				// Pad to 25 characters
+				for i := len(buf); i < 25; i++ {
+					buf = append(buf, ' ')
+				}
+			} else {
+				// No timestamp case - just add 25 spaces
+				buf = append(buf, "                         "...)
+			}
+
+			// Add space after timestamp
+			buf = append(buf, ' ')
+			GlobalMetrics.AddBytesWrittenForTimestamps(int64(len(buf) - bufStart))
+		}
+
+		if includeOutputName {
+			// Add output name
+			bufStart := len(buf)
+			buf = append(buf, outputName...)
+
+			// Pad output name
+			for i := len(outputName); i < maxOutputNameLen; i++ {
 				buf = append(buf, ' ')
 			}
-		} else {
-			// No timestamp case - just add 25 spaces
-			buf = append(buf, "                         "...)
+
+			// Add separator
+			buf = append(buf, ' ', '-', ' ')
+			GlobalMetrics.AddBytesWrittenForOutputNames(int64(len(buf) - bufStart))
 		}
 
-		// Add space after timestamp
-		buf = append(buf, ' ')
-	}
+		// Add log line and newline
+		// FIXME: Maybe rest of the line could be bigger than the buffer. It must be chunked
+		bufStart := len(buf)
+		buf = append(buf, logLine...)
+		buf = append(buf, '\n')
+		GlobalMetrics.AddBytesWrittenForRawLines(int64(len(buf) - bufStart))
 
-	if includeOutputName {
-		// Add output name
-		buf = append(buf, outputName...)
+		// Single write operation
+		nn, err := writer.Write(buf)
+		GlobalMetrics.AddBytesWritten(int64(nn))
+		bufferPool.Put(buf)
 
-		// Pad output name
-		for i := len(outputName); i < maxOutputNameLen; i++ {
-			buf = append(buf, ' ')
+		if err != nil {
+			return fmt.Errorf("failed to write to output: %v", err)
 		}
-
-		// Add separator
-		buf = append(buf, ' ', '-', ' ')
-	}
-
-	// Add log line and newline
-	buf = append(buf, logLine...)
-	buf = append(buf, '\n')
-
-	// Single write operation
-	writer.Write(buf)
-	bufferPool.Put(buf)
+		return nil
+	})
+	GlobalMetrics.AddWriteLineDuration(int64(writeLineDuration))
 }

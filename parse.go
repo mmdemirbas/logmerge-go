@@ -12,10 +12,45 @@ var (
 )
 
 func parseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
-	if scanner.Scan() {
-		line := scanner.Text()
+	// TODO: Read limited number of chars to a fixed buffer to avoid more allocations
+	//    - preallocate every piece of necessary memory at the beginning of the program
+
+	// TODO: Read only enough chars to parse the timestamp, will remove need to read buffers maybe.
+
+	var (
+		line      string
+		scan      bool
+		timestamp time.Time
+	)
+	readLineDuration, _ := measureDuration(func() error {
+		if scanner.Scan() {
+			scan = true
+			line = scanner.Text()
+		} else {
+			scan = false
+			line = ""
+		}
+		return nil
+	})
+	GlobalMetrics.AddReadLineDuration(int64(readLineDuration))
+
+	if scan {
+		GlobalMetrics.IncLinesRead()
+		GlobalMetrics.AddBytesRead(int64(len(line)))
+
+		parseTimestampDuration, _ := measureDuration(func() error {
+			timestamp = ParseTimestamp(line)
+			return nil
+		})
+		GlobalMetrics.AddParseTimestampDuration(int64(parseTimestampDuration))
+
+		if timestamp.Equal(noTimestamp) {
+			GlobalMetrics.IncLinesWithoutTimestamps()
+		} else {
+			GlobalMetrics.IncLinesWithTimestamps()
+		}
 		return &LogLine{
-			Timestamp:  ParseTimestamp(line),
+			Timestamp:  timestamp,
 			SourceName: sourceName,
 			RawLine:    line,
 		}
@@ -24,13 +59,6 @@ func parseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 }
 
 func ParseTimestamp(line string) time.Time {
-	defer func() {
-		if r := recover(); r != nil {
-			err := r.(error)
-			printErr("Error parsing timestamp: %v at line: %s\n", err, line)
-		}
-	}()
-
 	// Early length check
 	if len(line) < 12 {
 		return noTimestamp

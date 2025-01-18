@@ -30,6 +30,24 @@
   - Complete unit tests
   - Use named return values to document code better and enjoy better autocomplete.
   - Add metrics - Processed lines / files, in/out throughput, speed, etc.
+    - File scan statistics
+        - Number of files scanned
+        - Number of files matched
+        - File list and their sizes
+        - Time taken to scan files
+    - Line scan statistics
+        - Number of lines scanned
+        - Number of lines matched -> after implementing filtering
+        - Read throughput
+        - Write throughput
+    - Process statistics
+        - Time taken to parse timestamps
+        - Number of timestamped lines
+        - Number of timestamp-less lines
+        - Longest line length
+        - Number of empty lines
+        - Number of skipped lines
+
   - Add a progress bar based on processed size and file count
   - Decide a standard naming for binaries across all projects - Research
   - Add method comments

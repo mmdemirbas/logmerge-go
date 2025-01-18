@@ -18,10 +18,10 @@ func listFiles(basePath string) ([]string, error) {
 		files []string
 		err   error
 	)
-	printDuration("listFiles", func() {
+	f := func() error {
 		stat, err := os.Stat(basePath)
 		if err != nil {
-			return
+			return err
 		}
 		switch {
 		case stat.IsDir():
@@ -29,17 +29,29 @@ func listFiles(basePath string) ([]string, error) {
 				if err != nil {
 					return err
 				}
-				if !info.IsDir() && ShouldIncludeFile(path) {
-					files = append(files, path)
+				if info.IsDir() {
+					GlobalMetrics.IncDirsScanned()
+				} else {
+					GlobalMetrics.IncFilesScanned()
+					if ShouldIncludeFile(path) {
+						GlobalMetrics.IncFilesMatched()
+						files = append(files, path)
+					}
 				}
 				return nil
 			})
-		case ShouldIncludeFile(basePath):
-			files = append(files, basePath)
+		default:
+			GlobalMetrics.IncFilesScanned()
+			if ShouldIncludeFile(basePath) {
+				GlobalMetrics.IncFilesMatched()
+				files = append(files, basePath)
+			}
 		}
-		printFileList(files)
-		printFileStats(files)
-	})
+		GlobalMetrics.AddMatchedFiles(files...)
+		return nil
+	}
+	listFilesDuration, err := measureDuration(f)
+	GlobalMetrics.AddListFilesDuration(int64(listFilesDuration))
 	return files, err
 }
 
