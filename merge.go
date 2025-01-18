@@ -86,20 +86,20 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 	h := &MinHeap{}
 	heap.Init(h)
 
+	// Calculate max output name length
+	maxOutputNameLen := 0
+	for _, outputName := range outputNames {
+		if len(outputName) > maxOutputNameLen {
+			maxOutputNameLen = len(outputName)
+		}
+	}
+
 	// Populate heap with the first entry from each file
 	for _, sourceName := range sourceNames {
 		scanner := scanners[sourceName]
 		entry := ParseLine(sourceName, scanner)
 		if entry != nil {
 			heap.Push(h, entry)
-		}
-	}
-
-	// Calculate max output name length
-	maxOutputNameLen := 0
-	for _, outputName := range outputNames {
-		if len(outputName) > maxOutputNameLen {
-			maxOutputNameLen = len(outputName)
 		}
 	}
 
