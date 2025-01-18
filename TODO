@@ -2,15 +2,11 @@
   - SOME LINES ARE SKIPPED!!!
 
 - Performance
-  - Avoid frequent string manipulations (e.g., fmt.Sprintf); use byte slices where possible.
-  - Avoid Time calculations. Just keep the parsed fields in a struct, which will be more efficient.
-  - Use byte slices ([]byte) instead of strings for parsing and I/O.
-  - Use sync.Pool to recycle buffers and reduce allocations.
-  - Use bufio with large buffer sizes for both reading and writing.
   - Avoid allocations. Look for memory re-use opportunities.
+  - Remove some metrics to improve performance.
   - Experiment splitting files into chunks and sorting and merging in multiple steps.
     BE CAREFUL! Do not break the data by adding intermediate file names by mistake!
-  - Read files concurrently
+  - Read files concurrently -> Fill the read buffer while other parts of the program are processing the lines.
   - Close files as soon as they are done
   - Take max open file descriptor limit into account. If there are too many files, we couldn't open all of them simultaneously.
     Consider using temporary intermediate files to store the sorted lines and merge them later using efficient algorithms
@@ -29,25 +25,6 @@
   - Aggressively simplify the code so we can easily implement advanced algorithms and features in the future.
   - Complete unit tests
   - Use named return values to document code better and enjoy better autocomplete.
-  - Add metrics - Processed lines / files, in/out throughput, speed, etc.
-    - File scan statistics
-        - Number of files scanned
-        - Number of files matched
-        - File list and their sizes
-        - Time taken to scan files
-    - Line scan statistics
-        - Number of lines scanned
-        - Number of lines matched -> after implementing filtering
-        - Read throughput
-        - Write throughput
-    - Process statistics
-        - Time taken to parse timestamps
-        - Number of timestamped lines
-        - Number of timestamp-less lines
-        - Longest line length
-        - Number of empty lines
-        - Number of skipped lines
-
   - Add a progress bar based on processed size and file count
   - Decide a standard naming for binaries across all projects - Research
   - Add method comments

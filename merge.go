@@ -105,13 +105,9 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 	startOfHeapPopulate := time.Now()
 	for _, sourceName := range sourceNames {
 		scanner := scanners[sourceName]
-		startOfParseLine := time.Now()
 		entry := ParseLine(sourceName, scanner)
-		PopulateParseLineDuration += MeasureSince(startOfParseLine)
 		if entry != nil {
-			startOfHeapPush := time.Now()
 			heap.Push(h, entry)
-			PopulateHeapPushDuration += MeasureSince(startOfHeapPush)
 		}
 	}
 	HeapPopulateDuration = MeasureSince(startOfHeapPopulate)
@@ -145,7 +141,6 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 			heap.Push(h, next)
 			InnerHeapPushDuration += MeasureSince(startOfHeapPush)
 		}
-		InnerMergeLoopDuration += MeasureSince(startOfHeapPop)
 	}
 	MergeLoopDuration = MeasureSince(startOfMergeLoop)
 }
@@ -182,7 +177,6 @@ func writeOut(writer *bufio.Writer, timestamp time.Time, outputName string, logL
 		// Add output name
 		bufStart := len(buf)
 		buf = append(buf, outputName...)
-
 		BytesWrittenForOutputNames += int64(len(buf) - bufStart)
 	}
 
@@ -193,11 +187,10 @@ func writeOut(writer *bufio.Writer, timestamp time.Time, outputName string, logL
 	BytesWrittenForRawLines += int64(len(buf) - bufStart)
 
 	// Single write operation
-	nn, err := writer.Write(buf)
+	_, err := writer.Write(buf)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to write to output: %v\n", err)
 	}
-	BytesWritten += int64(nn)
 	bufferPool.Put(buf)
 
 	WriteLineDuration += MeasureSince(startOfWriteLine)

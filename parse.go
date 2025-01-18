@@ -17,7 +17,6 @@ func ParseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 
 	// TODO: Read only enough chars to parse the timestamp, will remove need to read buffers maybe.
 
-	startOfParseLineFull := time.Now()
 	var (
 		line      string
 		scan      bool
@@ -31,11 +30,8 @@ func ParseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 		scan = false
 		line = ""
 	}
-	ReadLineDuration += MeasureSince(startOfParseLineFull)
 
 	if scan {
-		startOfReadLinePost := time.Now()
-
 		LinesRead++
 		BytesRead += int64(len(line))
 
@@ -53,10 +49,7 @@ func ParseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 			SourceName: sourceName,
 			RawLine:    line,
 		}
-
-		ReadLinePostDuration += MeasureSince(startOfReadLinePost)
 	}
-	ParseLineFullDuration += MeasureSince(startOfParseLineFull)
 
 	return result
 }
