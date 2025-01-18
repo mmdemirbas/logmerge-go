@@ -53,12 +53,12 @@ var (
 	MeasureDurationCallCount int64
 )
 
-func MeasureStart() int64 {
-	return time.Now().UnixNano()
+func MeasureStart() time.Time {
+	return time.Now()
 }
 
-func MeasureEnd(startNanos int64) int64 {
-	return time.Now().UnixNano() - startNanos
+func MeasureEnd(startNanos time.Time) int64 {
+	return time.Since(startNanos).Nanoseconds()
 }
 
 func MeasureDuration(f func()) (duration int64) {
