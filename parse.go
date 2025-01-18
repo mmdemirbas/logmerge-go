@@ -18,7 +18,6 @@ func ParseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 	// TODO: Read only enough chars to parse the timestamp, will remove need to read buffers maybe.
 
 	startOfParseLineFull := MeasureStart()
-
 	var (
 		line      string
 		scan      bool
@@ -63,17 +62,26 @@ func ParseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 }
 
 func ParseTimestamp(line string) time.Time {
+	n := len(line)
+	MaxLineLength = max(MaxLineLength, n)
+	for i, threshold := range LineLengthThresholds {
+		if n <= threshold {
+			LineLengths[i]++
+			break
+		}
+	}
+
 	// Early length check
-	if len(line) < 12 {
+	if n < 12 {
 		return noTimestamp
 	}
 
 	// Find first digit more efficiently using index of common prefixes
 	i := 0
-	for i < len(line) && (line[i] < '0' || line[i] > '9') {
+	for i < n && (line[i] < '0' || line[i] > '9') {
 		i++
 	}
-	if i+12 > len(line) {
+	if i+12 > n {
 		return noTimestamp
 	}
 
@@ -115,7 +123,7 @@ func ParseTimestamp(line string) time.Time {
 	}
 
 	// Optimize common case of space separator
-	if i >= len(line) || (line[i] != ' ' && line[i] != 'T' && line[i] != '_') {
+	if i >= n || (line[i] != ' ' && line[i] != 'T' && line[i] != '_') {
 		return noTimestamp
 	}
 	i++
@@ -126,7 +134,7 @@ func ParseTimestamp(line string) time.Time {
 		return noTimestamp
 	}
 
-	if i >= len(line) || (line[i] != ':' && line[i] != '.') {
+	if i >= n || (line[i] != ':' && line[i] != '.') {
 		return noTimestamp
 	}
 	i++
@@ -136,7 +144,7 @@ func ParseTimestamp(line string) time.Time {
 		return noTimestamp
 	}
 
-	if i >= len(line) || (line[i] != ':' && line[i] != '.') {
+	if i >= n || (line[i] != ':' && line[i] != '.') {
 		return noTimestamp
 	}
 	i++
@@ -148,7 +156,7 @@ func ParseTimestamp(line string) time.Time {
 
 	// Handle subseconds more efficiently
 	var nsec int
-	if i < len(line) && (line[i] == '.' || line[i] == ',') {
+	if i < n && (line[i] == '.' || line[i] == ',') {
 		i++
 		var ncount int
 		nsec, ncount = parseDigits(line, &i, 9)
@@ -160,7 +168,7 @@ func ParseTimestamp(line string) time.Time {
 	}
 
 	// Optimize timezone parsing
-	if i < len(line) {
+	if i < n {
 		switch line[i] {
 		case 'Z':
 			// Already using UTC
@@ -169,7 +177,7 @@ func ParseTimestamp(line string) time.Time {
 			sign := int(',') - int(line[i]) // +: -4, -: +4 for the offset
 			i++
 
-			if i+2 > len(line) {
+			if i+2 > n {
 				break
 			}
 
@@ -179,9 +187,9 @@ func ParseTimestamp(line string) time.Time {
 			}
 
 			tzMin := 0
-			if i < len(line) && line[i] == ':' {
+			if i < n && line[i] == ':' {
 				i++
-				if i+2 <= len(line) {
+				if i+2 <= n {
 					tzMin, _ = parseDigits(line, &i, 2)
 				}
 			}

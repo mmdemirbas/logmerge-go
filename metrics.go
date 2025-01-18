@@ -47,6 +47,12 @@ var (
 	LinesRead              int64
 	LinesWithTimestamps    int64
 	LinesWithoutTimestamps int64
+
+	// Line length stats
+
+	MaxLineLength        int
+	LineLengthThresholds = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000}
+	LineLengths          = make([]int64, len(LineLengthThresholds))
 )
 
 func MeasureStart() time.Time {
@@ -91,9 +97,21 @@ func PrintMetrics(basePath *string, err error) {
 	fmt.Fprintf(os.Stderr, "      timestamps        : %8s ~ %12v = %10s\n", percent(BytesWrittenForTimestamps, BytesWritten), BytesWrittenForTimestamps, bytes(BytesWrittenForTimestamps))
 	fmt.Fprintf(os.Stderr, "      source names      : %8s ~ %12v = %10s\n", percent(BytesWrittenForOutputNames, BytesWritten), BytesWrittenForOutputNames, bytes(BytesWrittenForOutputNames))
 	fmt.Fprintf(os.Stderr, "Line count stats\n")
-	fmt.Fprintf(os.Stderr, "  lines read           : %8s ~ %12d = %10s ≈ %s\n", percent(LinesRead, LinesRead), LinesRead, count(LinesRead), countSpeed(LinesRead, MergeScannersDuration))
-	fmt.Fprintf(os.Stderr, "    with timestamp     : %8s ~ %12v = %10s\n", percent(LinesWithTimestamps, LinesRead), LinesWithTimestamps, count(LinesWithTimestamps))
-	fmt.Fprintf(os.Stderr, "    without timestamp  : %8s ~ %12v = %10s\n", percent(LinesWithoutTimestamps, LinesRead), LinesWithoutTimestamps, count(LinesWithoutTimestamps))
+	fmt.Fprintf(os.Stderr, "  lines read            : %8s ~ %12d = %10s ≈ %s\n", percent(LinesRead, LinesRead), LinesRead, count(LinesRead), countSpeed(LinesRead, MergeScannersDuration))
+	fmt.Fprintf(os.Stderr, "    with timestamp      : %8s ~ %12v = %10s\n", percent(LinesWithTimestamps, LinesRead), LinesWithTimestamps, count(LinesWithTimestamps))
+	fmt.Fprintf(os.Stderr, "    without timestamp   : %8s ~ %12v = %10s\n", percent(LinesWithoutTimestamps, LinesRead), LinesWithoutTimestamps, count(LinesWithoutTimestamps))
+	fmt.Fprintf(os.Stderr, "Line length stats\n")
+	fmt.Fprintf(os.Stderr, "  max line length       : %8s ~ %12d\n", "", MaxLineLength)
+	fmt.Fprintf(os.Stderr, "  line length counts\n")
+	var cumulative int64
+	for i, threshold := range LineLengthThresholds {
+		lineCount := LineLengths[i]
+		cumulative += lineCount
+		fmt.Fprintf(os.Stderr, "    ≤ %-6d            : %8s ~ %12d ≈ %8s (cumulative)\n", threshold, percent(lineCount, LinesRead), lineCount, percent(cumulative, LinesRead))
+	}
+	remainingLineCount := LinesRead - cumulative
+	cumulative += remainingLineCount
+	fmt.Fprintf(os.Stderr, "    higher              : %8s ~ %12d ≈ %8s (cumulative)\n", percent(remainingLineCount, LinesRead), remainingLineCount, percent(cumulative, LinesRead))
 	fmt.Fprintf(os.Stderr, "===============================================================================================\n")
 	fmt.Fprintf(os.Stderr, "File list (%d files):\n", len(MatchedFiles))
 	for i, file := range MatchedFiles {
