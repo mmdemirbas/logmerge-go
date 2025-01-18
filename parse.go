@@ -22,7 +22,7 @@ func ParseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 		scan      bool
 		timestamp time.Time
 	)
-	readLineDuration, _ := MeasureDuration(func() error {
+	ReadLineDuration += MeasureDuration(func() {
 		if scanner.Scan() {
 			scan = true
 			line = scanner.Text()
@@ -30,19 +30,15 @@ func ParseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 			scan = false
 			line = ""
 		}
-		return nil
 	})
-	ReadLineDuration = int64(readLineDuration)
 
 	if scan {
 		LinesRead++
 		BytesRead += int64(len(line))
 
-		parseTimestampDuration, _ := MeasureDuration(func() error {
+		ParseTimestampDuration += MeasureDuration(func() {
 			timestamp = ParseTimestamp(line)
-			return nil
 		})
-		ParseTimestampDuration += int64(parseTimestampDuration)
 
 		if timestamp.Equal(noTimestamp) {
 			LinesWithoutTimestamps++

@@ -18,10 +18,12 @@ func ListFiles(basePath string) ([]string, error) {
 		files []string
 		err   error
 	)
-	f := func() error {
-		stat, err := os.Stat(basePath)
+
+	ListFilesDuration = MeasureDuration(func() {
+		stat, err1 := os.Stat(basePath)
+		err = err1
 		if err != nil {
-			return err
+			return
 		}
 		switch {
 		case stat.IsDir():
@@ -47,11 +49,9 @@ func ListFiles(basePath string) ([]string, error) {
 				files = append(files, basePath)
 			}
 		}
-		MatchedFiles = files
-		return nil
-	}
-	listFilesDuration, err := MeasureDuration(f)
-	ListFilesDuration += int64(listFilesDuration)
+	})
+
+	MatchedFiles = files
 	return files, err
 }
 

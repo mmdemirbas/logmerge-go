@@ -17,9 +17,10 @@ type LogLine struct {
 func main() {
 	var (
 		basePath *string
+		err      error
 	)
 
-	mainDuration, err := MeasureDuration(func() error {
+	TotalMainDuration = MeasureDuration(func() {
 		// Enable profiling only if configured
 		if os.Getenv("ENABLE_PPROF") == "true" {
 			fmt.Fprintf(os.Stderr, "Profiling enabled\n")
@@ -27,16 +28,18 @@ func main() {
 			// Start CPU profiling
 			cpuFile, err := os.Create("out/cpu.prof")
 			if err != nil {
-				panic("could not create CPU profile: " + err.Error())
+				fmt.Fprintf(os.Stderr, "could not create CPU profile: %v\n", err)
+			} else {
+				defer cpuFile.Close()
+				if err := pprof.StartCPUProfile(cpuFile); err != nil {
+					fmt.Fprintf(os.Stderr, "could not start CPU profile: %v\n", err)
+				} else {
+					defer pprof.StopCPUProfile()
+				}
 			}
-			defer cpuFile.Close()
-			if err := pprof.StartCPUProfile(cpuFile); err != nil {
-				panic("could not start CPU profile: " + err.Error())
-			}
-			defer pprof.StopCPUProfile()
 		}
 
-		parseOptionsDuration, _ := MeasureDuration(func() error {
+		ParseOptionsDuration = MeasureDuration(func() {
 			// If there is no argument provided, print usage and exit.
 			if len(os.Args) < 2 {
 				fmt.Fprintf(os.Stderr, "logmerge\n")
@@ -54,26 +57,23 @@ func main() {
 			// Parse the first argument as basePath
 			// TODO: Get all arguments as basePaths
 			basePath = &os.Args[1]
-			return nil
 		})
-		ParseOptionsDuration = int64(parseOptionsDuration)
 
-		err := MergeLogs(*basePath)
+		err = MergeLogs(*basePath)
 
 		if os.Getenv("ENABLE_PPROF") == "true" {
 			// Capture memory profile
 			memFile, err := os.Create("out/mem.prof")
 			if err != nil {
-				panic("could not create memory profile: " + err.Error())
-			}
-			defer memFile.Close()
-			if err := pprof.WriteHeapProfile(memFile); err != nil {
-				panic("could not write memory profile: " + err.Error())
+				fmt.Fprintf(os.Stderr, "could not create memory profile: %v\n", err)
+			} else {
+				defer memFile.Close()
+				if err := pprof.WriteHeapProfile(memFile); err != nil {
+					fmt.Fprintf(os.Stderr, "could not write memory profile: %v\n", err)
+				}
 			}
 		}
-		return err
 	})
-	TotalMainDuration = int64(mainDuration)
 
 	PrintMetrics(basePath, err)
 

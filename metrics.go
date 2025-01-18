@@ -17,17 +17,17 @@ var (
 
 	// Timing stats by phase (nanoseconds)
 
-	ParseOptionsDuration  int64
-	ListFilesDuration     int64
-	OpenFilesDuration     int64
-	MergeScannersDuration int64
-	TotalMainDuration     int64
+	ParseOptionsDuration  time.Duration
+	ListFilesDuration     time.Duration
+	OpenFilesDuration     time.Duration
+	MergeScannersDuration time.Duration
+	TotalMainDuration     time.Duration
 
 	// Timing stats by operation (nanoseconds)
 
-	ReadLineDuration       int64
-	ParseTimestampDuration int64
-	WriteLineDuration      int64
+	ReadLineDuration       time.Duration
+	ParseTimestampDuration time.Duration
+	WriteLineDuration      time.Duration
 
 	// Byte count stats
 
@@ -47,9 +47,9 @@ var (
 	LinesWithoutTimestamps int64
 )
 
-func MeasureDuration(f func() error) (duration time.Duration, err error) {
+func MeasureDuration(f func()) (duration time.Duration) {
 	startTime := time.Now()
-	err = f()
+	f()
 	endTime := time.Now()
 	duration = endTime.Sub(startTime)
 	return
@@ -60,25 +60,25 @@ func PrintMetrics(basePath *string, err error) {
 	fmt.Fprintf(os.Stderr, "===== METRICS =================================================================================\n")
 	fmt.Fprintf(os.Stderr, "Base path           : %s\n", *basePath)
 	fmt.Fprintf(os.Stderr, "Error               : %v\n", err)
-	fmt.Fprintf(os.Stderr, "Total main duration : %v\n", duration(TotalMainDuration))
+	fmt.Fprintf(os.Stderr, "Total main duration : %v\n", TotalMainDuration)
 	fmt.Fprintf(os.Stderr, "===============================================================================================\n")
 	fmt.Fprintf(os.Stderr, "File count stats\n")
 	fmt.Fprintf(os.Stderr, "  dirs scanned      : %12d\n", DirsScanned)
 	fmt.Fprintf(os.Stderr, "  files scanned     : %12d ≈ %s\n", FilesScanned, countSpeed(FilesScanned))
 	fmt.Fprintf(os.Stderr, "  files matched     : %12d ~ %s\n", FilesMatched, percent(FilesMatched, FilesScanned))
 	fmt.Fprintf(os.Stderr, "Timing stats by phase\n")
-	fmt.Fprintf(os.Stderr, "  parse options     : %12v ~ %s\n", duration(ParseOptionsDuration), percent(ParseOptionsDuration, TotalMainDuration))
-	fmt.Fprintf(os.Stderr, "  list files        : %12v ~ %s\n", duration(ListFilesDuration), percent(ListFilesDuration, TotalMainDuration))
-	fmt.Fprintf(os.Stderr, "  open files        : %12v ~ %s\n", duration(OpenFilesDuration), percent(OpenFilesDuration, TotalMainDuration))
-	fmt.Fprintf(os.Stderr, "  merge scanners    : %12v ~ %s\n", duration(MergeScannersDuration), percent(MergeScannersDuration, TotalMainDuration))
+	fmt.Fprintf(os.Stderr, "  parse options     : %12v ~ %s\n", ParseOptionsDuration, timePercent(ParseOptionsDuration))
+	fmt.Fprintf(os.Stderr, "  list files        : %12v ~ %s\n", ListFilesDuration, timePercent(ListFilesDuration))
+	fmt.Fprintf(os.Stderr, "  open files        : %12v ~ %s\n", OpenFilesDuration, timePercent(OpenFilesDuration))
+	fmt.Fprintf(os.Stderr, "  merge scanners    : %12v ~ %s\n", MergeScannersDuration, timePercent(MergeScannersDuration))
 	restPhaseTime := TotalMainDuration - ParseOptionsDuration - ListFilesDuration - OpenFilesDuration - MergeScannersDuration
-	fmt.Fprintf(os.Stderr, "    ..rest..        : %12v ~ %s\n", duration(restPhaseTime), percent(restPhaseTime, TotalMainDuration))
+	fmt.Fprintf(os.Stderr, "    ..rest..        : %12v ~ %s\n", restPhaseTime, timePercent(restPhaseTime))
 	fmt.Fprintf(os.Stderr, "Timing stats by operation\n")
-	fmt.Fprintf(os.Stderr, "  read line         : %12v ~ %s ≈ %s\n", duration(ReadLineDuration), percent(ReadLineDuration, TotalMainDuration), countSpeed(LinesRead))
-	fmt.Fprintf(os.Stderr, "  parse timestamp   : %12v ~ %s ≈ %s\n", duration(ParseTimestampDuration), percent(ParseTimestampDuration, TotalMainDuration), countSpeed(ParseTimestampDuration))
-	fmt.Fprintf(os.Stderr, "  write line        : %12v ~ %s ≈ %s\n", duration(WriteLineDuration), percent(WriteLineDuration, TotalMainDuration), countSpeed(WriteLineDuration))
+	fmt.Fprintf(os.Stderr, "  read line         : %12v ~ %s\n", ReadLineDuration, timePercent(ReadLineDuration))
+	fmt.Fprintf(os.Stderr, "  parse timestamp   : %12v ~ %s\n", ParseTimestampDuration, timePercent(ParseTimestampDuration))
+	fmt.Fprintf(os.Stderr, "  write line        : %12v ~ %s\n", WriteLineDuration, timePercent(WriteLineDuration))
 	restOpTime := TotalMainDuration - ReadLineDuration - ParseTimestampDuration - WriteLineDuration
-	fmt.Fprintf(os.Stderr, "    ..rest..        : %12v ~ %s ≈ %s\n", duration(restOpTime), percent(restOpTime, TotalMainDuration), countSpeed(restOpTime))
+	fmt.Fprintf(os.Stderr, "    ..rest..        : %12v ~ %s\n", restOpTime, timePercent(restOpTime))
 	fmt.Fprintf(os.Stderr, "Byte count stats\n")
 	fmt.Fprintf(os.Stderr, "  bytes read        : %12d = %s ≈ %s\n", BytesRead, bytes(BytesRead), bytesSpeed(BytesRead))
 	fmt.Fprintf(os.Stderr, "  bytes written     : %12d = %s ≈ %s\n", BytesWritten, bytes(BytesWritten), bytesSpeed(BytesWritten))
@@ -115,6 +115,10 @@ func duration(duration int64) time.Duration {
 	return time.Duration(duration)
 }
 
+func timePercent(value time.Duration) string {
+	return fmt.Sprintf("%5.2f %%", div(value.Nanoseconds(), TotalMainDuration.Nanoseconds())*100)
+}
+
 func percent(value, total int64) string {
 	return fmt.Sprintf("%5.2f %%", div(value, total)*100)
 }
@@ -128,15 +132,13 @@ func countSpeed(value int64) string {
 }
 
 func speed(value int64) float64 {
-	return div(value, TotalMainDuration) * 1e9
+	return div(value, TotalMainDuration.Nanoseconds()) * 1e9
 }
 
 func div(value int64, total int64) float64 {
-	var speed float64
 	if total == 0 {
-		speed = 0
+		return 0
 	} else {
-		speed = float64(value) / float64(total)
+		return float64(value) / float64(total)
 	}
-	return speed
 }

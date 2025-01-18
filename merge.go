@@ -37,27 +37,30 @@ func MergeLogs(basePath string) error {
 
 func mergeFiles(basePath string, files []string) error {
 	var (
+		err         error
 		outputNames = make(map[string]string)
 		scanners    = make(map[string]*bufio.Scanner)
 		fileHandles = make(map[string]*os.File)
 	)
-	openFilesDuration, err := MeasureDuration(func() error {
+	OpenFilesDuration = MeasureDuration(func() {
 		for _, file := range files {
-			relativePath, err := filepath.Rel(basePath, file)
-			if err != nil {
-				return fmt.Errorf("failed to calculate relative path for file %s: %v", file, err)
+			relativePath, err1 := filepath.Rel(basePath, file)
+			if err1 != nil {
+				err = fmt.Errorf("failed to calculate relative path for file %s: %v", file, err1)
+				return
 			}
-			f, err := os.Open(file)
-			if err != nil {
-				return fmt.Errorf("failed to open file %s: %v", file, err)
+
+			f, err1 := os.Open(file)
+			if err1 != nil {
+				err = fmt.Errorf("failed to open file %s: %v", file, err1)
+				return
 			}
+
 			outputNames[file] = relativePath
 			scanners[file] = bufio.NewScanner(bufio.NewReaderSize(f, totalReadBufferSize/len(files)))
 			fileHandles[file] = f
 		}
-		return nil
 	})
-	OpenFilesDuration = int64(openFilesDuration)
 	if err != nil {
 		return err
 	}
@@ -69,11 +72,9 @@ func mergeFiles(basePath string, files []string) error {
 	}()
 
 	// TODO: Consider simplifying metric collection codes like: err := AddMetric(&MetricName, func() error { ... })
-	mergeScannersDuration, err := MeasureDuration(func() error {
+	MergeScannersDuration = MeasureDuration(func() {
 		MergeScanners(files, outputNames, scanners)
-		return nil
 	})
-	MergeScannersDuration = int64(mergeScannersDuration)
 	return nil
 }
 
@@ -133,7 +134,7 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 }
 
 func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, outputName string, logLine string) {
-	writeLineDuration, _ := MeasureDuration(func() error {
+	WriteLineDuration += MeasureDuration(func() {
 		buf := bufferPool.Get().([]byte)
 		buf = buf[:0] // reset buffer
 
@@ -181,13 +182,10 @@ func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, o
 
 		// Single write operation
 		nn, err := writer.Write(buf)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to write to output: %v\n", err)
+		}
 		BytesWritten += int64(nn)
 		bufferPool.Put(buf)
-
-		if err != nil {
-			return fmt.Errorf("failed to write to output: %v", err)
-		}
-		return nil
 	})
-	WriteLineDuration += int64(writeLineDuration)
 }
