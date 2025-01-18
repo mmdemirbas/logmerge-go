@@ -26,9 +26,9 @@ var (
 	}
 )
 
-func mergeLogs(basePath string) error {
+func MergeLogs(basePath string) error {
 	// Find files to process
-	files, err := listFiles(basePath)
+	files, err := ListFiles(basePath)
 	if err != nil {
 		return fmt.Errorf("failed to detect files: %v", err)
 	}
@@ -41,7 +41,7 @@ func mergeFiles(basePath string, files []string) error {
 		scanners    = make(map[string]*bufio.Scanner)
 		fileHandles = make(map[string]*os.File)
 	)
-	openFilesDuration, err := measureDuration(func() error {
+	openFilesDuration, err := MeasureDuration(func() error {
 		for _, file := range files {
 			relativePath, err := filepath.Rel(basePath, file)
 			if err != nil {
@@ -57,7 +57,7 @@ func mergeFiles(basePath string, files []string) error {
 		}
 		return nil
 	})
-	GlobalMetrics.AddOpenFilesDuration(int64(openFilesDuration))
+	OpenFilesDuration = int64(openFilesDuration)
 	if err != nil {
 		return err
 	}
@@ -68,12 +68,12 @@ func mergeFiles(basePath string, files []string) error {
 		}
 	}()
 
-	// TODO: Consider simplifying metric collection codes like: err := GlobalMetrics.AddMetric(&GlobalMetrics.MetricName, func() error { ... })
-	mergeScannersDuration, err := measureDuration(func() error {
+	// TODO: Consider simplifying metric collection codes like: err := AddMetric(&MetricName, func() error { ... })
+	mergeScannersDuration, err := MeasureDuration(func() error {
 		MergeScanners(files, outputNames, scanners)
 		return nil
 	})
-	GlobalMetrics.AddMergeScannersDuration(int64(mergeScannersDuration))
+	MergeScannersDuration = int64(mergeScannersDuration)
 	return nil
 }
 
@@ -88,7 +88,7 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 	// Populate heap with the first entry from each file
 	for _, sourceName := range sourceNames {
 		scanner := scanners[sourceName]
-		entry := parseLine(sourceName, scanner)
+		entry := ParseLine(sourceName, scanner)
 		if entry != nil {
 			heap.Push(h, entry)
 		}
@@ -112,10 +112,10 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 		var aggregatedLines []string
 		sourceName := current.SourceName
 		scanner := scanners[sourceName]
-		next := parseLine(sourceName, scanner)
+		next := ParseLine(sourceName, scanner)
 		for next != nil && next.Timestamp == noTimestamp {
 			aggregatedLines = append(aggregatedLines, next.RawLine)
-			next = parseLine(sourceName, scanner)
+			next = ParseLine(sourceName, scanner)
 		}
 
 		outputName := outputNames[sourceName]
@@ -133,7 +133,7 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 }
 
 func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, outputName string, logLine string) {
-	writeLineDuration, _ := measureDuration(func() error {
+	writeLineDuration, _ := MeasureDuration(func() error {
 		buf := bufferPool.Get().([]byte)
 		buf = buf[:0] // reset buffer
 
@@ -154,7 +154,7 @@ func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, o
 
 			// Add space after timestamp
 			buf = append(buf, ' ')
-			GlobalMetrics.AddBytesWrittenForTimestamps(int64(len(buf) - bufStart))
+			BytesWrittenForTimestamps += int64(len(buf) - bufStart)
 		}
 
 		if includeOutputName {
@@ -169,7 +169,7 @@ func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, o
 
 			// Add separator
 			buf = append(buf, ' ', '-', ' ')
-			GlobalMetrics.AddBytesWrittenForOutputNames(int64(len(buf) - bufStart))
+			BytesWrittenForOutputNames += int64(len(buf) - bufStart)
 		}
 
 		// Add log line and newline
@@ -177,11 +177,11 @@ func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, o
 		bufStart := len(buf)
 		buf = append(buf, logLine...)
 		buf = append(buf, '\n')
-		GlobalMetrics.AddBytesWrittenForRawLines(int64(len(buf) - bufStart))
+		BytesWrittenForRawLines += int64(len(buf) - bufStart)
 
 		// Single write operation
 		nn, err := writer.Write(buf)
-		GlobalMetrics.AddBytesWritten(int64(nn))
+		BytesWritten += int64(nn)
 		bufferPool.Put(buf)
 
 		if err != nil {
@@ -189,5 +189,5 @@ func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, o
 		}
 		return nil
 	})
-	GlobalMetrics.AddWriteLineDuration(int64(writeLineDuration))
+	WriteLineDuration += int64(writeLineDuration)
 }

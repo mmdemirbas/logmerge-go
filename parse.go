@@ -11,7 +11,7 @@ var (
 	noTimestamp = time.Time{}
 )
 
-func parseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
+func ParseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 	// TODO: Read limited number of chars to a fixed buffer to avoid more allocations
 	//    - preallocate every piece of necessary memory at the beginning of the program
 
@@ -22,7 +22,7 @@ func parseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 		scan      bool
 		timestamp time.Time
 	)
-	readLineDuration, _ := measureDuration(func() error {
+	readLineDuration, _ := MeasureDuration(func() error {
 		if scanner.Scan() {
 			scan = true
 			line = scanner.Text()
@@ -32,22 +32,22 @@ func parseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 		}
 		return nil
 	})
-	GlobalMetrics.AddReadLineDuration(int64(readLineDuration))
+	ReadLineDuration = int64(readLineDuration)
 
 	if scan {
-		GlobalMetrics.IncLinesRead()
-		GlobalMetrics.AddBytesRead(int64(len(line)))
+		LinesRead++
+		BytesRead += int64(len(line))
 
-		parseTimestampDuration, _ := measureDuration(func() error {
+		parseTimestampDuration, _ := MeasureDuration(func() error {
 			timestamp = ParseTimestamp(line)
 			return nil
 		})
-		GlobalMetrics.AddParseTimestampDuration(int64(parseTimestampDuration))
+		ParseTimestampDuration += int64(parseTimestampDuration)
 
 		if timestamp.Equal(noTimestamp) {
-			GlobalMetrics.IncLinesWithoutTimestamps()
+			LinesWithoutTimestamps++
 		} else {
-			GlobalMetrics.IncLinesWithTimestamps()
+			LinesWithTimestamps++
 		}
 		return &LogLine{
 			Timestamp:  timestamp,

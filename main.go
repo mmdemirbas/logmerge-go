@@ -19,7 +19,7 @@ func main() {
 		basePath *string
 	)
 
-	mainDuration, err := measureDuration(func() error {
+	mainDuration, err := MeasureDuration(func() error {
 		// Enable profiling only if configured
 		if os.Getenv("ENABLE_PPROF") == "true" {
 			fmt.Fprintf(os.Stderr, "Profiling enabled\n")
@@ -36,7 +36,7 @@ func main() {
 			defer pprof.StopCPUProfile()
 		}
 
-		parseOptionsDuration, _ := measureDuration(func() error {
+		parseOptionsDuration, _ := MeasureDuration(func() error {
 			// If there is no argument provided, print usage and exit.
 			if len(os.Args) < 2 {
 				fmt.Fprintf(os.Stderr, "logmerge\n")
@@ -56,9 +56,9 @@ func main() {
 			basePath = &os.Args[1]
 			return nil
 		})
-		GlobalMetrics.AddParseOptionsDuration(int64(parseOptionsDuration))
+		ParseOptionsDuration = int64(parseOptionsDuration)
 
-		err := mergeLogs(*basePath)
+		err := MergeLogs(*basePath)
 
 		if os.Getenv("ENABLE_PPROF") == "true" {
 			// Capture memory profile
@@ -73,9 +73,9 @@ func main() {
 		}
 		return err
 	})
-	GlobalMetrics.AddTotalMainDuration(int64(mainDuration))
+	TotalMainDuration = int64(mainDuration)
 
-	GlobalMetrics.Print(basePath, err)
+	PrintMetrics(basePath, err)
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

@@ -13,7 +13,7 @@ var (
 	includedLenientSuffixes = []string{".log", ".err", ".error", ".warn", ".warning", ".info", ".txt", ".out", ".debug", ".trace"}
 )
 
-func listFiles(basePath string) ([]string, error) {
+func ListFiles(basePath string) ([]string, error) {
 	var (
 		files []string
 		err   error
@@ -30,28 +30,28 @@ func listFiles(basePath string) ([]string, error) {
 					return err
 				}
 				if info.IsDir() {
-					GlobalMetrics.IncDirsScanned()
+					DirsScanned++
 				} else {
-					GlobalMetrics.IncFilesScanned()
+					FilesScanned++
 					if ShouldIncludeFile(path) {
-						GlobalMetrics.IncFilesMatched()
+						FilesMatched++
 						files = append(files, path)
 					}
 				}
 				return nil
 			})
 		default:
-			GlobalMetrics.IncFilesScanned()
+			FilesScanned++
 			if ShouldIncludeFile(basePath) {
-				GlobalMetrics.IncFilesMatched()
+				FilesMatched++
 				files = append(files, basePath)
 			}
 		}
-		GlobalMetrics.AddMatchedFiles(files...)
+		MatchedFiles = files
 		return nil
 	}
-	listFilesDuration, err := measureDuration(f)
-	GlobalMetrics.AddListFilesDuration(int64(listFilesDuration))
+	listFilesDuration, err := MeasureDuration(f)
+	ListFilesDuration += int64(listFilesDuration)
 	return files, err
 }
 
