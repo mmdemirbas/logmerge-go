@@ -25,6 +25,19 @@ var (
 
 	// Timing stats by operation (nanoseconds)
 
+	NewWriterDuration            int64
+	MaxOutputNameLenCalcDuration int64
+	HeapInitDuration             int64
+	HeapPopulateDuration         int64
+	PopulateParseLineDuration    int64
+	PopulateHeapPushDuration     int64
+	MergeLoopDuration            int64
+	InnerMergeLoopDuration       int64
+	WriteFirstLineDuration       int64
+	WriteNextLinesDuration       int64
+	InnerHeapPushDuration        int64
+
+	HeapPopDuration        int64
 	ParseLineFullDuration  int64
 	ReadLineDuration       int64
 	ReadLinePostDuration   int64
@@ -65,7 +78,11 @@ func MeasureSince(startNanos time.Time) int64 {
 
 func PrintMetrics(basePath *string, err error) {
 	restOfMainDuration := TotalMainDuration - (ParseOptionsDuration + ListFilesDuration + OpenFilesDuration + MergeScannersDuration)
-	restOfMergeScannersDuration := MergeScannersDuration - (ParseLineFullDuration + WriteLineDuration)
+	restOfMergeScannersDuration := MergeScannersDuration - (NewWriterDuration + MaxOutputNameLenCalcDuration + HeapInitDuration + +HeapPopulateDuration + MergeLoopDuration)
+	restOfHeapPopulateDuration := HeapPopulateDuration - (PopulateParseLineDuration + PopulateHeapPushDuration)
+	restOfInnerMergeLoopDuration := InnerMergeLoopDuration - (HeapPopDuration + WriteFirstLineDuration + WriteNextLinesDuration + InnerHeapPushDuration)
+	restOfMergeLoopDuration := MergeLoopDuration - InnerMergeLoopDuration
+	restOfMergeScannersBreakdownDuration := MergeScannersDuration - (ParseLineFullDuration + WriteLineDuration)
 	writtenBytesOverhead := BytesWritten - BytesWrittenForRawLines
 
 	fmt.Fprintf(os.Stderr, "===== METRICS =================================================================================\n")
@@ -82,12 +99,29 @@ func PrintMetrics(basePath *string, err error) {
 	fmt.Fprintf(os.Stderr, "  list files            : %8s ~ %12v\n", timePercent(ListFilesDuration), duration(ListFilesDuration))
 	fmt.Fprintf(os.Stderr, "  open files            : %8s ~ %12v\n", timePercent(OpenFilesDuration), duration(OpenFilesDuration))
 	fmt.Fprintf(os.Stderr, "  merge scanners        : %8s ~ %12v\n", timePercent(MergeScannersDuration), duration(MergeScannersDuration))
+	fmt.Fprintf(os.Stderr, "    new writer          : %8s ~ %12v\n", timePercent(NewWriterDuration), duration(NewWriterDuration))
+	fmt.Fprintf(os.Stderr, "    out name calc       : %8s ~ %12v\n", timePercent(MaxOutputNameLenCalcDuration), duration(MaxOutputNameLenCalcDuration))
+	fmt.Fprintf(os.Stderr, "    heap init           : %8s ~ %12v\n", timePercent(HeapInitDuration), duration(HeapInitDuration))
+	fmt.Fprintf(os.Stderr, "    heap populate       : %8s ~ %12v\n", timePercent(HeapPopulateDuration), duration(HeapPopulateDuration))
+	fmt.Fprintf(os.Stderr, "      parse line        : %8s ~ %12v\n", timePercent(PopulateParseLineDuration), duration(PopulateParseLineDuration))
+	fmt.Fprintf(os.Stderr, "      heap push         : %8s ~ %12v\n", timePercent(PopulateHeapPushDuration), duration(PopulateHeapPushDuration))
+	fmt.Fprintf(os.Stderr, "      rest..            : %8s ~ %12v\n", timePercent(restOfHeapPopulateDuration), duration(restOfHeapPopulateDuration))
+	fmt.Fprintf(os.Stderr, "    merge loop          : %8s ~ %12v\n", timePercent(MergeLoopDuration), duration(MergeLoopDuration))
+	fmt.Fprintf(os.Stderr, "      inner merge loop  : %8s ~ %12v\n", timePercent(InnerMergeLoopDuration), duration(InnerMergeLoopDuration))
+	fmt.Fprintf(os.Stderr, "        heap pop        : %8s ~ %12v\n", timePercent(HeapPopDuration), duration(HeapPopDuration))
+	fmt.Fprintf(os.Stderr, "        write first line: %8s ~ %12v\n", timePercent(WriteFirstLineDuration), duration(WriteFirstLineDuration))
+	fmt.Fprintf(os.Stderr, "        write next lines: %8s ~ %12v\n", timePercent(WriteNextLinesDuration), duration(WriteNextLinesDuration))
+	fmt.Fprintf(os.Stderr, "        inner heap push : %8s ~ %12v\n", timePercent(InnerHeapPushDuration), duration(InnerHeapPushDuration))
+	fmt.Fprintf(os.Stderr, "        rest..          : %8s ~ %12v\n", timePercent(restOfInnerMergeLoopDuration), duration(restOfInnerMergeLoopDuration))
+	fmt.Fprintf(os.Stderr, "      rest..            : %8s ~ %12v\n", timePercent(restOfMergeLoopDuration), duration(restOfMergeLoopDuration))
+	fmt.Fprintf(os.Stderr, "    rest..              : %8s ~ %12v\n", timePercent(restOfMergeScannersDuration), duration(restOfMergeScannersDuration))
+	fmt.Fprintf(os.Stderr, "  merge scanners brkdwn\n")
 	fmt.Fprintf(os.Stderr, "    parse line full     : %8s ~ %12v\n", timePercent(ParseLineFullDuration), duration(ParseLineFullDuration))
 	fmt.Fprintf(os.Stderr, "      read line         : %8s ~ %12v\n", timePercent(ReadLineDuration), duration(ReadLineDuration))
 	fmt.Fprintf(os.Stderr, "      read line post    : %8s ~ %12v\n", timePercent(ReadLinePostDuration), duration(ReadLinePostDuration))
 	fmt.Fprintf(os.Stderr, "        parse timestamp : %8s ~ %12v\n", timePercent(ParseTimestampDuration), duration(ParseTimestampDuration))
 	fmt.Fprintf(os.Stderr, "    write line          : %8s ~ %12v\n", timePercent(WriteLineDuration), duration(WriteLineDuration))
-	fmt.Fprintf(os.Stderr, "    rest..              : %8s ~ %12v\n", timePercent(restOfMergeScannersDuration), duration(restOfMergeScannersDuration))
+	fmt.Fprintf(os.Stderr, "    rest..              : %8s ~ %12v\n", timePercent(restOfMergeScannersBreakdownDuration), duration(restOfMergeScannersBreakdownDuration))
 	fmt.Fprintf(os.Stderr, "  rest..                : %8s ~ %12v\n", timePercent(restOfMainDuration), duration(restOfMainDuration))
 	fmt.Fprintf(os.Stderr, "Byte count stats\n")
 	fmt.Fprintf(os.Stderr, "  bytes read            : %8s ~ %12d = %10s ≈ %s\n", "", BytesRead, bytes(BytesRead), bytesSpeed(BytesRead, MergeScannersDuration))

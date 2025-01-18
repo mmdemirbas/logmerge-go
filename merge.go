@@ -73,50 +73,74 @@ func mergeFiles(basePath string, files []string) error {
 }
 
 func MergeScanners(sourceNames []string, outputNames map[string]string, scanners map[string]*bufio.Scanner) {
+	startOfNewWriter := MeasureStart()
 	writer := bufio.NewWriterSize(os.Stdout, writeBufferSize)
 	defer writer.Flush()
+	NewWriterDuration = MeasureSince(startOfNewWriter)
 
 	// Calculate max output name length
+	startOfMaxOutputNameLenCalc := MeasureStart()
 	maxOutputNameLen := 0
 	for _, outputName := range outputNames {
 		if len(outputName) > maxOutputNameLen {
 			maxOutputNameLen = len(outputName)
 		}
 	}
+	MaxOutputNameLenCalcDuration = MeasureSince(startOfMaxOutputNameLenCalc)
 
 	// Initialize heap
+	startOfHeapInit := MeasureStart()
 	h := &MinHeap{}
 	heap.Init(h)
+	HeapInitDuration = MeasureSince(startOfHeapInit)
 
 	// Populate heap with the first entry from each file
+	startOfHeapPopulate := MeasureStart()
 	for _, sourceName := range sourceNames {
 		scanner := scanners[sourceName]
+		startOfParseLine := MeasureStart()
 		entry := ParseLine(sourceName, scanner)
+		PopulateParseLineDuration += MeasureSince(startOfParseLine)
 		if entry != nil {
+			startOfHeapPush := MeasureStart()
 			heap.Push(h, entry)
+			PopulateHeapPushDuration += MeasureSince(startOfHeapPush)
 		}
 	}
+	HeapPopulateDuration = MeasureSince(startOfHeapPopulate)
 
 	// Merge logs
+	startOfMergeLoop := MeasureStart()
 	for h.Len() > 0 {
+		startOfHeapPop := MeasureStart()
 		current := heap.Pop(h).(*LogLine)
+		HeapPopDuration += MeasureSince(startOfHeapPop)
+
+		startOfWriteFirstLine := MeasureStart()
 		sourceName := current.SourceName
 		outputName := outputNames[sourceName]
 		scanner := scanners[sourceName]
 		writeOut(writer, current.Timestamp, maxOutputNameLen, outputName, current.RawLine)
+		WriteFirstLineDuration += MeasureSince(startOfWriteFirstLine)
 
 		// Aggregate lines until finding a timestamped line from the same source
+		startOfWriteNextLines := MeasureStart()
 		next := ParseLine(sourceName, scanner)
 		for next != nil && next.Timestamp == noTimestamp {
 			writeOut(writer, noTimestamp, maxOutputNameLen, outputName, next.RawLine)
 			next = ParseLine(sourceName, scanner)
 		}
+		WriteNextLinesDuration += MeasureSince(startOfWriteNextLines)
 
 		// Put the current line to the heap
 		if next != nil {
+			startOfHeapPush := MeasureStart()
 			heap.Push(h, next)
+			InnerHeapPushDuration += MeasureSince(startOfHeapPush)
 		}
+		InnerMergeLoopDuration += MeasureSince(startOfHeapPop)
 	}
+	MergeLoopDuration = MeasureSince(startOfMergeLoop)
 }
 
 func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, outputName string, logLine string) {

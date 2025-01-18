@@ -61,11 +61,10 @@ benchmark:
 # Run application
 [group("run")]
 run run_name="default":
-    mkdir -p {{ LOG_DIR }} {{ BIN_DIR }}
-    rm -rf {{ LOG_DIR }}/{{ run_name }}.*  > /dev/null 2>&1 || true
+    mkdir -p {{ LOG_DIR }} {{ BIN_DIR }} {{ OUT_DIR }}
     go build -ldflags="-s -w" -o {{ BIN_DIR }}/{{ BINARY_NAME }} *.go
     {{ BIN_DIR }}/{{ BINARY_NAME }} {{ RUN_ARGS }} \
-        > {{ LOG_DIR }}/{{ run_name }}.out \
+        > {{ OUT_DIR }}/output.log \
         2> {{ LOG_DIR }}/{{ run_name }}.err
 #    go run $(ls *.go | grep -v _test.go) {{ RUN_ARGS }} \
 #        > {{ LOG_DIR }}/{{ run_name }}/manual.out \
