@@ -68,10 +68,6 @@ var (
 	LineLengths          = make([]int64, len(LineLengthThresholds))
 )
 
-func MeasureStart() time.Time {
-	return time.Now()
-}
-
 func MeasureSince(startNanos time.Time) int64 {
 	return time.Since(startNanos).Nanoseconds()
 }

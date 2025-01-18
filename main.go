@@ -15,7 +15,7 @@ type LogLine struct {
 }
 
 func main() {
-	startOfMain := MeasureStart()
+	startOfMain := time.Now()
 
 	// Enable profiling only if configured
 	if os.Getenv("ENABLE_PPROF") == "true" {
@@ -35,7 +35,7 @@ func main() {
 		}
 	}
 
-	startOfParseOptions := MeasureStart()
+	startOfParseOptions := time.Now()
 	var (
 		basePath *string
 		err      error

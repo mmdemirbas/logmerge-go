@@ -36,7 +36,7 @@ func MergeLogs(basePath string) error {
 }
 
 func mergeFiles(basePath string, files []string) error {
-	startOfOpenFiles := MeasureStart()
+	startOfOpenFiles := time.Now()
 
 	var (
 		outputNames = make(map[string]string)
@@ -65,7 +65,7 @@ func mergeFiles(basePath string, files []string) error {
 	}()
 	OpenFilesDuration = MeasureSince(startOfOpenFiles)
 
-	startOfMergeScanners := MeasureStart()
+	startOfMergeScanners := time.Now()
 	MergeScanners(files, outputNames, scanners)
 	MergeScannersDuration = MeasureSince(startOfMergeScanners)
 
@@ -73,13 +73,13 @@ func mergeFiles(basePath string, files []string) error {
 }
 
 func MergeScanners(sourceNames []string, outputNames map[string]string, scanners map[string]*bufio.Scanner) {
-	startOfNewWriter := MeasureStart()
+	startOfNewWriter := time.Now()
 	writer := bufio.NewWriterSize(os.Stdout, writeBufferSize)
 	defer writer.Flush()
 	NewWriterDuration = MeasureSince(startOfNewWriter)
 
 	// Calculate max output name length
-	startOfMaxOutputNameLenCalc := MeasureStart()
+	startOfMaxOutputNameLenCalc := time.Now()
 	maxOutputNameLen := 0
 	for _, outputName := range outputNames {
 		if len(outputName) > maxOutputNameLen {
@@ -89,20 +89,20 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 	MaxOutputNameLenCalcDuration = MeasureSince(startOfMaxOutputNameLenCalc)
 
 	// Initialize heap
-	startOfHeapInit := MeasureStart()
+	startOfHeapInit := time.Now()
 	h := &MinHeap{}
 	heap.Init(h)
 	HeapInitDuration = MeasureSince(startOfHeapInit)
 
 	// Populate heap with the first entry from each file
-	startOfHeapPopulate := MeasureStart()
+	startOfHeapPopulate := time.Now()
 	for _, sourceName := range sourceNames {
 		scanner := scanners[sourceName]
-		startOfParseLine := MeasureStart()
+		startOfParseLine := time.Now()
 		entry := ParseLine(sourceName, scanner)
 		PopulateParseLineDuration += MeasureSince(startOfParseLine)
 		if entry != nil {
-			startOfHeapPush := MeasureStart()
+			startOfHeapPush := time.Now()
 			heap.Push(h, entry)
 			PopulateHeapPushDuration += MeasureSince(startOfHeapPush)
 		}
@@ -110,13 +110,13 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 	HeapPopulateDuration = MeasureSince(startOfHeapPopulate)
 
 	// Merge logs
-	startOfMergeLoop := MeasureStart()
+	startOfMergeLoop := time.Now()
 	for h.Len() > 0 {
-		startOfHeapPop := MeasureStart()
+		startOfHeapPop := time.Now()
 		current := heap.Pop(h).(*LogLine)
 		HeapPopDuration += MeasureSince(startOfHeapPop)
 
-		startOfWriteFirstLine := MeasureStart()
+		startOfWriteFirstLine := time.Now()
 		sourceName := current.SourceName
 		outputName := outputNames[sourceName]
 		scanner := scanners[sourceName]
@@ -124,7 +124,7 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 		WriteFirstLineDuration += MeasureSince(startOfWriteFirstLine)
 
 		// Aggregate lines until finding a timestamped line from the same source
-		startOfWriteNextLines := MeasureStart()
+		startOfWriteNextLines := time.Now()
 		next := ParseLine(sourceName, scanner)
 		for next != nil && next.Timestamp == noTimestamp {
 			writeOut(writer, noTimestamp, maxOutputNameLen, outputName, next.RawLine)
@@ -134,7 +134,7 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 
 		// Put the current line to the heap
 		if next != nil {
-			startOfHeapPush := MeasureStart()
+			startOfHeapPush := time.Now()
 			heap.Push(h, next)
 			InnerHeapPushDuration += MeasureSince(startOfHeapPush)
 		}
@@ -144,7 +144,7 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 }
 
 func writeOut(writer *bufio.Writer, timestamp time.Time, maxOutputNameLen int, outputName string, logLine string) {
-	startOfWriteLine := MeasureStart()
+	startOfWriteLine := time.Now()
 
 	buf := bufferPool.Get().([]byte)
 	buf = buf[:0] // reset buffer

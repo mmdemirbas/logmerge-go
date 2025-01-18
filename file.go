@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 var (
@@ -14,7 +15,7 @@ var (
 )
 
 func ListFiles(basePath string) (files []string, err error) {
-	startOfListFiles := MeasureStart()
+	startOfListFiles := time.Now()
 
 	stat, err := os.Stat(basePath)
 
