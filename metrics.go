@@ -55,9 +55,9 @@ var (
 
 	// Line length stats
 
-	MaxLineLength        int
-	LineLengthThresholds = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000}
-	LineLengths          = make([]int64, len(LineLengthThresholds))
+	MaxLineLength              int
+	LineLengthBucketThresholds = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000}
+	LineLengthBucketSizes      = make([]int64, len(LineLengthBucketThresholds))
 )
 
 func MeasureSince(startNanos time.Time) int64 {
@@ -117,8 +117,8 @@ func PrintMetrics(basePath *string, err error) {
 	fmt.Fprintf(os.Stderr, "  max line length       : %8s ~ %12d\n", "", MaxLineLength)
 	fmt.Fprintf(os.Stderr, "  line length counts\n")
 	var cumulative int64
-	for i, threshold := range LineLengthThresholds {
-		lineCount := LineLengths[i]
+	for i, threshold := range LineLengthBucketThresholds {
+		lineCount := LineLengthBucketSizes[i]
 		cumulative += lineCount
 		fmt.Fprintf(os.Stderr, "    ≤ %-6d            : %8s ~ %12d ≈ %8s (cumulative)\n", threshold, percent(lineCount, LinesRead), lineCount, percent(cumulative, LinesRead))
 	}

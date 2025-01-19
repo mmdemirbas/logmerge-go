@@ -57,9 +57,9 @@ func ParseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 func ParseTimestamp(line string) time.Time {
 	n := len(line)
 	MaxLineLength = max(MaxLineLength, n)
-	for i, threshold := range LineLengthThresholds {
+	for i, threshold := range LineLengthBucketThresholds {
 		if n <= threshold {
-			LineLengths[i]++
+			LineLengthBucketSizes[i]++
 			break
 		}
 	}
