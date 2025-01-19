@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"fmt"
+	"os"
 	"time"
 )
 
@@ -58,15 +60,16 @@ func ParseLine(sourceName string, scanner *bufio.Scanner) *LogLine {
 }
 
 func ParseTimestamp(line string) time.Time {
+	// Recover
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "Recovered from panic: %v. Line was: %q\n", r, line)
+		}
+	}()
+
 	n := len(line)
 	MaxLineLength = max(MaxLineLength, n)
 	UpdateBucketCount(n, LineLengthBucketThresholds, LineLengthBucketSizes)
-
-	// Early length check
-	if n < 12 {
-		ParseTimestamp_LineTooShort++
-		return noTimestamp
-	}
 
 	// Find first digit more efficiently using index of common prefixes
 	i := 0
@@ -77,17 +80,15 @@ func ParseTimestamp(line string) time.Time {
 	if i < n {
 		ParseTimestamp_MinFirstDigitIndex = min(ParseTimestamp_MinFirstDigitIndex, firstDigitIndex)
 		ParseTimestamp_MaxFirstDigitIndex = max(ParseTimestamp_MaxFirstDigitIndex, firstDigitIndex)
-		UpdateBucketCount(n, ParseTimestamp_DigitIndexThresholds, ParseTimestamp_FirstDigitCounts)
+		UpdateBucketCount(firstDigitIndex, ParseTimestamp_DigitIndexThresholds, ParseTimestamp_FirstDigitCounts)
+	} else {
+		ParseTimestamp_NoFirstDigit++
 	}
-	if i+12 > n {
+	if i+15 > n {
 		ParseTimestamp_LineTooShortAfterFirstDigit++
 		return noTimestamp
 	}
 
-	// Pre-allocate timezone for common case
-	utc := time.UTC
-
-	// Parse year with fewer branches
 	year, count := parseDigits(line, &i, 4)
 	if count == 0 {
 		ParseTimestamp_NoYear++
@@ -111,11 +112,11 @@ func ParseTimestamp(line string) time.Time {
 
 	month, mcount := parseDigits(line, &i, 2)
 	if mcount == 0 {
-		ParseTimestamp_NoMounth++
+		ParseTimestamp_NoMonth++
 		return noTimestamp
 	}
 	if month < 1 || month > 12 {
-		ParseTimestamp_MounthOutOfRange++
+		ParseTimestamp_MonthOutOfRange++
 		return noTimestamp
 	}
 
@@ -155,6 +156,7 @@ func ParseTimestamp(line string) time.Time {
 	}
 	if line[i] != ':' && line[i] != '.' {
 		ParseTimestamp_HourSeparatorMismatch++
+		ParseTimestamp_MismatchedHourSeparators = append(ParseTimestamp_MismatchedHourSeparators, line[i])
 		return noTimestamp
 	}
 	i++
@@ -189,7 +191,6 @@ func ParseTimestamp(line string) time.Time {
 		return noTimestamp
 	}
 
-	// Handle subseconds more efficiently
 	var nsec int
 	if i < n && (line[i] == '.' || line[i] == ',') {
 		ParseTimestamp_HasNanos++
@@ -204,7 +205,7 @@ func ParseTimestamp(line string) time.Time {
 		}
 	}
 
-	// Optimize timezone parsing
+	utc := time.UTC
 	if i < n {
 		switch line[i] {
 		case 'Z':
@@ -254,7 +255,7 @@ func ParseTimestamp(line string) time.Time {
 
 	ParseTimestamp_MinFirstDigitIndexActual = min(ParseTimestamp_MinFirstDigitIndexActual, firstDigitIndex)
 	ParseTimestamp_MaxFirstDigitIndexActual = max(ParseTimestamp_MaxFirstDigitIndexActual, firstDigitIndex)
-	UpdateBucketCount(n, ParseTimestamp_DigitIndexThresholds, ParseTimestamp_FirstDigitCountsActual)
+	UpdateBucketCount(firstDigitIndex, ParseTimestamp_DigitIndexThresholds, ParseTimestamp_FirstDigitCountsActual)
 
 	return time.Date(year, time.Month(month), day, hour, minute, second, nsec, utc)
 }

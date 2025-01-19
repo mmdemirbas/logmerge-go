@@ -61,6 +61,7 @@ var (
 
 	// ParseTimestamp debugging
 
+	ParseTimestamp_NoFirstDigit                int64
 	ParseTimestamp_MinFirstDigitIndex          int
 	ParseTimestamp_MaxFirstDigitIndex          int
 	ParseTimestamp_MinFirstDigitIndexActual    int
@@ -75,8 +76,8 @@ var (
 	ParseTimestamp_2DigitYear_1900             int64
 	ParseTimestamp_2DigitYear_2000             int64
 	ParseTimestamp_4DigitYear_OutOfRange       int64
-	ParseTimestamp_NoMounth                    int64
-	ParseTimestamp_MounthOutOfRange            int64
+	ParseTimestamp_NoMonth                     int64
+	ParseTimestamp_MonthOutOfRange             int64
 	ParseTimestamp_NoDay                       int64
 	ParseTimestamp_DayOutOfRange               int64
 	ParseTimestamp_SpaceOperatorMismatch       int64
@@ -84,6 +85,7 @@ var (
 	ParseTimestamp_HourOutOfRange              int64
 	ParseTimestamp_NoHourSeparator             int64
 	ParseTimestamp_HourSeparatorMismatch       int64
+	ParseTimestamp_MismatchedHourSeparators    []uint8
 	ParseTimestamp_NoMinute                    int64
 	ParseTimestamp_MinuteOutOfRange            int64
 	ParseTimestamp_NoMinuteSeparator           int64
@@ -184,13 +186,14 @@ func PrintMetrics(basePath *string, err error) {
 		fmt.Fprintf(os.Stderr, "    ≤ %-6d            : %8s ~ %7d 1st# ≈ %8d start ≈ %8d end\n", threshold, "", ParseTimestamp_FirstDigitCounts[i], ParseTimestamp_FirstDigitCountsActual[i], ParseTimestamp_LastDigitCounts[i])
 	}
 	fmt.Fprintf(os.Stderr, "  too short             : %8s ~ %12d\n", "", ParseTimestamp_LineTooShort)
-	fmt.Fprintf(os.Stderr, "  too short after  digit: %8s ~ %12d\n", "", ParseTimestamp_LineTooShortAfterFirstDigit)
+	fmt.Fprintf(os.Stderr, "  no digit              : %8s ~ %12d\n", "", ParseTimestamp_NoFirstDigit)
+	fmt.Fprintf(os.Stderr, "  too short after digit : %8s ~ %12d\n", "", ParseTimestamp_LineTooShortAfterFirstDigit)
 	fmt.Fprintf(os.Stderr, "  no year               : %8s ~ %12d\n", "", ParseTimestamp_NoYear)
 	fmt.Fprintf(os.Stderr, "  2-digit year 1900     : %8s ~ %12d\n", "", ParseTimestamp_2DigitYear_1900)
 	fmt.Fprintf(os.Stderr, "  2-digit year 2000     : %8s ~ %12d\n", "", ParseTimestamp_2DigitYear_2000)
 	fmt.Fprintf(os.Stderr, "  4-digit year our-range: %8s ~ %12d\n", "", ParseTimestamp_4DigitYear_OutOfRange)
-	fmt.Fprintf(os.Stderr, "  no mounth             : %8s ~ %12d\n", "", ParseTimestamp_NoMounth)
-	fmt.Fprintf(os.Stderr, "  mounth out of range   : %8s ~ %12d\n", "", ParseTimestamp_MounthOutOfRange)
+	fmt.Fprintf(os.Stderr, "  no month             : %8s ~ %12d\n", "", ParseTimestamp_NoMonth)
+	fmt.Fprintf(os.Stderr, "  month out of range   : %8s ~ %12d\n", "", ParseTimestamp_MonthOutOfRange)
 	fmt.Fprintf(os.Stderr, "  no day                : %8s ~ %12d\n", "", ParseTimestamp_NoDay)
 	fmt.Fprintf(os.Stderr, "  day out of range      : %8s ~ %12d\n", "", ParseTimestamp_DayOutOfRange)
 	fmt.Fprintf(os.Stderr, "  space operator mismtch: %8s ~ %12d\n", "", ParseTimestamp_SpaceOperatorMismatch)
@@ -198,6 +201,7 @@ func PrintMetrics(basePath *string, err error) {
 	fmt.Fprintf(os.Stderr, "  hour out of range     : %8s ~ %12d\n", "", ParseTimestamp_HourOutOfRange)
 	fmt.Fprintf(os.Stderr, "  no hour separator     : %8s ~ %12d\n", "", ParseTimestamp_NoHourSeparator)
 	fmt.Fprintf(os.Stderr, "  hour separator mismtch: %8s ~ %12d\n", "", ParseTimestamp_HourSeparatorMismatch)
+	fmt.Fprintf(os.Stderr, "  mismatched hour seps  : %8s ~ %12d => %v\n", "", len(ParseTimestamp_MismatchedHourSeparators), ParseTimestamp_MismatchedHourSeparators)
 	fmt.Fprintf(os.Stderr, "  no minute             : %8s ~ %12d\n", "", ParseTimestamp_NoMinute)
 	fmt.Fprintf(os.Stderr, "  minute out of range   : %8s ~ %12d\n", "", ParseTimestamp_MinuteOutOfRange)
 	fmt.Fprintf(os.Stderr, "  no minute separator   : %8s ~ %12d\n", "", ParseTimestamp_NoMinuteSeparator)
