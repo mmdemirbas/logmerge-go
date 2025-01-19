@@ -69,9 +69,8 @@ func ParseTimestamp(line string) time.Time {
 
 	n := len(line)
 	MaxLineLength = max(MaxLineLength, n)
-	UpdateBucketCount(n, LineLengthBucketThresholds, LineLengthBucketSizes)
+	UpdateBucketCount(n, LineLengthBucketLevels, LineLengthBucketValues)
 
-	// Find first digit more efficiently using index of common prefixes
 	i := 0
 	for i < n && (line[i] < '0' || line[i] > '9') {
 		i++
@@ -80,7 +79,7 @@ func ParseTimestamp(line string) time.Time {
 	if i < n {
 		ParseTimestamp_MinFirstDigitIndex = min(ParseTimestamp_MinFirstDigitIndex, firstDigitIndex)
 		ParseTimestamp_MaxFirstDigitIndex = max(ParseTimestamp_MaxFirstDigitIndex, firstDigitIndex)
-		UpdateBucketCount(firstDigitIndex, ParseTimestamp_DigitIndexThresholds, ParseTimestamp_FirstDigitCounts)
+		UpdateBucketCount(firstDigitIndex, ParseTimestamp_DigitIndexLevels, ParseTimestamp_FirstDigitIndexValues)
 	} else {
 		ParseTimestamp_NoFirstDigit++
 	}
@@ -154,7 +153,7 @@ func ParseTimestamp(line string) time.Time {
 		ParseTimestamp_NoHourSeparator++
 		return noTimestamp
 	}
-	if line[i] != ':' && line[i] != '.' {
+	if line[i] != ':' && line[i] != '.' && line[i] != '-' {
 		ParseTimestamp_HourSeparatorMismatch++
 		ParseTimestamp_MismatchedHourSeparators = append(ParseTimestamp_MismatchedHourSeparators, line[i])
 		return noTimestamp
@@ -175,8 +174,9 @@ func ParseTimestamp(line string) time.Time {
 		ParseTimestamp_NoMinuteSeparator++
 		return noTimestamp
 	}
-	if line[i] != ':' && line[i] != '.' {
+	if line[i] != ':' && line[i] != '.' && line[i] != '-' {
 		ParseTimestamp_MinuteSeparatorMismatch++
+		ParseTimestamp_MismatchedMinuteSeparators = append(ParseTimestamp_MismatchedMinuteSeparators, line[i])
 		return noTimestamp
 	}
 	i++
@@ -197,12 +197,14 @@ func ParseTimestamp(line string) time.Time {
 		i++
 		var ncount int
 		nsec, ncount = parseDigits(line, &i, 9)
-		UpdateBucketCount(ncount, ParseTimestamp_NanosLengthThresholds, ParseTimestamp_NanosLengthCounts)
+		UpdateBucketCount(ncount, ParseTimestamp_NanosLengthBucketLevels, ParseTimestamp_NanosLengthBucketValues)
 		// Normalize nanoseconds in one step
 		for ncount < 9 {
 			nsec *= 10
 			ncount++
 		}
+	} else {
+		ParseTimestamp_HasNotNanos++
 	}
 
 	utc := time.UTC
@@ -251,11 +253,16 @@ func ParseTimestamp(line string) time.Time {
 
 	ParseTimestamp_MinTimestampEndIndex = min(ParseTimestamp_MinTimestampEndIndex, i)
 	ParseTimestamp_MaxTimestampEndIndex = max(ParseTimestamp_MaxTimestampEndIndex, i)
-	UpdateBucketCount(i, ParseTimestamp_DigitIndexThresholds, ParseTimestamp_LastDigitCounts)
+	UpdateBucketCount(i, ParseTimestamp_DigitIndexLevels, ParseTimestamp_LastDigitIndexValues)
 
 	ParseTimestamp_MinFirstDigitIndexActual = min(ParseTimestamp_MinFirstDigitIndexActual, firstDigitIndex)
 	ParseTimestamp_MaxFirstDigitIndexActual = max(ParseTimestamp_MaxFirstDigitIndexActual, firstDigitIndex)
-	UpdateBucketCount(firstDigitIndex, ParseTimestamp_DigitIndexThresholds, ParseTimestamp_FirstDigitCountsActual)
+	UpdateBucketCount(firstDigitIndex, ParseTimestamp_DigitIndexLevels, ParseTimestamp_FirstDigitIndexValuesActual)
+
+	timestampLen := i - firstDigitIndex
+	ParseTimestamp_MinTimestampLength = min(ParseTimestamp_MinTimestampLength, timestampLen)
+	ParseTimestamp_MaxTimestampLength = max(ParseTimestamp_MaxTimestampLength, timestampLen)
+	UpdateBucketCount(timestampLen, ParseTimestamp_LenghtBucketLevels, ParseTimestamp_LengthBucketValues)
 
 	return time.Date(year, time.Month(month), day, hour, minute, second, nsec, utc)
 }

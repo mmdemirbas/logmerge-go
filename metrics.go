@@ -55,21 +55,27 @@ var (
 
 	// Line length stats
 
-	MaxLineLength              int
-	LineLengthBucketThresholds = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000}
-	LineLengthBucketSizes      = make([]int64, len(LineLengthBucketThresholds))
+	MaxLineLength          int
+	LineLengthBucketLevels = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000}
+	LineLengthBucketValues = make([]int64, len(LineLengthBucketLevels))
 
 	// ParseTimestamp debugging
 
 	ParseTimestamp_NoFirstDigit                int64
-	ParseTimestamp_MinFirstDigitIndex          int
+	ParseTimestamp_MinFirstDigitIndex          int = 1<<31 - 1
 	ParseTimestamp_MaxFirstDigitIndex          int
-	ParseTimestamp_MinFirstDigitIndexActual    int
+	ParseTimestamp_MinFirstDigitIndexActual    int = 1<<31 - 1
 	ParseTimestamp_MaxFirstDigitIndexActual    int
-	ParseTimestamp_DigitIndexThresholds        = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300, 350, 400, 450, 500, 1000, 5000, 10000, 20000, 30000, 40000, 50000}
-	ParseTimestamp_FirstDigitCounts            = make([]int64, len(ParseTimestamp_DigitIndexThresholds))
-	ParseTimestamp_FirstDigitCountsActual      = make([]int64, len(ParseTimestamp_DigitIndexThresholds))
-	ParseTimestamp_LastDigitCounts             = make([]int64, len(ParseTimestamp_DigitIndexThresholds))
+	ParseTimestamp_DigitIndexLevels                = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200, 225, 250, 300, 350, 400, 450, 500, 1000, 5000, 10000, 20000, 30000, 40000, 50000}
+	ParseTimestamp_FirstDigitIndexValues           = make([]int64, len(ParseTimestamp_DigitIndexLevels))
+	ParseTimestamp_FirstDigitIndexValuesActual     = make([]int64, len(ParseTimestamp_DigitIndexLevels))
+	ParseTimestamp_LastDigitIndexValues            = make([]int64, len(ParseTimestamp_DigitIndexLevels))
+	ParseTimestamp_MinTimestampEndIndex        int = 1<<31 - 1
+	ParseTimestamp_MaxTimestampEndIndex        int
+	ParseTimestamp_MinTimestampLength          int = 1<<31 - 1
+	ParseTimestamp_MaxTimestampLength          int
+	ParseTimestamp_LenghtBucketLevels          = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 500, 1000, 10000, 50000}
+	ParseTimestamp_LengthBucketValues          = make([]int64, len(ParseTimestamp_LenghtBucketLevels))
 	ParseTimestamp_LineTooShort                int64
 	ParseTimestamp_LineTooShortAfterFirstDigit int64
 	ParseTimestamp_NoYear                      int64
@@ -85,34 +91,34 @@ var (
 	ParseTimestamp_HourOutOfRange              int64
 	ParseTimestamp_NoHourSeparator             int64
 	ParseTimestamp_HourSeparatorMismatch       int64
-	ParseTimestamp_MismatchedHourSeparators    []uint8
+	ParseTimestamp_MismatchedHourSeparators    []byte
 	ParseTimestamp_NoMinute                    int64
 	ParseTimestamp_MinuteOutOfRange            int64
 	ParseTimestamp_NoMinuteSeparator           int64
 	ParseTimestamp_MinuteSeparatorMismatch     int64
+	ParseTimestamp_MismatchedMinuteSeparators  []byte
 	ParseTimestamp_NoSecond                    int64
 	ParseTimestamp_SecondOutOfRange            int64
 	ParseTimestamp_HasNanos                    int64
-	ParseTimestamp_NanosLengthThresholds       = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
-	ParseTimestamp_NanosLengthCounts           = make([]int64, len(ParseTimestamp_NanosLengthThresholds))
+	ParseTimestamp_HasNotNanos                 int64
+	ParseTimestamp_NanosLengthBucketLevels     = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+	ParseTimestamp_NanosLengthBucketValues     = make([]int64, len(ParseTimestamp_NanosLengthBucketLevels))
 	ParseTimestamp_NoTimezone                  int64
 	ParseTimestamp_UtcTimezone                 int64
 	ParseTimestamp_NonUtcTimezone              int64
 	ParseTimestamp_TimezoneEarlyReturn         int64
 	ParseTimestamp_NoTimezoneHour              int64
 	ParseTimestamp_TimezoneHourOutOfRange      int64
-	ParseTimestamp_MinTimestampEndIndex        int
-	ParseTimestamp_MaxTimestampEndIndex        int
 )
 
 func MeasureSince(startNanos time.Time) int64 {
 	return time.Since(startNanos).Nanoseconds()
 }
 
-func UpdateBucketCount(n int, thresholds []int, counts []int64) {
-	for i, threshold := range thresholds {
-		if n <= threshold {
-			counts[i]++
+func UpdateBucketCount(n int, levels []int, values []int64) {
+	for i, level := range levels {
+		if n <= level {
+			values[i]++
 			break
 		}
 	}
@@ -170,8 +176,8 @@ func PrintMetrics(basePath *string, err error) {
 	fmt.Fprintf(os.Stderr, "  max line length       : %8s ~ %12d\n", "", MaxLineLength)
 	fmt.Fprintf(os.Stderr, "  line length buckets\n")
 	var cumulative int64
-	for i, threshold := range LineLengthBucketThresholds {
-		lineCount := LineLengthBucketSizes[i]
+	for i, threshold := range LineLengthBucketLevels {
+		lineCount := LineLengthBucketValues[i]
 		cumulative += lineCount
 		fmt.Fprintf(os.Stderr, "    ≤ %-6d            : %8s ~ %12d ≈ %8s (cumulative)\n", threshold, percent(lineCount, LinesRead), lineCount, percent(cumulative, LinesRead))
 	}
@@ -179,11 +185,17 @@ func PrintMetrics(basePath *string, err error) {
 	cumulative += remainingLineCount
 	fmt.Fprintf(os.Stderr, "    higher              : %8s ~ %12d ≈ %8s (cumulative)\n", percent(remainingLineCount, LinesRead), remainingLineCount, percent(cumulative, LinesRead))
 	fmt.Fprintf(os.Stderr, "ParseTimestamp debugging\n")
-	fmt.Fprintf(os.Stderr, "  min digit index       : %8s ~ %7d 1st# ≈ %8d start ≈ %8d end\n", "", ParseTimestamp_MinFirstDigitIndex, ParseTimestamp_MinFirstDigitIndexActual, ParseTimestamp_MinTimestampEndIndex)
-	fmt.Fprintf(os.Stderr, "  max digit index       : %8s ~ %7d 1st# ≈ %8d start ≈ %8d end\n", "", ParseTimestamp_MaxFirstDigitIndex, ParseTimestamp_MaxFirstDigitIndexActual, ParseTimestamp_MaxTimestampEndIndex)
+	fmt.Fprintf(os.Stderr, "  first digit index     : %8s ~ %8d min ≈ %8d max\n", "", ParseTimestamp_MinFirstDigitIndex, ParseTimestamp_MaxFirstDigitIndex)
+	fmt.Fprintf(os.Stderr, "  start digit index     : %8s ~ %8d min ≈ %8d max\n", "", ParseTimestamp_MinFirstDigitIndexActual, ParseTimestamp_MaxFirstDigitIndexActual)
+	fmt.Fprintf(os.Stderr, "  end digit index       : %8s ~ %8d min ≈ %8d max\n", "", ParseTimestamp_MinTimestampEndIndex, ParseTimestamp_MaxTimestampEndIndex)
 	fmt.Fprintf(os.Stderr, "  digit index buckets\n")
-	for i, threshold := range ParseTimestamp_DigitIndexThresholds {
-		fmt.Fprintf(os.Stderr, "    ≤ %-6d            : %8s ~ %7d 1st# ≈ %8d start ≈ %8d end\n", threshold, "", ParseTimestamp_FirstDigitCounts[i], ParseTimestamp_FirstDigitCountsActual[i], ParseTimestamp_LastDigitCounts[i])
+	for i, threshold := range ParseTimestamp_DigitIndexLevels {
+		fmt.Fprintf(os.Stderr, "    ≤ %-6d            : %8s ~ %7d frst ≈ %8d start ≈ %8d end\n", threshold, "", ParseTimestamp_FirstDigitIndexValues[i], ParseTimestamp_FirstDigitIndexValuesActual[i], ParseTimestamp_LastDigitIndexValues[i])
+	}
+	fmt.Fprintf(os.Stderr, "  timestamp length      : %8s ~ %8d min ≈ %8d max\n", "", ParseTimestamp_MinTimestampLength, ParseTimestamp_MaxTimestampLength)
+	fmt.Fprintf(os.Stderr, "  timestamp length buckets\n")
+	for i, threshold := range ParseTimestamp_LenghtBucketLevels {
+		fmt.Fprintf(os.Stderr, "    ≤ %-6d            : %8s ~ %12d\n", threshold, "", ParseTimestamp_LengthBucketValues[i])
 	}
 	fmt.Fprintf(os.Stderr, "  too short             : %8s ~ %12d\n", "", ParseTimestamp_LineTooShort)
 	fmt.Fprintf(os.Stderr, "  no digit              : %8s ~ %12d\n", "", ParseTimestamp_NoFirstDigit)
@@ -192,8 +204,8 @@ func PrintMetrics(basePath *string, err error) {
 	fmt.Fprintf(os.Stderr, "  2-digit year 1900     : %8s ~ %12d\n", "", ParseTimestamp_2DigitYear_1900)
 	fmt.Fprintf(os.Stderr, "  2-digit year 2000     : %8s ~ %12d\n", "", ParseTimestamp_2DigitYear_2000)
 	fmt.Fprintf(os.Stderr, "  4-digit year our-range: %8s ~ %12d\n", "", ParseTimestamp_4DigitYear_OutOfRange)
-	fmt.Fprintf(os.Stderr, "  no month             : %8s ~ %12d\n", "", ParseTimestamp_NoMonth)
-	fmt.Fprintf(os.Stderr, "  month out of range   : %8s ~ %12d\n", "", ParseTimestamp_MonthOutOfRange)
+	fmt.Fprintf(os.Stderr, "  no month              : %8s ~ %12d\n", "", ParseTimestamp_NoMonth)
+	fmt.Fprintf(os.Stderr, "  month out of range    : %8s ~ %12d\n", "", ParseTimestamp_MonthOutOfRange)
 	fmt.Fprintf(os.Stderr, "  no day                : %8s ~ %12d\n", "", ParseTimestamp_NoDay)
 	fmt.Fprintf(os.Stderr, "  day out of range      : %8s ~ %12d\n", "", ParseTimestamp_DayOutOfRange)
 	fmt.Fprintf(os.Stderr, "  space operator mismtch: %8s ~ %12d\n", "", ParseTimestamp_SpaceOperatorMismatch)
@@ -206,12 +218,20 @@ func PrintMetrics(basePath *string, err error) {
 	fmt.Fprintf(os.Stderr, "  minute out of range   : %8s ~ %12d\n", "", ParseTimestamp_MinuteOutOfRange)
 	fmt.Fprintf(os.Stderr, "  no minute separator   : %8s ~ %12d\n", "", ParseTimestamp_NoMinuteSeparator)
 	fmt.Fprintf(os.Stderr, "  minute sep. mismatch  : %8s ~ %12d\n", "", ParseTimestamp_MinuteSeparatorMismatch)
+	fmt.Fprintf(os.Stderr, "  mismatched minute seps: %8s ~ %12d => %v\n", "", len(ParseTimestamp_MismatchedMinuteSeparators), ParseTimestamp_MismatchedMinuteSeparators)
 	fmt.Fprintf(os.Stderr, "  no second             : %8s ~ %12d\n", "", ParseTimestamp_NoSecond)
 	fmt.Fprintf(os.Stderr, "  second out of range   : %8s ~ %12d\n", "", ParseTimestamp_SecondOutOfRange)
-	fmt.Fprintf(os.Stderr, "  has nanos             : %8s ~ %12d\n", "", ParseTimestamp_HasNanos)
+	total := ParseTimestamp_HasNanos + ParseTimestamp_HasNotNanos
+	fmt.Fprintf(os.Stderr, "  has nanos             : %8s ~ %12d\n", percent(ParseTimestamp_HasNanos, total), ParseTimestamp_HasNanos)
+	fmt.Fprintf(os.Stderr, "  has not nanos         : %8s ~ %12d\n", percent(ParseTimestamp_HasNotNanos, total), ParseTimestamp_HasNotNanos)
 	fmt.Fprintf(os.Stderr, "  nanos length buckets\n")
-	for i, threshold := range ParseTimestamp_NanosLengthThresholds {
-		fmt.Fprintf(os.Stderr, "    ≤ %-6d            : %8s ~ %12d\n", threshold, "", ParseTimestamp_NanosLengthCounts[i])
+	nanosCount := ParseTimestamp_HasNotNanos
+	cumulative = nanosCount
+	fmt.Fprintf(os.Stderr, "    %-8s            : %8s ~ %12d ≈ %8s (cumulative)\n", "No nanos", percent(nanosCount, total), nanosCount, percent(cumulative, total))
+	for i, threshold := range ParseTimestamp_NanosLengthBucketLevels {
+		nanosCount = ParseTimestamp_NanosLengthBucketValues[i]
+		cumulative += nanosCount
+		fmt.Fprintf(os.Stderr, "    ≤ %-6d            : %8s ~ %12d ≈ %8s (cumulative)\n", threshold, percent(nanosCount, total), nanosCount, percent(cumulative, total))
 	}
 	fmt.Fprintf(os.Stderr, "  no timezone           : %8s ~ %12d\n", "", ParseTimestamp_NoTimezone)
 	fmt.Fprintf(os.Stderr, "  UTC timezone          : %8s ~ %12d\n", "", ParseTimestamp_UtcTimezone)
