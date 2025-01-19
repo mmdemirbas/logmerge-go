@@ -108,6 +108,7 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 		entry := ParseLine(sourceName, scanner)
 		if entry != nil {
 			heap.Push(h, entry)
+			HeapPushCount++
 		}
 	}
 	HeapPopulateDuration = MeasureSince(startOfHeapPopulate)
@@ -118,26 +119,34 @@ func MergeScanners(sourceNames []string, outputNames map[string]string, scanners
 		startOfHeapPop := time.Now()
 		current := heap.Pop(h).(*LogLine)
 		HeapPopDuration += MeasureSince(startOfHeapPop)
+		HeapPopCount++
+
+		succesiveLineCount := 0
 
 		startOfInnerReadWrite := time.Now()
 		sourceName := current.SourceName
 		outputName := outputNames[sourceName]
 		scanner := scanners[sourceName]
 		writeOut(writer, current.Timestamp, outputName, current.RawLine)
+		succesiveLineCount++
 
 		// Aggregate lines until finding a timestamped line from the same source
 		next := ParseLine(sourceName, scanner)
 		for next != nil && next.Timestamp == noTimestamp {
 			writeOut(writer, noTimestamp, outputName, next.RawLine)
+			succesiveLineCount++
 			next = ParseLine(sourceName, scanner)
 		}
 		InnerReadWriteDuration += MeasureSince(startOfInnerReadWrite)
+		MaxSuccessiveLineCount = max(MaxSuccessiveLineCount, int64(succesiveLineCount))
+		UpdateBucketCount(succesiveLineCount, SuccessiveLineCountBucketLevels, SuccessiveLineCountBucketValues)
 
 		// Put the current line to the heap
 		if next != nil {
 			startOfHeapPush := time.Now()
 			heap.Push(h, next)
 			InnerHeapPushDuration += MeasureSince(startOfHeapPush)
+			HeapPushCount++
 		}
 	}
 	MergeLoopDuration = MeasureSince(startOfMergeLoop)
