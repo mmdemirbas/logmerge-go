@@ -58,12 +58,63 @@ var (
 	MaxLineLength              int
 	LineLengthBucketThresholds = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000}
 	LineLengthBucketSizes      = make([]int64, len(LineLengthBucketThresholds))
+
+	// ParseTimestamp debugging
+
+	ParseTimestamp_MinFirstDigitIndex          int
+	ParseTimestamp_MaxFirstDigitIndex          int
+	ParseTimestamp_MinFirstDigitIndexActual    int
+	ParseTimestamp_MaxFirstDigitIndexActual    int
+	ParseTimestamp_DigitIndexThresholds        = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300, 350, 400, 450, 500, 1000, 5000, 10000, 20000, 30000, 40000, 50000}
+	ParseTimestamp_FirstDigitCounts            = make([]int64, len(ParseTimestamp_DigitIndexThresholds))
+	ParseTimestamp_FirstDigitCountsActual      = make([]int64, len(ParseTimestamp_DigitIndexThresholds))
+	ParseTimestamp_LastDigitCounts             = make([]int64, len(ParseTimestamp_DigitIndexThresholds))
+	ParseTimestamp_LineTooShort                int64
+	ParseTimestamp_LineTooShortAfterFirstDigit int64
+	ParseTimestamp_NoYear                      int64
+	ParseTimestamp_2DigitYear_1900             int64
+	ParseTimestamp_2DigitYear_2000             int64
+	ParseTimestamp_4DigitYear_OutOfRange       int64
+	ParseTimestamp_NoMounth                    int64
+	ParseTimestamp_MounthOutOfRange            int64
+	ParseTimestamp_NoDay                       int64
+	ParseTimestamp_DayOutOfRange               int64
+	ParseTimestamp_SpaceOperatorMismatch       int64
+	ParseTimestamp_NoHour                      int64
+	ParseTimestamp_HourOutOfRange              int64
+	ParseTimestamp_NoHourSeparator             int64
+	ParseTimestamp_HourSeparatorMismatch       int64
+	ParseTimestamp_NoMinute                    int64
+	ParseTimestamp_MinuteOutOfRange            int64
+	ParseTimestamp_NoMinuteSeparator           int64
+	ParseTimestamp_MinuteSeparatorMismatch     int64
+	ParseTimestamp_NoSecond                    int64
+	ParseTimestamp_SecondOutOfRange            int64
+	ParseTimestamp_HasNanos                    int64
+	ParseTimestamp_NanosLengthThresholds       = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+	ParseTimestamp_NanosLengthCounts           = make([]int64, len(ParseTimestamp_NanosLengthThresholds))
+	ParseTimestamp_NoTimezone                  int64
+	ParseTimestamp_UtcTimezone                 int64
+	ParseTimestamp_NonUtcTimezone              int64
+	ParseTimestamp_TimezoneEarlyReturn         int64
+	ParseTimestamp_NoTimezoneHour              int64
+	ParseTimestamp_TimezoneHourOutOfRange      int64
+	ParseTimestamp_MinTimestampEndIndex        int
+	ParseTimestamp_MaxTimestampEndIndex        int
 )
 
 func MeasureSince(startNanos time.Time) int64 {
 	return time.Since(startNanos).Nanoseconds()
 }
 
+func UpdateBucketCount(n int, thresholds []int, counts []int64) {
+	for i, threshold := range thresholds {
+		if n <= threshold {
+			counts[i]++
+			break
+		}
+	}
+}
 func PrintMetrics(basePath *string, err error) {
 	restOfMainDuration := TotalMainDuration - (ParseOptionsDuration + ListFilesDuration + OpenFilesDuration + MergeScannersDuration)
 	restOfMergeScannersDuration := MergeScannersDuration - (NewWriterDuration + MaxOutputNameLenCalcDuration + HeapInitDuration + +HeapPopulateDuration + MergeLoopDuration)
@@ -115,7 +166,7 @@ func PrintMetrics(basePath *string, err error) {
 	fmt.Fprintf(os.Stderr, "    without timestamp   : %8s ~ %12v = %10s\n", percent(LinesWithoutTimestamps, LinesRead), LinesWithoutTimestamps, count(LinesWithoutTimestamps))
 	fmt.Fprintf(os.Stderr, "Line length stats\n")
 	fmt.Fprintf(os.Stderr, "  max line length       : %8s ~ %12d\n", "", MaxLineLength)
-	fmt.Fprintf(os.Stderr, "  line length counts\n")
+	fmt.Fprintf(os.Stderr, "  line length buckets\n")
 	var cumulative int64
 	for i, threshold := range LineLengthBucketThresholds {
 		lineCount := LineLengthBucketSizes[i]
@@ -125,6 +176,45 @@ func PrintMetrics(basePath *string, err error) {
 	remainingLineCount := LinesRead - cumulative
 	cumulative += remainingLineCount
 	fmt.Fprintf(os.Stderr, "    higher              : %8s ~ %12d ≈ %8s (cumulative)\n", percent(remainingLineCount, LinesRead), remainingLineCount, percent(cumulative, LinesRead))
+	fmt.Fprintf(os.Stderr, "ParseTimestamp debugging\n")
+	fmt.Fprintf(os.Stderr, "  min digit index       : %8s ~ %7d 1st# ≈ %8d start ≈ %8d end\n", "", ParseTimestamp_MinFirstDigitIndex, ParseTimestamp_MinFirstDigitIndexActual, ParseTimestamp_MinTimestampEndIndex)
+	fmt.Fprintf(os.Stderr, "  max digit index       : %8s ~ %7d 1st# ≈ %8d start ≈ %8d end\n", "", ParseTimestamp_MaxFirstDigitIndex, ParseTimestamp_MaxFirstDigitIndexActual, ParseTimestamp_MaxTimestampEndIndex)
+	fmt.Fprintf(os.Stderr, "  digit index buckets\n")
+	for i, threshold := range ParseTimestamp_DigitIndexThresholds {
+		fmt.Fprintf(os.Stderr, "    ≤ %-6d            : %8s ~ %7d 1st# ≈ %8d start ≈ %8d end\n", threshold, "", ParseTimestamp_FirstDigitCounts[i], ParseTimestamp_FirstDigitCountsActual[i], ParseTimestamp_LastDigitCounts[i])
+	}
+	fmt.Fprintf(os.Stderr, "  too short             : %8s ~ %12d\n", "", ParseTimestamp_LineTooShort)
+	fmt.Fprintf(os.Stderr, "  too short after  digit: %8s ~ %12d\n", "", ParseTimestamp_LineTooShortAfterFirstDigit)
+	fmt.Fprintf(os.Stderr, "  no year               : %8s ~ %12d\n", "", ParseTimestamp_NoYear)
+	fmt.Fprintf(os.Stderr, "  2-digit year 1900     : %8s ~ %12d\n", "", ParseTimestamp_2DigitYear_1900)
+	fmt.Fprintf(os.Stderr, "  2-digit year 2000     : %8s ~ %12d\n", "", ParseTimestamp_2DigitYear_2000)
+	fmt.Fprintf(os.Stderr, "  4-digit year our-range: %8s ~ %12d\n", "", ParseTimestamp_4DigitYear_OutOfRange)
+	fmt.Fprintf(os.Stderr, "  no mounth             : %8s ~ %12d\n", "", ParseTimestamp_NoMounth)
+	fmt.Fprintf(os.Stderr, "  mounth out of range   : %8s ~ %12d\n", "", ParseTimestamp_MounthOutOfRange)
+	fmt.Fprintf(os.Stderr, "  no day                : %8s ~ %12d\n", "", ParseTimestamp_NoDay)
+	fmt.Fprintf(os.Stderr, "  day out of range      : %8s ~ %12d\n", "", ParseTimestamp_DayOutOfRange)
+	fmt.Fprintf(os.Stderr, "  space operator mismtch: %8s ~ %12d\n", "", ParseTimestamp_SpaceOperatorMismatch)
+	fmt.Fprintf(os.Stderr, "  no hour               : %8s ~ %12d\n", "", ParseTimestamp_NoHour)
+	fmt.Fprintf(os.Stderr, "  hour out of range     : %8s ~ %12d\n", "", ParseTimestamp_HourOutOfRange)
+	fmt.Fprintf(os.Stderr, "  no hour separator     : %8s ~ %12d\n", "", ParseTimestamp_NoHourSeparator)
+	fmt.Fprintf(os.Stderr, "  hour separator mismtch: %8s ~ %12d\n", "", ParseTimestamp_HourSeparatorMismatch)
+	fmt.Fprintf(os.Stderr, "  no minute             : %8s ~ %12d\n", "", ParseTimestamp_NoMinute)
+	fmt.Fprintf(os.Stderr, "  minute out of range   : %8s ~ %12d\n", "", ParseTimestamp_MinuteOutOfRange)
+	fmt.Fprintf(os.Stderr, "  no minute separator   : %8s ~ %12d\n", "", ParseTimestamp_NoMinuteSeparator)
+	fmt.Fprintf(os.Stderr, "  minute sep. mismatch  : %8s ~ %12d\n", "", ParseTimestamp_MinuteSeparatorMismatch)
+	fmt.Fprintf(os.Stderr, "  no second             : %8s ~ %12d\n", "", ParseTimestamp_NoSecond)
+	fmt.Fprintf(os.Stderr, "  second out of range   : %8s ~ %12d\n", "", ParseTimestamp_SecondOutOfRange)
+	fmt.Fprintf(os.Stderr, "  has nanos             : %8s ~ %12d\n", "", ParseTimestamp_HasNanos)
+	fmt.Fprintf(os.Stderr, "  nanos length buckets\n")
+	for i, threshold := range ParseTimestamp_NanosLengthThresholds {
+		fmt.Fprintf(os.Stderr, "    ≤ %-6d            : %8s ~ %12d\n", threshold, "", ParseTimestamp_NanosLengthCounts[i])
+	}
+	fmt.Fprintf(os.Stderr, "  no timezone           : %8s ~ %12d\n", "", ParseTimestamp_NoTimezone)
+	fmt.Fprintf(os.Stderr, "  UTC timezone          : %8s ~ %12d\n", "", ParseTimestamp_UtcTimezone)
+	fmt.Fprintf(os.Stderr, "  non-UTC timezone      : %8s ~ %12d\n", "", ParseTimestamp_NonUtcTimezone)
+	fmt.Fprintf(os.Stderr, "  timezone early return : %8s ~ %12d\n", "", ParseTimestamp_TimezoneEarlyReturn)
+	fmt.Fprintf(os.Stderr, "  no timezone hour      : %8s ~ %12d\n", "", ParseTimestamp_NoTimezoneHour)
+	fmt.Fprintf(os.Stderr, "  tz hour out-range     : %8s ~ %12d\n", "", ParseTimestamp_TimezoneHourOutOfRange)
 	fmt.Fprintf(os.Stderr, "===============================================================================================\n")
 	fmt.Fprintf(os.Stderr, "File list (%d files):\n", len(MatchedFiles))
 	for i, file := range MatchedFiles {
