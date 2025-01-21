@@ -7,17 +7,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 )
 
 var (
-	// sync.Pool gives better performance than using a direct slice due to reduced GC pressure and better cache locality
-	bufferPool = sync.Pool{
-		New: func() interface{} {
-			return make([]byte, 0, 100*1024)
-		},
-	}
+	buf     []byte
 	space36 = []byte("                                    ")
 )
 
@@ -61,6 +55,10 @@ func MergeFiles(inputPath string, stdout *os.File) error {
 
 	// Calculate max output name length
 	startOfMaxOutputNameLenCalc := MeasureStart("CalcMaxOutputNameLen")
+	overheadBufLen := 0
+	if writeTimestamp {
+		overheadBufLen += 36
+	}
 	if writeSourceNames {
 		maxOutputNameLen := 0
 		for _, reader := range readers {
@@ -72,6 +70,10 @@ func MergeFiles(inputPath string, stdout *os.File) error {
 		for _, reader := range readers {
 			reader.SourceName = fmt.Sprintf("%-*s - ", maxOutputNameLen, reader.SourceName)
 		}
+		overheadBufLen += maxOutputNameLen + 3
+	}
+	if overheadBufLen > 0 {
+		buf = make([]byte, overheadBufLen)
 	}
 	MeasureSince(startOfMaxOutputNameLenCalc)
 
@@ -196,30 +198,27 @@ func MergeFileReaders(readers []*FileReader, stdout io.Writer) error {
 
 func writeLine(writer *bufio.Writer, timestamp time.Time, reader *FileReader) error {
 	startOfWriteOverhead := MeasureStart("WriteOverhead")
-	buf := bufferPool.Get().([]byte)
-	buf = buf[:0] // reset buffer
 
+	buf = buf[:0] // reset buffer
 	startOfWriteTimestamp := MeasureStart("WriteTimestamp")
 	if writeTimestamp {
-		// Handle timestamp
-		bufStart := len(buf)
-		if timestamp != noTimestamp {
+		if timestamp == noTimestamp {
+			startOfNoSourceNamePadding := MeasureStart("NoSourceNamePadding")
+			buf = append(buf, space36...)
+			MeasureSince(startOfNoSourceNamePadding)
+		} else {
 			// TODO: Consider optimizing time formatting
 			startOfAppendFormat := MeasureStart("AppendFormat")
 			buf = timestamp.AppendFormat(buf, time.RFC3339Nano)
 			MeasureSince(startOfAppendFormat)
 
 			startOfAppendFormatPadding := MeasureStart("AppendFormatPadding")
-			if delta := 35 - (len(buf) - bufStart); delta > 0 {
+			if delta := 35 - len(buf); delta > 0 {
 				buf = append(buf, space36[:delta]...)
 			}
 			MeasureSince(startOfAppendFormatPadding)
-		} else {
-			startOfNoSourceNamePadding := MeasureStart("NoSourceNamePadding")
-			buf = append(buf, space36...)
-			MeasureSince(startOfNoSourceNamePadding)
 		}
-		BytesWrittenForTimestamps += int64(len(buf) - bufStart)
+		BytesWrittenForTimestamps += int64(len(buf))
 	}
 	MeasureSince(startOfWriteTimestamp)
 
@@ -237,7 +236,6 @@ func writeLine(writer *bufio.Writer, timestamp time.Time, reader *FileReader) er
 	if err != nil {
 		return fmt.Errorf("failed to write timestamp and source name: %v", err)
 	}
-	bufferPool.Put(buf)
 	MeasureSince(startOfFlush)
 	MeasureSince(startOfWriteOverhead)
 
