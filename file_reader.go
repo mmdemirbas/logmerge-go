@@ -107,9 +107,10 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) {
 	)
 
 	for !r.Buffer.IsEmpty() {
-		beforeBufferWriteLine := MeasureStart("WriteLinePartial")
+		startWriteLinePartial := MeasureStart("WriteLinePartial")
 		eol, err = r.Buffer.WriteLinePartial(writer, &count, &latestCharWasCR)
-		RB_WriteLineDuration += MeasureSince(beforeBufferWriteLine)
+		RB_WriteLineDuration += MeasureSince(startWriteLinePartial)
+
 		if err != nil {
 			//goland:noinspection GoUnhandledErrorResult
 			fmt.Fprintf(os.Stderr, "failed to write raw lines to output: %v\n", err)
@@ -119,9 +120,10 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) {
 			break
 		}
 
-		beforeFillBuffer := MeasureStart("FillBuffer2")
+		startOfFillBuffer := MeasureStart("FillBuffer")
 		err = r.FillBuffer()
-		RB_FillBufferDuration2 += MeasureSince(beforeFillBuffer)
+		RB_FillBufferDuration2 += MeasureSince(startOfFillBuffer)
+
 		if err != nil {
 			//goland:noinspection GoUnhandledErrorResult
 			fmt.Fprintf(os.Stderr, "failed to refill buffer: %v\n", err)

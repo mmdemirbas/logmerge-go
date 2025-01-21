@@ -7,8 +7,6 @@ import (
 )
 
 func ListFiles(basePath string) (files []string, err error) {
-	startOfListFiles := MeasureStart("ListFiles")
-
 	stat, err := os.Stat(basePath)
 
 	switch {
@@ -36,10 +34,7 @@ func ListFiles(basePath string) (files []string, err error) {
 			files = append(files, basePath)
 		}
 	}
-
-	MatchedFiles = files
-	ListFilesDuration = MeasureSince(startOfListFiles)
-	return
+	return files, err
 }
 
 func ShouldIncludeFile(filePath string) bool {

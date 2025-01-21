@@ -35,7 +35,7 @@ var (
 	InnerHeapPushDuration  int64
 	ParseTimestampDuration int64
 	WriteLineDuration      int64
-	AppendFormatDuration   int64
+	WriteOverheadDuration  int64
 	WriteRawDataDuration   int64
 
 	// Byte count stats
@@ -128,6 +128,7 @@ var (
 
 func MeasureStart(name string) time.Time {
 	now := time.Now()
+	enterContext(name)
 	if enableDebugLogging {
 		//goland:noinspection GoUnhandledErrorResult
 		fmt.Fprintf(os.Stderr, "%-33s start %s\n", now.Format(time.RFC3339Nano), name)
@@ -136,12 +137,82 @@ func MeasureStart(name string) time.Time {
 }
 
 func MeasureSince(startNanos time.Time) int64 {
-	since := time.Since(startNanos)
+	elapsed := time.Since(startNanos)
+	exitContext(elapsed)
 	if enableDebugLogging {
 		//goland:noinspection GoUnhandledErrorResult
-		fmt.Fprintf(os.Stderr, "%-33s since %-33v => %v\n", time.Now().Format(time.RFC3339Nano), startNanos.Format(time.RFC3339Nano), since)
+		fmt.Fprintf(os.Stderr, "%-33s since %-33v => %v\n", time.Now().Format(time.RFC3339Nano), startNanos.Format(time.RFC3339Nano), elapsed)
 	}
-	return since.Nanoseconds()
+	return elapsed.Nanoseconds()
+}
+
+type TreeNode struct {
+	Name     string
+	Count    int64
+	Duration time.Duration
+
+	Parent   *TreeNode
+	Children map[string]*TreeNode
+}
+
+var MetricsTree = &TreeNode{Name: "Metrics Tree", Count: 1}
+var currentTreeNode = MetricsTree
+
+func enterContext(name string) {
+	if currentTreeNode.Children == nil {
+		currentTreeNode.Children = make(map[string]*TreeNode)
+	}
+
+	child, ok := currentTreeNode.Children[name]
+	if !ok {
+		child = &TreeNode{Name: name, Parent: currentTreeNode}
+		currentTreeNode.Children[name] = child
+	}
+
+	currentTreeNode = child
+	currentTreeNode.Count++
+}
+
+func exitContext(duration time.Duration) {
+	currentTreeNode.Duration += duration
+	parent := currentTreeNode.Parent
+
+	if parent == MetricsTree {
+		parent.Duration += duration
+	}
+
+	currentTreeNode = parent
+}
+
+func printTree(tree *TreeNode, depth int) {
+	nanoseconds := tree.Duration.Nanoseconds()
+	printTreeNode(tree, tree.Name, depth, nanoseconds)
+
+	if tree.Children != nil {
+		childTotal := int64(0)
+		for _, child := range tree.Children {
+			printTree(child, depth+1)
+			childTotal += child.Duration.Nanoseconds()
+		}
+		printTreeNode(tree, "..rest of "+tree.Name, depth+1, nanoseconds-childTotal)
+	}
+}
+
+func printTreeNode(tree *TreeNode, name string, depth int, nanoseconds int64) {
+	padLen := 40
+	//goland:noinspection GoUnhandledErrorResult
+	fmt.Fprintf(
+		os.Stderr,
+		"%-*s%-*s : %8s ~ %12v ≈ %12v avg of %7v times\n",
+		depth*2,
+		"",
+		padLen-depth*2,
+		name,
+		timePercent(nanoseconds),
+		duration(nanoseconds),
+		duration(nanoseconds/max(1, tree.Count)),
+		tree.Count,
+	)
 }
 
 func UpdateBucketCount(n int, levels []int, values []int64) {
@@ -166,8 +237,12 @@ func PrintMetrics(startTime time.Time, inputPath string, outputPath string, ppro
 		outputPath = "(stdout)"
 	}
 
-	fmt.Fprintf(os.Stderr, "===== METRICS =================================================================================\n")
-	fmt.Fprintf(os.Stderr, "Start time              : %s\n", startTime)
+	fmt.Fprintf(os.Stderr, "===== SUMMARY ====================================================================================================================================================================\n")
+	fmt.Fprintf(os.Stderr, "Start time              : %s\n", startTime.Format(time.RFC3339Nano))
+	fmt.Fprintf(os.Stderr, "Error                   : %v\n", err)
+	fmt.Fprintf(os.Stderr, "Total main duration     : %v\n", duration(TotalMainDuration))
+	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, "===== CONFIGURATION ==============================================================================================================================================================\n")
 	fmt.Fprintf(os.Stderr, "Input path              : %s\n", inputPath)
 	fmt.Fprintf(os.Stderr, "Output path             : %s\n", outputPath)
 	fmt.Fprintf(os.Stderr, "pprof enabled           : %v\n", pprofEnabled)
@@ -181,9 +256,11 @@ func PrintMetrics(startTime time.Time, inputPath string, outputPath string, ppro
 	fmt.Fprintf(os.Stderr, "includedStrictSuffixes  : %v\n", includedStrictSuffixes)
 	fmt.Fprintf(os.Stderr, "excludedLenientSuffixes : %v\n", excludedLenientSuffixes)
 	fmt.Fprintf(os.Stderr, "includedLenientSuffixes : %v\n", includedLenientSuffixes)
-	fmt.Fprintf(os.Stderr, "Error                   : %v\n", err)
-	fmt.Fprintf(os.Stderr, "Total main duration     : %v\n", duration(TotalMainDuration))
-	fmt.Fprintf(os.Stderr, "===============================================================================================\n")
+	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, "===== METRICS TREE ===============================================================================================================================================================\n")
+	printTree(MetricsTree, 0)
+	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, "===== INDIVIDUAL METRICSS ========================================================================================================================================================\n")
 	fmt.Fprintf(os.Stderr, "File count stats\n")
 	fmt.Fprintf(os.Stderr, "  dirs scanned          : %8s ~ %12d\n", "", DirsScanned)
 	fmt.Fprintf(os.Stderr, "  files scanned         : %8s ~ %12d ≈ %10s\n", percent(FilesScanned, FilesScanned), FilesScanned, countSpeed(FilesScanned, ListFilesDuration))
@@ -203,7 +280,7 @@ func PrintMetrics(startTime time.Time, inputPath string, outputPath string, ppro
 	fmt.Fprintf(os.Stderr, "        FillBuffer      : %8s ~ %12v\n", timePercent(RB_FillBufferDuration1), duration(RB_FillBufferDuration1))
 	fmt.Fprintf(os.Stderr, "        parse timestamp : %8s ~ %12v\n", timePercent(ParseTimestampDuration), duration(ParseTimestampDuration))
 	fmt.Fprintf(os.Stderr, "        write line      : %8s ~ %12v\n", timePercent(WriteLineDuration), duration(WriteLineDuration))
-	fmt.Fprintf(os.Stderr, "          append format : %8s ~ %12v\n", timePercent(AppendFormatDuration), duration(AppendFormatDuration))
+	fmt.Fprintf(os.Stderr, "          append format : %8s ~ %12v\n", timePercent(WriteOverheadDuration), duration(WriteOverheadDuration))
 	fmt.Fprintf(os.Stderr, "          raw data      : %8s ~ %12v\n", timePercent(WriteRawDataDuration), duration(WriteRawDataDuration))
 	fmt.Fprintf(os.Stderr, "            WrtLnPartial: %8s ~ %12v\n", timePercent(RB_WriteLineDuration), duration(RB_WriteLineDuration))
 	fmt.Fprintf(os.Stderr, "            FillBuffer  : %8s ~ %12v\n", timePercent(RB_FillBufferDuration2), duration(RB_FillBufferDuration2))
@@ -278,12 +355,13 @@ func PrintMetrics(startTime time.Time, inputPath string, outputPath string, ppro
 	fmt.Fprintf(os.Stderr, "  timezone early return : %8s ~ %12d\n", "", ParseTimestamp_TimezoneEarlyReturn)
 	fmt.Fprintf(os.Stderr, "  no timezone hour      : %8s ~ %12d\n", "", ParseTimestamp_NoTimezoneHour)
 	fmt.Fprintf(os.Stderr, "  tz hour out-range     : %8s ~ %12d\n", "", ParseTimestamp_TimezoneHourOutOfRange)
-	fmt.Fprintf(os.Stderr, "===============================================================================================\n")
+	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, "===== FILE LIST ==================================================================================================================================================================\n")
 	fmt.Fprintf(os.Stderr, "File list (%d files):\n", len(MatchedFiles))
 	for i, file := range MatchedFiles {
 		fmt.Fprintf(os.Stderr, "%5d %s\n", i+1, file)
 	}
-	fmt.Fprintf(os.Stderr, "===============================================================================================\n")
+	fmt.Fprintf(os.Stderr, "==================================================================================================================================================================================\n")
 }
 
 func printBuckets(total int64, levels []int, values []int64) {

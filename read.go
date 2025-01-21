@@ -18,15 +18,15 @@ type LinePrefix struct {
 }
 
 func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
+	startOfFillBuffer := MeasureStart("FillBuffer")
 	if reader.Buffer.Len() < timestampSearchPrefixLen {
-		beforeFillBuffer := MeasureStart("FillBuffer1")
 		err := reader.FillBuffer()
 		if err != nil {
 			//goland:noinspection GoUnhandledErrorResult
 			fmt.Fprintf(os.Stderr, "Error while filling buffer: %v\n", err)
 		}
-		RB_FillBufferDuration1 += MeasureSince(beforeFillBuffer)
 	}
+	RB_FillBufferDuration1 += MeasureSince(startOfFillBuffer)
 
 	if reader.Buffer.IsEmpty() {
 		return nil, nil
@@ -57,6 +57,9 @@ func ParseTimestamp(buffer *RingBuffer) time.Time {
 	}()
 
 	n := buffer.Len()
+
+	// TODO: Optimize buffer.Peek(i) usages. Timestamp will be at most ~40 chars. Copy that portion maybe?
+	// TODO: Consider getting a Slice from the buffer and using it instead of Peek(i) calls.
 
 	i := 0
 	for i < n && (buffer.Peek(i) < '0' || buffer.Peek(i) > '9') {
