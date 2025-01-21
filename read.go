@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"time"
 )
 
@@ -22,11 +21,10 @@ func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
 	if reader.Buffer.Len() < timestampSearchPrefixLen {
 		err := reader.FillBuffer()
 		if err != nil {
-			//goland:noinspection GoUnhandledErrorResult
-			fmt.Fprintf(os.Stderr, "Error while filling buffer: %v\n", err)
+			return nil, fmt.Errorf("failed to fill buffer: %v", err)
 		}
 	}
-	RB_FillBufferDuration1 += MeasureSince(startOfFillBuffer)
+	MeasureSince(startOfFillBuffer)
 
 	if reader.Buffer.IsEmpty() {
 		return nil, nil
@@ -34,7 +32,7 @@ func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
 
 	startOfParseTimestamp := MeasureStart("ParseTimestamp")
 	timestamp := ParseTimestamp(reader.Buffer)
-	ParseTimestampDuration += MeasureSince(startOfParseTimestamp)
+	MeasureSince(startOfParseTimestamp)
 
 	if timestamp.Equal(noTimestamp) {
 		LinesWithoutTimestamps++
@@ -47,14 +45,6 @@ func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
 func ParseTimestamp(buffer *RingBuffer) time.Time {
 	// TODO: What if we have digits before the actual timestamp?
 	//   In this case, we should skip non-digits after the first digit and try parsing from there.
-
-	// Recover
-	defer func() {
-		if r := recover(); r != nil {
-			//goland:noinspection GoUnhandledErrorResult
-			fmt.Fprintf(os.Stderr, "ParseTimestamp: Recovered from panic: %v. Buffer content was: %q\n", r, buffer.String())
-		}
-	}()
 
 	n := buffer.Len()
 

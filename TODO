@@ -33,6 +33,7 @@
         or by the order they have visited latest. So, the lines from the same files will be grouped together which makes following easier.
         We could keep track of frequencies etc maybe but this requires careful consideraton and we should avoid unnecessary complexity
         for a small unnoticable favor to user.
+  - Ensure all common log formats are supported
 
 - Customizations
   - Add standard unix-style options (-h, -q, -v, etc.)

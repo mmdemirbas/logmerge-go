@@ -18,10 +18,10 @@ var (
 			return make([]byte, 0, 100*1024)
 		},
 	}
-	space35 = []byte("                                   ") // exactly 35 spaces
+	space36 = []byte("                                    ")
 )
 
-func MergeFiles(inputPath string, outputPath string) error {
+func MergeFiles(inputPath string, stdout *os.File) error {
 	// Find files to process
 	startOfListFiles := MeasureStart("ListFiles")
 	files, err := ListFiles(inputPath)
@@ -50,11 +50,14 @@ func MergeFiles(inputPath string, outputPath string) error {
 			return fmt.Errorf("failed to open file %s: %v", file, err)
 		}
 
-		reader := NewFileReader(f, sourceName, readerBufferSize)
+		reader, err := NewFileReader(f, sourceName, readerBufferSize)
+		if err != nil {
+			return fmt.Errorf("failed to create reader for file %s: %v", file, err)
+		}
 		readers[i] = reader
 		defer reader.Close()
 	}
-	OpenFilesDuration = MeasureSince(startOfOpenFiles)
+	MeasureSince(startOfOpenFiles)
 
 	// Calculate max output name length
 	startOfMaxOutputNameLenCalc := MeasureStart("CalcMaxOutputNameLen")
@@ -70,38 +73,26 @@ func MergeFiles(inputPath string, outputPath string) error {
 			reader.SourceName = fmt.Sprintf("%-*s - ", maxOutputNameLen, reader.SourceName)
 		}
 	}
-	MaxOutputNameLenCalcDuration = MeasureSince(startOfMaxOutputNameLenCalc)
-
-	startOfMerge := MeasureStart("CreateOutputFile")
-	baseWriter := os.Stdout
-	if outputPath != "" {
-		f, err := os.Create(outputPath)
-		if err != nil {
-			return fmt.Errorf("failed to create output file: %v", err)
-		}
-		defer f.Close()
-		baseWriter = f
-	}
-	MeasureSince(startOfMerge)
+	MeasureSince(startOfMaxOutputNameLenCalc)
 
 	startOfMergeScanners := MeasureStart("MergeFileReaders")
-	MergeFileReaders(readers, baseWriter)
-	MergeScannersDuration = MeasureSince(startOfMergeScanners)
+	err = MergeFileReaders(readers, stdout)
+	ProcessDuration = MeasureSince(startOfMergeScanners)
 
-	return nil
+	return err
 }
 
-func MergeFileReaders(readers []*FileReader, baseWriter io.Writer) {
+func MergeFileReaders(readers []*FileReader, stdout io.Writer) error {
 	startOfNewWriter := MeasureStart("NewWriter")
-	writer := bufio.NewWriterSize(baseWriter, writerBufferSize)
+	writer := bufio.NewWriterSize(stdout, writerBufferSize)
 	defer writer.Flush()
-	NewWriterDuration = MeasureSince(startOfNewWriter)
+	MeasureSince(startOfNewWriter)
 
 	// Initialize heap
 	startOfHeapInit := MeasureStart("HeapInit")
 	h := &MinHeap{}
 	heap.Init(h)
-	HeapInitDuration = MeasureSince(startOfHeapInit)
+	MeasureSince(startOfHeapInit)
 
 	startOfCalcExpectedByteCount := MeasureStart("CalcExpectedByteCount")
 	for _, reader := range readers {
@@ -118,8 +109,7 @@ func MergeFileReaders(readers []*FileReader, baseWriter io.Writer) {
 
 		if err != nil {
 			//goland:noinspection GoUnhandledErrorResult
-			fmt.Fprintf(os.Stderr, "failed to read line prefix from %s: %v\n", reader.SourceName, err)
-			continue
+			return fmt.Errorf("failed to read line prefix from %s: %v", reader.SourceName, err)
 		}
 		if entry != nil {
 			startOfHeapPush := MeasureStart("HeapPush")
@@ -128,7 +118,7 @@ func MergeFileReaders(readers []*FileReader, baseWriter io.Writer) {
 			HeapPushCount++
 		}
 	}
-	HeapPopulateDuration = MeasureSince(startOfHeapPopulate)
+	MeasureSince(startOfHeapPopulate)
 
 	// Merge logs
 	startOfMergeLoop := MeasureStart("MergeLoop")
@@ -136,7 +126,7 @@ func MergeFileReaders(readers []*FileReader, baseWriter io.Writer) {
 		startOfHeapPop := MeasureStart("HeapPop")
 		current := heap.Pop(h).(*LinePrefix)
 		nextInHeap := h.Peek()
-		HeapPopDuration += MeasureSince(startOfHeapPop)
+		MeasureSince(startOfHeapPop)
 
 		// TODO: Hand off writing to a separate goroutine responsible for writing to the output
 		startOfInnerReadWrite := MeasureStart("InnerReadWrite")
@@ -147,7 +137,10 @@ func MergeFileReaders(readers []*FileReader, baseWriter io.Writer) {
 			untilTimestamp = nextInHeap.Timestamp
 		}
 		startOfWriteLine := MeasureStart("WriteLine")
-		writeLine(writer, current.Timestamp, source)
+		err := writeLine(writer, current.Timestamp, source)
+		if err != nil {
+			return fmt.Errorf("failed to write line: %v", err)
+		}
 		successiveLineCount := 1
 		MeasureSince(startOfWriteLine)
 
@@ -158,34 +151,36 @@ func MergeFileReaders(readers []*FileReader, baseWriter io.Writer) {
 
 		if err != nil {
 			//goland:noinspection GoUnhandledErrorResult
-			fmt.Fprintf(os.Stderr, "failed to read line prefix from %s: %v\n", source.SourceName, err)
-		} else {
-			for next != nil && !next.Timestamp.After(untilTimestamp) {
-				if !next.Timestamp.Equal(noTimestamp) {
-					MaxSuccessiveLineCount = max(MaxSuccessiveLineCount, int64(successiveLineCount))
-					UpdateBucketCount(successiveLineCount, SuccessiveLineCountBucketLevels, SuccessiveLineCountBucketValues)
-					successiveLineCount = 0
-				}
+			return fmt.Errorf("failed to read line prefix from %s: %v", source.SourceName, err)
+		}
+		for next != nil && !next.Timestamp.After(untilTimestamp) {
+			if !next.Timestamp.Equal(noTimestamp) {
+				MaxSuccessiveLineCount = max(MaxSuccessiveLineCount, int64(successiveLineCount))
+				UpdateBucketCount(successiveLineCount, SuccessiveLineCountBucketLevels, SuccessiveLineCountBucketValues)
+				successiveLineCount = 0
+			}
 
-				startOfWriteLine = MeasureStart("WriteLine")
-				writeLine(writer, next.Timestamp, source)
-				successiveLineCount++
-				MeasureSince(startOfWriteLine)
+			startOfWriteLine = MeasureStart("WriteLine")
+			err = writeLine(writer, next.Timestamp, source)
+			if err != nil {
+				return fmt.Errorf("failed to write line: %v", err)
+			}
+			successiveLineCount++
+			MeasureSince(startOfWriteLine)
 
-				startOfReadLinePrefix = MeasureStart("ReadLinePrefix")
-				next, err = ReadLinePrefix(source)
-				MeasureSince(startOfReadLinePrefix)
+			startOfReadLinePrefix = MeasureStart("ReadLinePrefix")
+			next, err = ReadLinePrefix(source)
+			MeasureSince(startOfReadLinePrefix)
 
-				if err != nil {
-					//goland:noinspection GoUnhandledErrorResult
-					fmt.Fprintf(os.Stderr, "failed to read line prefix from %s: %v\n", source.SourceName, err)
-					break
-				}
+			if err != nil {
+				//goland:noinspection GoUnhandledErrorResult
+				return fmt.Errorf("failed to read line prefix from %s: %v", source.SourceName, err)
 			}
 		}
+
 		MaxSuccessiveLineCount = max(MaxSuccessiveLineCount, int64(successiveLineCount))
 		UpdateBucketCount(successiveLineCount, SuccessiveLineCountBucketLevels, SuccessiveLineCountBucketValues)
-		InnerReadWriteDuration += MeasureSince(startOfInnerReadWrite)
+		MeasureSince(startOfInnerReadWrite)
 
 		// Put the current line to the heap
 		startOfHeapPush := MeasureStart("HeapPush")
@@ -193,12 +188,13 @@ func MergeFileReaders(readers []*FileReader, baseWriter io.Writer) {
 			heap.Push(h, next)
 			HeapPushCount++
 		}
-		InnerHeapPushDuration += MeasureSince(startOfHeapPush)
+		MeasureSince(startOfHeapPush)
 	}
-	MergeLoopDuration = MeasureSince(startOfMergeLoop)
+	MeasureSince(startOfMergeLoop)
+	return nil
 }
 
-func writeLine(writer *bufio.Writer, timestamp time.Time, reader *FileReader) {
+func writeLine(writer *bufio.Writer, timestamp time.Time, reader *FileReader) error {
 	startOfWriteOverhead := MeasureStart("WriteOverhead")
 	buf := bufferPool.Get().([]byte)
 	buf = buf[:0] // reset buffer
@@ -209,16 +205,20 @@ func writeLine(writer *bufio.Writer, timestamp time.Time, reader *FileReader) {
 		bufStart := len(buf)
 		if timestamp != noTimestamp {
 			// TODO: Consider optimizing time formatting
+			startOfAppendFormat := MeasureStart("AppendFormat")
 			buf = timestamp.AppendFormat(buf, time.RFC3339Nano)
-			if delta := 35 - (len(buf) - bufStart); delta > 0 {
-				buf = append(buf, space35[:delta]...)
-			}
-		} else {
-			buf = append(buf, space35...)
-		}
+			MeasureSince(startOfAppendFormat)
 
-		// Add space after timestamp
-		buf = append(buf, ' ')
+			startOfAppendFormatPadding := MeasureStart("AppendFormatPadding")
+			if delta := 35 - (len(buf) - bufStart); delta > 0 {
+				buf = append(buf, space36[:delta]...)
+			}
+			MeasureSince(startOfAppendFormatPadding)
+		} else {
+			startOfNoSourceNamePadding := MeasureStart("NoSourceNamePadding")
+			buf = append(buf, space36...)
+			MeasureSince(startOfNoSourceNamePadding)
+		}
 		BytesWrittenForTimestamps += int64(len(buf) - bufStart)
 	}
 	MeasureSince(startOfWriteTimestamp)
@@ -235,15 +235,16 @@ func writeLine(writer *bufio.Writer, timestamp time.Time, reader *FileReader) {
 	startOfFlush := MeasureStart("Flush")
 	_, err := writer.Write(buf)
 	if err != nil {
-		//goland:noinspection GoUnhandledErrorResult
-		fmt.Fprintf(os.Stderr, "failed to write metadata to output: %v\n", err)
+		return fmt.Errorf("failed to write timestamp and source name: %v", err)
 	}
 	bufferPool.Put(buf)
 	MeasureSince(startOfFlush)
-	WriteOverheadDuration += MeasureSince(startOfWriteOverhead)
+	MeasureSince(startOfWriteOverhead)
 
 	// Write rest of the line including the new line character
 	beforeWriteRawData := MeasureStart("WriteRawData")
-	reader.WriteLine(writer)
-	WriteRawDataDuration += MeasureSince(beforeWriteRawData)
+	err = reader.WriteLine(writer)
+	MeasureSince(beforeWriteRawData)
+
+	return err
 }

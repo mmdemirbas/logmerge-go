@@ -2,9 +2,7 @@ package main
 
 import (
 	bytes2 "bytes"
-	"fmt"
 	"io"
-	"os"
 )
 
 // RingBuffer is a circular buffer that can be used to store a fixed number of bytes.
@@ -120,22 +118,6 @@ const (
 )
 
 func (r *RingBuffer) WriteLinePartial(writer io.Writer, count *int, latestCharWasCR *bool) (eolType EOLType, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			//goland:noinspection GoUnhandledErrorResult
-			fmt.Fprintf(os.Stderr, "WriteLinePartial: Recovered from panic: %v\n", r)
-			os.Exit(1)
-		}
-	}()
-
-	if enableDebugLogging {
-		fmt.Fprintf(os.Stderr, "\n")
-		fmt.Fprintf(os.Stderr, "-- WriteLinePartial --\n")
-		fmt.Fprintf(os.Stderr, "latestCharWasCR: %v\n", *latestCharWasCR)
-		fmt.Fprintf(os.Stderr, "r.readIndex    : %v\n", r.readIndex)
-		fmt.Fprintf(os.Stderr, "r.writeIndex   : %v\n", r.writeIndex)
-	}
-
 	var writeUntil int
 
 	if *latestCharWasCR {
@@ -155,18 +137,9 @@ func (r *RingBuffer) WriteLinePartial(writer io.Writer, count *int, latestCharWa
 		}
 
 		lfIndex := bytes2.IndexByte(r.buf[r.readIndex:searchUntil], '\n')
-		if enableDebugLogging {
-			fmt.Fprintf(os.Stderr, "searchUntil    : %d\n", searchUntil)
-			fmt.Fprintf(os.Stderr, "lfIndex        : %d\n", lfIndex)
-		}
-
 		if lfIndex != -1 {
 			// LF found in the first part
 			crIndex := bytes2.IndexByte(r.buf[r.readIndex:r.readIndex+lfIndex+1], '\r')
-			if enableDebugLogging {
-				fmt.Fprintf(os.Stderr, "crIndex        : %d\n", crIndex)
-			}
-
 			if crIndex == -1 {
 				// CR not found before LF, use LF as EOL
 				writeUntil = r.readIndex + lfIndex + 1
@@ -183,10 +156,6 @@ func (r *RingBuffer) WriteLinePartial(writer io.Writer, count *int, latestCharWa
 		} else {
 			// LF not found in the first part
 			crIndex := bytes2.IndexByte(r.buf[r.readIndex:searchUntil], '\r')
-			if enableDebugLogging {
-				fmt.Fprintf(os.Stderr, "crIndex        : %d\n", crIndex)
-			}
-
 			if crIndex == -1 {
 				// CR not found in the first part either, continue searching CR and LF in the second part
 				writeUntil = searchUntil
@@ -200,11 +169,6 @@ func (r *RingBuffer) WriteLinePartial(writer io.Writer, count *int, latestCharWa
 				eolType = CR
 			}
 		}
-	}
-	if enableDebugLogging {
-		fmt.Fprintf(os.Stderr, "writeUntil     : %d\n", writeUntil)
-		fmt.Fprintf(os.Stderr, "latestCharWasCR: %v\n", *latestCharWasCR)
-		fmt.Fprintf(os.Stderr, "eolType        : %v\n", eolType)
 	}
 	if r.readIndex < writeUntil {
 		var n int
