@@ -15,11 +15,14 @@ var (
 	FilesMatched int64
 	MatchedFiles []string
 
-	// Timing stats by phase (nanoseconds)
+	// Timing stats (nanoseconds)
 
-	TotalMainDuration int64
-	ListFilesDuration int64
-	ProcessDuration   int64
+	TotalMainDuration           int64
+	ListFilesDuration           int64
+	ProcessDuration             int64
+	TotalFillBufferDuration     int64
+	TotalParseTimestampDuration int64
+	TotalWriteOutputDuration    int64
 
 	// Byte count stats
 
@@ -229,10 +232,16 @@ func PrintMetrics(stderr *os.File, startTime time.Time, inputPath string, stdout
 	fmt.Fprintf(stderr, "excludedLenientSuffixes : %v\n", excludedLenientSuffixes)
 	fmt.Fprintf(stderr, "includedLenientSuffixes : %v\n", includedLenientSuffixes)
 	fmt.Fprintf(stderr, "\n")
+	fmt.Fprintf(stderr, "===== METRICS SUMMARY ============================================================================================================================================================\n")
+	fmt.Fprintf(stderr, "ListFiles               : %8s ~ %12v ≈ %s\n", timePercent(ListFilesDuration), duration(ListFilesDuration), countSpeed(FilesScanned, ListFilesDuration))
+	fmt.Fprintf(stderr, "FillBuffer              : %8s ~ %12v ≈ %s\n", timePercent(TotalFillBufferDuration), duration(TotalFillBufferDuration), bytesSpeed(BytesRead, ProcessDuration))
+	fmt.Fprintf(stderr, "ParseTimestamp          : %8s ~ %12v ≈ %s\n", timePercent(TotalParseTimestampDuration), duration(TotalParseTimestampDuration), countSpeed(LinesRead, ProcessDuration))
+	fmt.Fprintf(stderr, "WriteOutput             : %8s ~ %12v ≈ %s\n", timePercent(TotalWriteOutputDuration), duration(TotalWriteOutputDuration), bytesSpeed(writtenBytes, ProcessDuration))
+	fmt.Fprintf(stderr, "\n")
 	fmt.Fprintf(stderr, "===== METRICS TREE ===============================================================================================================================================================\n")
 	printTree(stderr, metricsTree, 0)
 	fmt.Fprintf(stderr, "\n")
-	fmt.Fprintf(stderr, "===== INDIVIDUAL METRICSS ========================================================================================================================================================\n")
+	fmt.Fprintf(stderr, "===== METRIC DETAILS =============================================================================================================================================================\n")
 	fmt.Fprintf(stderr, "File count stats\n")
 	fmt.Fprintf(stderr, "  dirs scanned          : %8s ~ %12d\n", "", DirsScanned)
 	fmt.Fprintf(stderr, "  files scanned         : %8s ~ %12d ≈ %10s\n", percent(FilesScanned, FilesScanned), FilesScanned, countSpeed(FilesScanned, ListFilesDuration))

@@ -24,7 +24,7 @@ func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
 			return nil, fmt.Errorf("failed to fill buffer: %v", err)
 		}
 	}
-	MeasureSince(startOfFillBuffer)
+	TotalFillBufferDuration += MeasureSince(startOfFillBuffer)
 
 	if reader.Buffer.IsEmpty() {
 		return nil, nil
@@ -32,7 +32,7 @@ func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
 
 	startOfParseTimestamp := MeasureStart("ParseTimestamp")
 	timestamp := ParseTimestamp(reader.Buffer)
-	MeasureSince(startOfParseTimestamp)
+	TotalParseTimestampDuration += MeasureSince(startOfParseTimestamp)
 
 	if timestamp.Equal(noTimestamp) {
 		LinesWithoutTimestamps++

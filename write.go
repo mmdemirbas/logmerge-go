@@ -131,11 +131,12 @@ func MergeFileReaders(readers []*FileReader, stdout io.Writer) error {
 		}
 		startOfWriteLine := MeasureStart("WriteLine")
 		err := writeLine(writer, current.Timestamp, source)
+		successiveLineCount := 1
+		MeasureSince(startOfWriteLine)
+
 		if err != nil {
 			return fmt.Errorf("failed to write line: %v", err)
 		}
-		successiveLineCount := 1
-		MeasureSince(startOfWriteLine)
 
 		// Aggregate lines until finding a timestamped line from the same source
 		startOfReadLinePrefix := MeasureStart("ReadLinePrefix")
@@ -155,11 +156,12 @@ func MergeFileReaders(readers []*FileReader, stdout io.Writer) error {
 
 			startOfWriteLine = MeasureStart("WriteLine")
 			err = writeLine(writer, next.Timestamp, source)
+			successiveLineCount++
+			MeasureSince(startOfWriteLine)
+
 			if err != nil {
 				return fmt.Errorf("failed to write line: %v", err)
 			}
-			successiveLineCount++
-			MeasureSince(startOfWriteLine)
 
 			startOfReadLinePrefix = MeasureStart("ReadLinePrefix")
 			next, err = ReadLinePrefix(source)
@@ -221,7 +223,7 @@ func writeLine(writer *bufio.Writer, timestamp time.Time, reader *FileReader) er
 			MeasureSince(startOfAppendFormatPadding)
 		}
 	}
-	MeasureSince(startOfWriteTimestamp)
+	TotalWriteOutputDuration += MeasureSince(startOfWriteTimestamp)
 
 	startOfWriteSourceNames := MeasureStart("WriteSourceNames")
 	if writeSourceNames {
@@ -231,7 +233,7 @@ func writeLine(writer *bufio.Writer, timestamp time.Time, reader *FileReader) er
 			return fmt.Errorf("failed to write source name: %v", err)
 		}
 	}
-	MeasureSince(startOfWriteSourceNames)
+	TotalWriteOutputDuration += MeasureSince(startOfWriteSourceNames)
 
 	// Write rest of the line including the new line character
 	beforeWriteRawData := MeasureStart("WriteRawData")
