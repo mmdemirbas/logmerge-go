@@ -18,13 +18,15 @@ type LinePrefix struct {
 }
 
 func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
-	beforeFillBuffer := MeasureStart("FillBuffer1")
-	err := reader.FillBuffer()
-	if err != nil {
-		//goland:noinspection GoUnhandledErrorResult
-		fmt.Fprintf(os.Stderr, "Error while filling buffer: %v\n", err)
+	if reader.Buffer.Len() < timestampSearchPrefixLen {
+		beforeFillBuffer := MeasureStart("FillBuffer1")
+		err := reader.FillBuffer()
+		if err != nil {
+			//goland:noinspection GoUnhandledErrorResult
+			fmt.Fprintf(os.Stderr, "Error while filling buffer: %v\n", err)
+		}
+		RB_FillBufferDuration += MeasureSince(beforeFillBuffer)
 	}
-	RB_FillBufferDuration += MeasureSince(beforeFillBuffer)
 
 	if reader.Buffer.IsEmpty() {
 		return nil, nil

@@ -15,6 +15,7 @@ OUTPUT_FILE := "output.log"
 # Test params
 
 RUN_ARGS := "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1734940586637_0046-short-success"
+
 #RUN_ARGS := "/Users/md/dev/mmdemirbas/logmerge/examples/small"
 
 # Display this help message
@@ -67,14 +68,13 @@ run run_name="default":
     {{ BIN_DIR }}/{{ BINARY_NAME }} {{ RUN_ARGS }} \
         > {{ OUT_DIR }}/output.log \
         2> {{ LOG_DIR }}/{{ run_name }}.err
-#    go run $(ls *.go | grep -v _test.go) {{ RUN_ARGS }} \
-#        > {{ LOG_DIR }}/{{ run_name }}/manual.out \
-#        2> {{ LOG_DIR }}/{{ run_name }}/manual.err
+
+#    go run $(ls *.go | grep -v _test.go) {{ RUN_ARGS }}
 
 # Run application with profiling and capture CPU and memory profiles
 [group("run")]
-profile:
-    ENABLE_PPROF=true just run manual
+profile run_name="default":
+    ENABLE_PPROF=true just run {{ run_name }}
 
 # Browse captured CPU profile in a web browser
 [group("inspect")]

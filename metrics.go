@@ -161,11 +161,25 @@ func PrintMetrics(startTime time.Time, inputPath string, outputPath string, ppro
 	writtenBytesOverhead := BytesWrittenForTimestamps + BytesWrittenForOutputNames + BytesWrittenForMissingNewlines
 	writtenBytes := BytesWrittenForRawData + writtenBytesOverhead
 
+	if outputPath == "" {
+		outputPath = "(stdout)"
+	}
+
 	fmt.Fprintf(os.Stderr, "===== METRICS =================================================================================\n")
 	fmt.Fprintf(os.Stderr, "Start time              : %s\n", startTime)
 	fmt.Fprintf(os.Stderr, "Input path              : %s\n", inputPath)
 	fmt.Fprintf(os.Stderr, "Output path             : %s\n", outputPath)
 	fmt.Fprintf(os.Stderr, "pprof enabled           : %v\n", pprofEnabled)
+	fmt.Fprintf(os.Stderr, "enableDebugLogging      : %v\n", enableDebugLogging)
+	fmt.Fprintf(os.Stderr, "writeTimestamp          : %v\n", writeTimestamp)
+	fmt.Fprintf(os.Stderr, "writeSourceNames        : %v\n", writeSourceNames)
+	fmt.Fprintf(os.Stderr, "timestampSearchPrefixLen: %12v = %10s\n", timestampSearchPrefixLen, bytes(timestampSearchPrefixLen))
+	fmt.Fprintf(os.Stderr, "readerBufferSize        : %12v = %10s\n", readerBufferSize, bytes(readerBufferSize))
+	fmt.Fprintf(os.Stderr, "writerBufferSize        : %12v = %10s\n", writerBufferSize, bytes(writerBufferSize))
+	fmt.Fprintf(os.Stderr, "excludedStrictSuffixes  : %v\n", excludedStrictSuffixes)
+	fmt.Fprintf(os.Stderr, "includedStrictSuffixes  : %v\n", includedStrictSuffixes)
+	fmt.Fprintf(os.Stderr, "excludedLenientSuffixes : %v\n", excludedLenientSuffixes)
+	fmt.Fprintf(os.Stderr, "includedLenientSuffixes : %v\n", includedLenientSuffixes)
 	fmt.Fprintf(os.Stderr, "Error                   : %v\n", err)
 	fmt.Fprintf(os.Stderr, "Total main duration     : %v\n", duration(TotalMainDuration))
 	fmt.Fprintf(os.Stderr, "===============================================================================================\n")

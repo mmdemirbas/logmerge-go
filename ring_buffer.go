@@ -1,6 +1,8 @@
 package main
 
-import "io"
+import (
+	"io"
+)
 
 // RingBuffer is a circular buffer that can be used to store a fixed number of bytes.
 type RingBuffer struct {

@@ -18,6 +18,7 @@ var (
 			return make([]byte, 0, 100*1024)
 		},
 	}
+	space35 = []byte("                                   ") // exactly 35 spaces
 )
 
 func MergeFiles(inputPath string, outputPath string) error {
@@ -187,13 +188,11 @@ func writeLine(writer *bufio.Writer, timestamp time.Time, reader *FileReader) {
 			startOfAppendFormat := MeasureStart("AppendFormat")
 			buf = timestamp.AppendFormat(buf, time.RFC3339Nano)
 			AppendFormatDuration += MeasureSince(startOfAppendFormat)
-			// Pad to 35 characters
-			for i := len(buf); i < 35; i++ {
-				buf = append(buf, ' ')
+			if delta := 35 - (len(buf) - bufStart); delta > 0 {
+				buf = append(buf, space35[:delta]...)
 			}
 		} else {
-			// No timestamp case - just add 35 spaces
-			buf = append(buf, "                                   "...)
+			buf = append(buf, space35...)
 		}
 
 		// Add space after timestamp

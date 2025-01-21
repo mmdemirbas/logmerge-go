@@ -8,17 +8,12 @@ import (
 
 // TODO: These settings can be made configurable via command-line flags
 const (
-	enableDebugLogging = false
-	writeTimestamp     = true
-	writeSourceNames   = true
-
-	// readerBufferSize is the buffer size for each file reader. It has two important effects by design:
-	// 1. It limits the maximum line prefix length that can contain a timestamp. In other words, the timestamp
-	//    can not be detected if it does not fit into the buffer area starting from the beginning of the line.
-	// 2. It affects the read-ahead performance since all reading operations are done over this buffer.
-	readerBufferSize = 1024 // per file
-
-	writerBufferSize = 1024 * 1024 * 100
+	enableDebugLogging       = false
+	writeTimestamp           = true
+	writeSourceNames         = true
+	timestampSearchPrefixLen = 250
+	readerBufferSize         = max(timestampSearchPrefixLen, 1024*128) // per file
+	writerBufferSize         = 1024 * 1024 * 100
 )
 
 var (
