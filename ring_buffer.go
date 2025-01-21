@@ -118,63 +118,70 @@ const (
 )
 
 func (r *RingBuffer) WriteLinePartial(writer io.Writer, count *int, latestCharWasCR *bool) (eolType EOLType, err error) {
-	var writeUntil int
+	buffer := r.buf
+	readIndex := r.readIndex
+	writeIndex := r.writeIndex
+	capacity := r.cap
 
 	if *latestCharWasCR {
-		if r.buf[r.readIndex] == '\n' {
-			writeUntil = r.readIndex + 1
+		if buffer[readIndex] == '\n' {
+			_, err = writer.Write(buffer[readIndex : readIndex+1])
+			r.readIndex = (readIndex + 1) % capacity
+			*count++
+			return CRLF, err
+		}
+		return CR, nil
+	}
+
+	var searchSlice []byte
+	if writeIndex < readIndex {
+		searchSlice = buffer[readIndex:]
+	} else {
+		searchSlice = buffer[readIndex:writeIndex]
+	}
+
+	lfIndex := bytes2.IndexByte(searchSlice, '\n')
+	if lfIndex != -1 {
+		// LF found in the first part
+		searchSlice = searchSlice[:lfIndex+1]
+		crIndex := bytes2.IndexByte(searchSlice, '\r')
+		if crIndex == -1 {
+			// CR not found before LF, use LF as EOL
+			eolType = LF
+		} else if crIndex+1 == lfIndex {
+			// CR found just before LF, use CRLF as EOL
 			eolType = CRLF
 		} else {
-			writeUntil = r.readIndex
+			// CR found before LF, use CR as EOL
+			searchSlice = searchSlice[:crIndex+1]
 			eolType = CR
 		}
-	} else {
-		var searchUntil int
-		if r.writeIndex < r.readIndex {
-			searchUntil = r.cap
-		} else {
-			searchUntil = r.writeIndex
-		}
 
-		lfIndex := bytes2.IndexByte(r.buf[r.readIndex:searchUntil], '\n')
-		if lfIndex != -1 {
-			// LF found in the first part
-			crIndex := bytes2.IndexByte(r.buf[r.readIndex:r.readIndex+lfIndex+1], '\r')
-			if crIndex == -1 {
-				// CR not found before LF, use LF as EOL
-				writeUntil = r.readIndex + lfIndex + 1
-				eolType = LF
-			} else if crIndex+1 == lfIndex {
-				// CR found just before LF, use CRLF as EOL
-				writeUntil = r.readIndex + lfIndex + 1
-				eolType = CRLF
-			} else {
-				// CR found before LF, use CR as EOL
-				writeUntil = r.readIndex + crIndex + 1
-				eolType = CR
-			}
-		} else {
-			// LF not found in the first part
-			crIndex := bytes2.IndexByte(r.buf[r.readIndex:searchUntil], '\r')
-			if crIndex == -1 {
-				// CR not found in the first part either, continue searching CR and LF in the second part
-				writeUntil = searchUntil
-			} else if crIndex+1 == r.cap {
-				// CR found just before the end of the first part, just check next char to decide CR vs CRLF as EOL
-				writeUntil = r.readIndex + crIndex + 1
-				*latestCharWasCR = true
-			} else {
-				// CR found before the end of the first part, use CR as EOL
-				writeUntil = r.readIndex + crIndex + 1
-				eolType = CR
-			}
-		}
-	}
-	if r.readIndex < writeUntil {
-		var n int
-		n, err = writer.Write(r.buf[r.readIndex:writeUntil])
-		r.readIndex = (r.readIndex + n) % r.cap
+		n, err := writer.Write(searchSlice)
+		r.readIndex = (readIndex + n) % capacity
 		*count += n
+
+		return eolType, err
 	}
+
+	// LF not found in the first part
+	crIndex := bytes2.IndexByte(searchSlice, '\r')
+	if crIndex == -1 {
+		// CR not found in the first part either, continue searching CR and LF in the second part
+	} else if crIndex+1 == capacity {
+		// CR found just before the end of the first part, just check next char to decide CR vs CRLF as EOL
+		searchSlice = searchSlice[:crIndex+1]
+		*latestCharWasCR = true
+	} else {
+		// CR found before the end of the first part, use CR as EOL
+		searchSlice = searchSlice[:crIndex+1]
+		eolType = CR
+	}
+
+	var n int
+	n, err = writer.Write(searchSlice)
+	r.readIndex = (readIndex + n) % capacity
+	*count += n
+
 	return eolType, err
 }
