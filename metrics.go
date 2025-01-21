@@ -70,8 +70,9 @@ var (
 	SuccessiveLineCountBucketValues = make([]int64, len(SuccessiveLineCountBucketLevels))
 
 	// RingBuffer stats
-	RB_FillBufferDuration int64
-	RB_WriteLineDuration  int64
+	RB_FillBufferDuration1 int64
+	RB_FillBufferDuration2 int64
+	RB_WriteLineDuration   int64
 
 	// ParseTimestamp debugging
 
@@ -199,19 +200,19 @@ func PrintMetrics(startTime time.Time, inputPath string, outputPath string, ppro
 	fmt.Fprintf(os.Stderr, "    merge loop          : %8s ~ %12v\n", timePercent(MergeLoopDuration), duration(MergeLoopDuration))
 	fmt.Fprintf(os.Stderr, "      heap pop          : %8s ~ %12v\n", timePercent(HeapPopDuration), duration(HeapPopDuration))
 	fmt.Fprintf(os.Stderr, "      read/write        : %8s ~ %12v\n", timePercent(InnerReadWriteDuration), duration(InnerReadWriteDuration))
+	fmt.Fprintf(os.Stderr, "        FillBuffer      : %8s ~ %12v\n", timePercent(RB_FillBufferDuration1), duration(RB_FillBufferDuration1))
+	fmt.Fprintf(os.Stderr, "        parse timestamp : %8s ~ %12v\n", timePercent(ParseTimestampDuration), duration(ParseTimestampDuration))
+	fmt.Fprintf(os.Stderr, "        write line      : %8s ~ %12v\n", timePercent(WriteLineDuration), duration(WriteLineDuration))
+	fmt.Fprintf(os.Stderr, "          append format : %8s ~ %12v\n", timePercent(AppendFormatDuration), duration(AppendFormatDuration))
+	fmt.Fprintf(os.Stderr, "          raw data      : %8s ~ %12v\n", timePercent(WriteRawDataDuration), duration(WriteRawDataDuration))
+	fmt.Fprintf(os.Stderr, "            WrtLnPartial: %8s ~ %12v\n", timePercent(RB_WriteLineDuration), duration(RB_WriteLineDuration))
+	fmt.Fprintf(os.Stderr, "            FillBuffer  : %8s ~ %12v\n", timePercent(RB_FillBufferDuration2), duration(RB_FillBufferDuration2))
+	fmt.Fprintf(os.Stderr, "        rest..          : %8s ~ %12v\n", timePercent(restOfMergeScannersBreakdownDuration), duration(restOfMergeScannersBreakdownDuration))
 	fmt.Fprintf(os.Stderr, "      inner heap push   : %8s ~ %12v\n", timePercent(InnerHeapPushDuration), duration(InnerHeapPushDuration))
 	fmt.Fprintf(os.Stderr, "      rest..            : %8s ~ %12v\n", timePercent(restOfMergeLoopDuration), duration(restOfMergeLoopDuration))
 	fmt.Fprintf(os.Stderr, "    rest..              : %8s ~ %12v\n", timePercent(restOfMergeScannersDuration), duration(restOfMergeScannersDuration))
 	fmt.Fprintf(os.Stderr, "  merge scanners breakdown\n")
-	fmt.Fprintf(os.Stderr, "    parse timestamp     : %8s ~ %12v\n", timePercent(ParseTimestampDuration), duration(ParseTimestampDuration))
-	fmt.Fprintf(os.Stderr, "    write line          : %8s ~ %12v\n", timePercent(WriteLineDuration), duration(WriteLineDuration))
-	fmt.Fprintf(os.Stderr, "      append format     : %8s ~ %12v\n", timePercent(AppendFormatDuration), duration(AppendFormatDuration))
-	fmt.Fprintf(os.Stderr, "      raw data          : %8s ~ %12v\n", timePercent(WriteRawDataDuration), duration(WriteRawDataDuration))
-	fmt.Fprintf(os.Stderr, "    rest..              : %8s ~ %12v\n", timePercent(restOfMergeScannersBreakdownDuration), duration(restOfMergeScannersBreakdownDuration))
 	fmt.Fprintf(os.Stderr, "  rest..                : %8s ~ %12v\n", timePercent(restOfMainDuration), duration(restOfMainDuration))
-	fmt.Fprintf(os.Stderr, "RingBuffer performance\n")
-	fmt.Fprintf(os.Stderr, "  fill buffer duration  : %8s ~ %12v\n", timePercent(RB_FillBufferDuration), duration(RB_FillBufferDuration))
-	fmt.Fprintf(os.Stderr, "  write line duration   : %8s ~ %12v\n", timePercent(RB_WriteLineDuration), duration(RB_WriteLineDuration))
 	fmt.Fprintf(os.Stderr, "Byte count stats\n")
 	fmt.Fprintf(os.Stderr, "  bytes read            : %8s ~ %12d = %10s ≈ %s\n", "", BytesRead, bytes(BytesRead), bytesSpeed(BytesRead, MergeScannersDuration))
 	fmt.Fprintf(os.Stderr, "  bytes written         : %8s ~ %12d = %10s ≈ %s\n", percent(writtenBytes, writtenBytes), writtenBytes, bytes(writtenBytes), bytesSpeed(writtenBytes, MergeScannersDuration))

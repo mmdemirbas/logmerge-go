@@ -25,7 +25,7 @@ func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
 			//goland:noinspection GoUnhandledErrorResult
 			fmt.Fprintf(os.Stderr, "Error while filling buffer: %v\n", err)
 		}
-		RB_FillBufferDuration += MeasureSince(beforeFillBuffer)
+		RB_FillBufferDuration1 += MeasureSince(beforeFillBuffer)
 	}
 
 	if reader.Buffer.IsEmpty() {
@@ -52,7 +52,7 @@ func ParseTimestamp(buffer *RingBuffer) time.Time {
 	defer func() {
 		if r := recover(); r != nil {
 			//goland:noinspection GoUnhandledErrorResult
-			fmt.Fprintf(os.Stderr, "Recovered from panic: %v. Buffer content was: %q\n", r, buffer.String())
+			fmt.Fprintf(os.Stderr, "ParseTimestamp: Recovered from panic: %v. Buffer content was: %q\n", r, buffer.String())
 		}
 	}()
 

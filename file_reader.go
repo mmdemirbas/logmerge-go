@@ -99,26 +99,29 @@ func (r *FileReader) FillBuffer() error {
 }
 
 func (r *FileReader) WriteLine(writer *bufio.Writer) {
-	n := 0
-	crFound := false
-	lfFound := false
+	var (
+		count                 = 0
+		latestCharWasCR       = false
+		eol                   = NIL
+		err             error = nil
+	)
 
 	for !r.Buffer.IsEmpty() {
 		beforeBufferWriteLine := MeasureStart("WriteLinePartial")
-		eol, err := r.Buffer.WriteLinePartial(writer, &n, &crFound, &lfFound)
+		eol, err = r.Buffer.WriteLinePartial(writer, &count, &latestCharWasCR)
 		RB_WriteLineDuration += MeasureSince(beforeBufferWriteLine)
 		if err != nil {
 			//goland:noinspection GoUnhandledErrorResult
 			fmt.Fprintf(os.Stderr, "failed to write raw lines to output: %v\n", err)
 			break
 		}
-		if eol {
+		if eol != NIL {
 			break
 		}
 
 		beforeFillBuffer := MeasureStart("FillBuffer2")
 		err = r.FillBuffer()
-		RB_FillBufferDuration += MeasureSince(beforeFillBuffer)
+		RB_FillBufferDuration2 += MeasureSince(beforeFillBuffer)
 		if err != nil {
 			//goland:noinspection GoUnhandledErrorResult
 			fmt.Fprintf(os.Stderr, "failed to refill buffer: %v\n", err)
@@ -126,9 +129,9 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) {
 	}
 
 	// Ensure \n is written at the end of the line
-	if !lfFound {
+	if eol != LF && eol != CRLF {
 		// Write the last line
-		err := writer.WriteByte('\n')
+		err = writer.WriteByte('\n')
 		BytesWrittenForMissingNewlines++
 		if err != nil {
 			//goland:noinspection GoUnhandledErrorResult
@@ -136,17 +139,17 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) {
 		}
 	}
 
-	lineLengthWithoutEol := n
-	if lfFound {
-		if crFound {
-			lineLengthWithoutEol -= 2
-		} else {
-			lineLengthWithoutEol -= 1
-		}
+	lineLengthWithoutEol := count
+	switch eol {
+	case NIL:
+	case CR, LF:
+		lineLengthWithoutEol -= 1
+	case CRLF:
+		lineLengthWithoutEol -= 2
 	}
 
 	LinesRead++
-	BytesWrittenForRawData += int64(n)
+	BytesWrittenForRawData += int64(count)
 	MaxLineLength = max(MaxLineLength, lineLengthWithoutEol)
 	UpdateBucketCount(lineLengthWithoutEol, LineLengthBucketLevels, LineLengthBucketValues)
 }

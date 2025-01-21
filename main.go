@@ -29,7 +29,7 @@ func main() {
 	defer func() {
 		if r := recover(); r != nil {
 			//goland:noinspection GoUnhandledErrorResult
-			fmt.Fprintf(os.Stderr, "Recovered from panic: %v\n", r)
+			fmt.Fprintf(os.Stderr, "main: Recovered from panic: %v\n", r)
 		}
 	}()
 
