@@ -102,11 +102,7 @@ func (r *RingBuffer) Fill(reader io.Reader) (count int, err error) {
 	return n + nn, err
 }
 
-func (r *RingBuffer) WriteLinePartial(writer io.Writer, count *int, crFound *bool, lfFound *bool) (bool, error) {
-	if r.IsEmpty() {
-		return false, nil // empty buffer
-	}
-
+func (r *RingBuffer) WriteLinePartial(writer io.Writer, count *int, crFound *bool, lfFound *bool) (eol bool, err error) {
 	var searchUntil int
 	if r.writeIndex < r.readIndex {
 		searchUntil = r.cap
@@ -116,18 +112,17 @@ func (r *RingBuffer) WriteLinePartial(writer io.Writer, count *int, crFound *boo
 
 	i := r.readIndex
 
-	for ; !*lfFound && i < searchUntil; i++ {
+	for ; !eol && i < searchUntil; i++ {
 		if r.buf[i] == '\n' {
 			*lfFound = true
-		} else {
-			if *crFound {
-				// Single \r without \n
-				//break
-				*crFound = false
-			}
-			if r.buf[i] == '\r' {
-				*crFound = true
-			}
+			eol = true
+		} else if *crFound {
+			// Previous char was \r but this is not \n
+			eol = true
+			break // do not include this char by preventing incrementing i
+		} else if r.buf[i] == '\r' {
+			*crFound = true
+			// wait for \n to set eol
 		}
 	}
 
@@ -136,19 +131,20 @@ func (r *RingBuffer) WriteLinePartial(writer io.Writer, count *int, crFound *boo
 	*count += n
 
 	// Second part
-	if err == nil && i == r.cap {
+	if !eol && err == nil && i == r.cap {
 		i := 0
 		for ; !*lfFound && i < r.writeIndex; i++ {
 			if r.buf[i] == '\n' {
 				*lfFound = true
 			} else {
 				if *crFound {
-					// Single \r without \n
-					//break
-					*crFound = false
+					// Previous char was \r but this is not \n
+					eol = true
+					break // do not include this char by preventing incrementing i
 				}
 				if r.buf[i] == '\r' {
 					*crFound = true
+					// wait for \n to set eol
 				}
 			}
 		}
@@ -158,5 +154,5 @@ func (r *RingBuffer) WriteLinePartial(writer io.Writer, count *int, crFound *boo
 		*count += n
 	}
 
-	return true, err
+	return eol, err
 }

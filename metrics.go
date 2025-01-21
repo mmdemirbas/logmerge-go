@@ -40,15 +40,15 @@ var (
 
 	// Byte count stats
 
-	ExpectedBytesToReadIncludingNewlines int64
-	BytesToReadIncludingNewlines         int64
-	BytesRead                            int64
+	ExpectedBytesToRead int64
+	BytesRead           int64
 
 	// Written bytes breakdown
 
-	BytesWrittenForRawData     int64
-	BytesWrittenForTimestamps  int64
-	BytesWrittenForOutputNames int64
+	BytesWrittenForTimestamps      int64
+	BytesWrittenForOutputNames     int64
+	BytesWrittenForRawData         int64
+	BytesWrittenForMissingNewlines int64
 
 	// Line count stats
 
@@ -158,7 +158,7 @@ func PrintMetrics(startTime time.Time, inputPath string, outputPath string, ppro
 	restOfMergeScannersDuration := MergeScannersDuration - (NewWriterDuration + HeapInitDuration + HeapPopulateDuration + MergeLoopDuration)
 	restOfMergeLoopDuration := MergeLoopDuration - (HeapPopDuration + InnerReadWriteDuration + InnerHeapPushDuration)
 	restOfMergeScannersBreakdownDuration := MergeScannersDuration - (ParseTimestampDuration + WriteLineDuration)
-	writtenBytesOverhead := BytesWrittenForTimestamps + BytesWrittenForOutputNames
+	writtenBytesOverhead := BytesWrittenForTimestamps + BytesWrittenForOutputNames + BytesWrittenForMissingNewlines
 	writtenBytes := BytesWrittenForRawData + writtenBytesOverhead
 
 	fmt.Fprintf(os.Stderr, "===== METRICS =================================================================================\n")
@@ -205,6 +205,7 @@ func PrintMetrics(startTime time.Time, inputPath string, outputPath string, ppro
 	fmt.Fprintf(os.Stderr, "    overhead            : %8s ~ %12v = %10s\n", percent(writtenBytesOverhead, writtenBytes), writtenBytesOverhead, bytes(writtenBytesOverhead))
 	fmt.Fprintf(os.Stderr, "      timestamps        : %8s ~ %12v = %10s\n", percent(BytesWrittenForTimestamps, writtenBytes), BytesWrittenForTimestamps, bytes(BytesWrittenForTimestamps))
 	fmt.Fprintf(os.Stderr, "      source names      : %8s ~ %12v = %10s\n", percent(BytesWrittenForOutputNames, writtenBytes), BytesWrittenForOutputNames, bytes(BytesWrittenForOutputNames))
+	fmt.Fprintf(os.Stderr, "      missing newlines  : %8s ~ %12v = %10s\n", percent(BytesWrittenForMissingNewlines, writtenBytes), BytesWrittenForMissingNewlines, bytes(BytesWrittenForMissingNewlines))
 	fmt.Fprintf(os.Stderr, "Line count stats\n")
 	fmt.Fprintf(os.Stderr, "  lines read            : %8s ~ %12d = %10s ≈ %s\n", percent(LinesRead, LinesRead), LinesRead, count(LinesRead), countSpeed(LinesRead, MergeScannersDuration))
 	fmt.Fprintf(os.Stderr, "    with timestamp      : %8s ~ %12v = %10s\n", percent(LinesWithTimestamps, LinesRead), LinesWithTimestamps, count(LinesWithTimestamps))
@@ -236,7 +237,7 @@ func PrintMetrics(startTime time.Time, inputPath string, outputPath string, ppro
 	fmt.Fprintf(os.Stderr, "  no year               : %8s ~ %12d\n", "", ParseTimestamp_NoYear)
 	fmt.Fprintf(os.Stderr, "  2-digit year 1900     : %8s ~ %12d\n", "", ParseTimestamp_2DigitYear_1900)
 	fmt.Fprintf(os.Stderr, "  2-digit year 2000     : %8s ~ %12d\n", "", ParseTimestamp_2DigitYear_2000)
-	fmt.Fprintf(os.Stderr, "  4-digit year our-range: %8s ~ %12d\n", "", ParseTimestamp_4DigitYear_OutOfRange)
+	fmt.Fprintf(os.Stderr, "  4-digit year out-range: %8s ~ %12d\n", "", ParseTimestamp_4DigitYear_OutOfRange)
 	fmt.Fprintf(os.Stderr, "  no month              : %8s ~ %12d\n", "", ParseTimestamp_NoMonth)
 	fmt.Fprintf(os.Stderr, "  month out of range    : %8s ~ %12d\n", "", ParseTimestamp_MonthOutOfRange)
 	fmt.Fprintf(os.Stderr, "  no day                : %8s ~ %12d\n", "", ParseTimestamp_NoDay)

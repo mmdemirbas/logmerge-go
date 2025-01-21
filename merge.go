@@ -103,7 +103,7 @@ func MergeFileReaders(readers []*FileReader, baseWriter io.Writer) {
 	HeapInitDuration = MeasureSince(startOfHeapInit)
 
 	for _, reader := range readers {
-		ExpectedBytesToReadIncludingNewlines += int64(reader.FileSize)
+		ExpectedBytesToRead += int64(reader.FileSize)
 	}
 
 	// Populate heap with the first entry from each file
@@ -188,17 +188,17 @@ func writeLine(writer *bufio.Writer, timestamp time.Time, reader *FileReader) {
 		// Handle timestamp
 		bufStart := len(buf)
 		if timestamp != noTimestamp {
-			// RFC3339 is always 25 bytes or less
+			// RFC3339Nanos is always 35 bytes or less
 			startOfAppendFormat := MeasureStart("AppendFormat")
-			buf = timestamp.AppendFormat(buf, time.RFC3339)
+			buf = timestamp.AppendFormat(buf, time.RFC3339Nano)
 			AppendFormatDuration += MeasureSince(startOfAppendFormat)
-			// Pad to 25 characters
-			for i := len(buf); i < 25; i++ {
+			// Pad to 35 characters
+			for i := len(buf); i < 35; i++ {
 				buf = append(buf, ' ')
 			}
 		} else {
-			// No timestamp case - just add 25 spaces
-			buf = append(buf, "                         "...)
+			// No timestamp case - just add 35 spaces
+			buf = append(buf, "                                   "...)
 		}
 
 		// Add space after timestamp

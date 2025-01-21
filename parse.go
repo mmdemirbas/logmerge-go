@@ -53,9 +53,9 @@ func ParseTimestamp(buffer *RingBuffer) time.Time {
 
 	i := 0
 	for i < n && (buffer.Peek(i) < '0' || buffer.Peek(i) > '9') {
-		if buffer.Peek(i) == '\n' { // TODO: Check also for \r
-			i = n
-			break
+		if buffer.Peek(i) == '\r' || buffer.Peek(i) == '\n' {
+			ParseTimestamp_NoFirstDigit++
+			return noTimestamp
 		}
 		i++
 	}
@@ -66,13 +66,14 @@ func ParseTimestamp(buffer *RingBuffer) time.Time {
 		UpdateBucketCount(firstDigitIndex, ParseTimestamp_DigitIndexLevels, ParseTimestamp_FirstDigitIndexValues)
 	} else {
 		ParseTimestamp_NoFirstDigit++
+		return noTimestamp
 	}
 	if i+15 > n {
 		ParseTimestamp_LineTooShortAfterFirstDigit++
 		return noTimestamp
 	}
-	for j := i + 14; j >= i; j-- {
-		if buffer.Peek(j) == '\n' {
+	for j := i + 15; j >= i; j-- {
+		if buffer.Peek(j) == '\r' || buffer.Peek(j) == '\n' {
 			ParseTimestamp_LineTooShortAfterFirstDigit++
 			return noTimestamp
 		}

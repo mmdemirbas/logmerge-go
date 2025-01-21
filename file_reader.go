@@ -9,13 +9,12 @@ import (
 )
 
 type FileReader struct {
-	File                       *os.File
-	Buffer                     *RingBuffer
-	SourceName                 string
-	FileSize                   int
-	BytesReadIncludingNewLines int
-	BytesSkipped               int
-	eof                        bool
+	File       *os.File
+	Buffer     *RingBuffer
+	SourceName string
+	FileSize   int
+	BytesRead  int
+	eof        bool
 }
 
 // NewFileReader creates a new FileReader.
@@ -44,12 +43,12 @@ func (r *FileReader) FillBuffer() error {
 				os.Stderr,
 				"%-33s EOF   %.2f%% %11d / %11d - current: %s -> %.2f%% %11d / %11d\n",
 				time.Now().Format(time.RFC3339Nano),
-				100.0*float64(BytesToReadIncludingNewlines)/float64(ExpectedBytesToReadIncludingNewlines),
-				BytesToReadIncludingNewlines,
-				ExpectedBytesToReadIncludingNewlines,
+				100.0*float64(BytesRead)/float64(ExpectedBytesToRead),
+				BytesRead,
+				ExpectedBytesToRead,
 				r.SourceName,
-				100.0*float64(r.BytesReadIncludingNewLines)/float64(r.FileSize),
-				r.BytesReadIncludingNewLines,
+				100.0*float64(r.BytesRead)/float64(r.FileSize),
+				r.BytesRead,
 				r.FileSize,
 			)
 		}
@@ -62,12 +61,12 @@ func (r *FileReader) FillBuffer() error {
 				os.Stderr,
 				"%-33s FULL  %.2f%% %11d / %11d - current: %s -> %.2f%% %11d / %11d\n",
 				time.Now().Format(time.RFC3339Nano),
-				100.0*float64(BytesToReadIncludingNewlines)/float64(ExpectedBytesToReadIncludingNewlines),
-				BytesToReadIncludingNewlines,
-				ExpectedBytesToReadIncludingNewlines,
+				100.0*float64(BytesRead)/float64(ExpectedBytesToRead),
+				BytesRead,
+				ExpectedBytesToRead,
 				r.SourceName,
-				100.0*float64(r.BytesReadIncludingNewLines)/float64(r.FileSize),
-				r.BytesReadIncludingNewLines,
+				100.0*float64(r.BytesRead)/float64(r.FileSize),
+				r.BytesRead,
 				r.FileSize,
 			)
 		}
@@ -76,20 +75,19 @@ func (r *FileReader) FillBuffer() error {
 
 	n, err := r.Buffer.Fill(r.File)
 	BytesRead += int64(n)
-	BytesToReadIncludingNewlines += int64(n)
-	r.BytesReadIncludingNewLines += n
+	r.BytesRead += n
 	if enableDebugLogging {
 		//goland:noinspection GoUnhandledErrorResult
 		fmt.Fprintf(
 			os.Stderr,
 			"%-33s READ  %.2f%% %11d / %11d - current: %s -> %.2f%% %11d / %11d\n",
 			time.Now().Format(time.RFC3339Nano),
-			100.0*float64(BytesToReadIncludingNewlines)/float64(ExpectedBytesToReadIncludingNewlines),
-			BytesToReadIncludingNewlines,
-			ExpectedBytesToReadIncludingNewlines,
+			100.0*float64(BytesRead)/float64(ExpectedBytesToRead),
+			BytesRead,
+			ExpectedBytesToRead,
 			r.SourceName,
-			100.0*float64(r.BytesReadIncludingNewLines)/float64(r.FileSize),
-			r.BytesReadIncludingNewLines,
+			100.0*float64(r.BytesRead)/float64(r.FileSize),
+			r.BytesRead,
 			r.FileSize,
 		)
 	}
@@ -102,34 +100,19 @@ func (r *FileReader) FillBuffer() error {
 
 func (r *FileReader) WriteLine(writer *bufio.Writer) {
 	n := 0
-	nPrev := -1
 	crFound := false
 	lfFound := false
 
-	for {
-		if nPrev == n {
-			//goland:noinspection GoUnhandledErrorResult
-			fmt.Fprintf(os.Stderr, "stuck in loop at %d\n", n)
-			break
-		}
-		nPrev = n
-
+	for !r.Buffer.IsEmpty() {
 		beforeBufferWriteLine := MeasureStart("WriteLinePartial")
-		hasNext, err := r.Buffer.WriteLinePartial(writer, &n, &crFound, &lfFound)
+		eol, err := r.Buffer.WriteLinePartial(writer, &n, &crFound, &lfFound)
 		RB_WriteLineDuration += MeasureSince(beforeBufferWriteLine)
 		if err != nil {
 			//goland:noinspection GoUnhandledErrorResult
 			fmt.Fprintf(os.Stderr, "failed to write raw lines to output: %v\n", err)
+			break
 		}
-		if !hasNext || lfFound || err != nil {
-			if !lfFound {
-				// Write the last line
-				err = writer.WriteByte('\n')
-				if err != nil {
-					//goland:noinspection GoUnhandledErrorResult
-					fmt.Fprintf(os.Stderr, "failed to write last new line character to output: %v\n", err)
-				}
-			}
+		if eol {
 			break
 		}
 
@@ -142,21 +125,28 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) {
 		}
 	}
 
+	// Ensure \n is written at the end of the line
+	if !lfFound {
+		// Write the last line
+		err := writer.WriteByte('\n')
+		BytesWrittenForMissingNewlines++
+		if err != nil {
+			//goland:noinspection GoUnhandledErrorResult
+			fmt.Fprintf(os.Stderr, "failed to write last new line character to output: %v\n", err)
+		}
+	}
+
 	lineLengthWithoutEol := n
 	if lfFound {
 		if crFound {
-			BytesRead -= 2
-			r.BytesSkipped += 2
 			lineLengthWithoutEol -= 2
 		} else {
-			BytesRead -= 1
-			r.BytesSkipped += 1
 			lineLengthWithoutEol -= 1
 		}
 	}
 
 	LinesRead++
-	BytesWrittenForRawData += int64(lineLengthWithoutEol + 1)
+	BytesWrittenForRawData += int64(n)
 	MaxLineLength = max(MaxLineLength, lineLengthWithoutEol)
 	UpdateBucketCount(lineLengthWithoutEol, LineLengthBucketLevels, LineLengthBucketValues)
 }
