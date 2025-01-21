@@ -1,6 +1,4 @@
 - Performance
-  - Avoid allocations. Look for memory re-use opportunities.
-  - Remove some metrics to improve performance.
   - Experiment splitting files into chunks and sorting and merging in multiple steps.
     BE CAREFUL! Do not break the data by adding intermediate file names by mistake!
   - Read files concurrently -> Fill the read buffer while other parts of the program are processing the lines.

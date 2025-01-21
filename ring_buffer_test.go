@@ -217,7 +217,7 @@ func TestNewRingBuffer(t *testing.T) {
 				n, err := r.Fill(strings.NewReader("ab"))
 				assertEquals(t, "ab", r.String())
 				assertEquals(t, 2, n)
-				assertEquals(t, io.EOF, err)
+				assertEquals(t, nil, err)
 			})
 			t.Run("equal reader", func(t *testing.T) {
 				r := NewRingBuffer(3)
@@ -447,7 +447,7 @@ func TestNewRingBuffer(t *testing.T) {
 				n, err := r.Fill(strings.NewReader("ab"))
 				assertEquals(t, "ab", r.String())
 				assertEquals(t, 2, n)
-				assertEquals(t, io.EOF, err)
+				assertEquals(t, nil, err)
 			})
 			t.Run("equal reader", func(t *testing.T) {
 				r := NewRingBuffer(3)

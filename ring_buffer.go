@@ -75,31 +75,33 @@ func (r *RingBuffer) Write(b byte) {
 
 // Fill reads data from the reader into the buffer until the buffer is full or the reader returns an error.
 func (r *RingBuffer) Fill(reader io.Reader) (count int, err error) {
-	singlePart := true
-	var end int
-	if r.writeIndex < r.readIndex {
-		end = r.readIndex - 1
-	} else if r.readIndex == 0 {
-		end = r.cap - 1
+	if r.IsFull() {
+		return 0, nil
+	}
+
+	var firstPartEnd int
+	if r.writeIndex >= r.readIndex {
+		if r.readIndex == 0 {
+			firstPartEnd = r.cap - 1 // Leave last slot empty
+		} else {
+			firstPartEnd = r.cap
+		}
 	} else {
-		end = r.cap
-		singlePart = false
+		firstPartEnd = r.readIndex - 1
 	}
 
-	if end == r.writeIndex {
-		return 0, nil // buffer is full
-	}
-
-	n, err := reader.Read(r.buf[r.writeIndex:end])
+	n, err := reader.Read(r.buf[r.writeIndex:firstPartEnd])
+	count = n
 	r.writeIndex = (r.writeIndex + n) % r.cap
-	if singlePart || n == 0 || err != nil {
-		return n, err // cannot read more data or buffer is full now
+
+	if err == nil && n > 0 &&
+		r.writeIndex == 0 && r.readIndex > 1 {
+		n, err = reader.Read(r.buf[0 : r.readIndex-1])
+		count += n
+		r.writeIndex = n
 	}
 
-	end = r.readIndex - 1
-	nn, err := reader.Read(r.buf[0:end])
-	r.writeIndex = (r.writeIndex + nn) % r.cap
-	return n + nn, err
+	return count, err
 }
 
 func (r *RingBuffer) WriteLinePartial(writer io.Writer, count *int, crFound *bool, lfFound *bool) (eol bool, err error) {

@@ -46,7 +46,7 @@ func MergeFiles(inputPath string, outputPath string) error {
 			return fmt.Errorf("failed to open file %s: %v", file, err)
 		}
 
-		reader := NewFileReader(f, sourceName, timestampSearchPrefixLen)
+		reader := NewFileReader(f, sourceName, readerBufferSize)
 		readers[i] = reader
 		defer reader.Close()
 	}
@@ -87,7 +87,7 @@ func MergeFiles(inputPath string, outputPath string) error {
 
 func MergeFileReaders(readers []*FileReader, baseWriter io.Writer) {
 	startOfNewWriter := MeasureStart("NewWriter")
-	writer := bufio.NewWriterSize(baseWriter, outputBufferSize)
+	writer := bufio.NewWriterSize(baseWriter, writerBufferSize)
 	defer writer.Flush()
 	NewWriterDuration = MeasureSince(startOfNewWriter)
 
