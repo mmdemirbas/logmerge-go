@@ -12,6 +12,11 @@ var (
 	noTimestamp = time.Time{}
 )
 
+type LinePrefix struct {
+	Source    *FileReader
+	Timestamp time.Time
+}
+
 func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
 	beforeFillBuffer := MeasureStart("FillBuffer1")
 	err := reader.FillBuffer()

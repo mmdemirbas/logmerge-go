@@ -20,11 +20,6 @@ var (
 	}
 )
 
-type LinePrefix struct {
-	Source    *FileReader
-	Timestamp time.Time
-}
-
 func MergeFiles(inputPath string, outputPath string) error {
 	// Find files to process
 	files, err := ListFiles(inputPath)

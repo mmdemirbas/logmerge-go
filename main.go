@@ -10,7 +10,7 @@ const (
 	enableDebugLogging       = false
 	writeTimestamp           = true
 	writeSourceNames         = true
-	timestampSearchPrefixLen = 1024 * 1024
+	timestampSearchPrefixLen = 1024 * 1024 // per file
 	outputBufferSize         = 1024 * 1024 * 100
 )
 
