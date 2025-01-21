@@ -17,33 +17,36 @@ var (
 
 	// Timing stats by phase (nanoseconds)
 
-	TotalMainDuration     int64
-	ParseOptionsDuration  int64
-	ListFilesDuration     int64
-	OpenFilesDuration     int64
-	MergeScannersDuration int64
+	TotalMainDuration            int64
+	ParseOptionsDuration         int64
+	ListFilesDuration            int64
+	OpenFilesDuration            int64
+	MaxOutputNameLenCalcDuration int64
+	MergeScannersDuration        int64
 
 	// Timing stats by operation (nanoseconds)
 
-	NewWriterDuration            int64
-	MaxOutputNameLenCalcDuration int64
-	HeapInitDuration             int64
-	HeapPopulateDuration         int64
-	MergeLoopDuration            int64
-	HeapPopDuration              int64
-	InnerReadWriteDuration       int64
-	InnerHeapPushDuration        int64
-	ParseTimestampDuration       int64
-	WriteLineDuration            int64
-	AppendFormatDuration         int64
+	NewWriterDuration      int64
+	HeapInitDuration       int64
+	HeapPopulateDuration   int64
+	MergeLoopDuration      int64
+	HeapPopDuration        int64
+	InnerReadWriteDuration int64
+	InnerHeapPushDuration  int64
+	ParseTimestampDuration int64
+	WriteLineDuration      int64
+	AppendFormatDuration   int64
+	WriteRawDataDuration   int64
 
 	// Byte count stats
 
-	BytesRead int64
+	ExpectedBytesToReadIncludingNewlines int64
+	BytesToReadIncludingNewlines         int64
+	BytesRead                            int64
 
 	// Written bytes breakdown
 
-	BytesWrittenForRawLines    int64
+	BytesWrittenForRawData     int64
 	BytesWrittenForTimestamps  int64
 	BytesWrittenForOutputNames int64
 
@@ -65,6 +68,10 @@ var (
 	MaxSuccessiveLineCount          int64
 	SuccessiveLineCountBucketLevels = []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100}
 	SuccessiveLineCountBucketValues = make([]int64, len(SuccessiveLineCountBucketLevels))
+
+	// RingBuffer stats
+	RB_FillBufferDuration int64
+	RB_WriteLineDuration  int64
 
 	// ParseTimestamp debugging
 
@@ -118,8 +125,22 @@ var (
 	ParseTimestamp_TimezoneHourOutOfRange      int64
 )
 
+func MeasureStart(name string) time.Time {
+	now := time.Now()
+	if enableDebugLogging {
+		//goland:noinspection GoUnhandledErrorResult
+		fmt.Fprintf(os.Stderr, "%-33s start %s\n", now.Format(time.RFC3339Nano), name)
+	}
+	return now
+}
+
 func MeasureSince(startNanos time.Time) int64 {
-	return time.Since(startNanos).Nanoseconds()
+	since := time.Since(startNanos)
+	if enableDebugLogging {
+		//goland:noinspection GoUnhandledErrorResult
+		fmt.Fprintf(os.Stderr, "%-33s since %-33v => %v\n", time.Now().Format(time.RFC3339Nano), startNanos.Format(time.RFC3339Nano), since)
+	}
+	return since.Nanoseconds()
 }
 
 func UpdateBucketCount(n int, levels []int, values []int64) {
@@ -130,16 +151,21 @@ func UpdateBucketCount(n int, levels []int, values []int64) {
 		}
 	}
 }
-func PrintMetrics(basePath *string, err error) {
-	restOfMainDuration := TotalMainDuration - (ParseOptionsDuration + ListFilesDuration + OpenFilesDuration + MergeScannersDuration)
-	restOfMergeScannersDuration := MergeScannersDuration - (NewWriterDuration + MaxOutputNameLenCalcDuration + HeapInitDuration + +HeapPopulateDuration + MergeLoopDuration)
+
+//goland:noinspection GoUnhandledErrorResult
+func PrintMetrics(startTime time.Time, inputPath string, outputPath string, pprofEnabled bool, err error) {
+	restOfMainDuration := TotalMainDuration - (ParseOptionsDuration + ListFilesDuration + OpenFilesDuration + MaxOutputNameLenCalcDuration + MergeScannersDuration)
+	restOfMergeScannersDuration := MergeScannersDuration - (NewWriterDuration + HeapInitDuration + HeapPopulateDuration + MergeLoopDuration)
 	restOfMergeLoopDuration := MergeLoopDuration - (HeapPopDuration + InnerReadWriteDuration + InnerHeapPushDuration)
 	restOfMergeScannersBreakdownDuration := MergeScannersDuration - (ParseTimestampDuration + WriteLineDuration)
 	writtenBytesOverhead := BytesWrittenForTimestamps + BytesWrittenForOutputNames
-	writtenBytes := BytesWrittenForRawLines + writtenBytesOverhead
+	writtenBytes := BytesWrittenForRawData + writtenBytesOverhead
 
 	fmt.Fprintf(os.Stderr, "===== METRICS =================================================================================\n")
-	fmt.Fprintf(os.Stderr, "Base path               : %s\n", *basePath)
+	fmt.Fprintf(os.Stderr, "Start time              : %s\n", startTime)
+	fmt.Fprintf(os.Stderr, "Input path              : %s\n", inputPath)
+	fmt.Fprintf(os.Stderr, "Output path             : %s\n", outputPath)
+	fmt.Fprintf(os.Stderr, "pprof enabled           : %v\n", pprofEnabled)
 	fmt.Fprintf(os.Stderr, "Error                   : %v\n", err)
 	fmt.Fprintf(os.Stderr, "Total main duration     : %v\n", duration(TotalMainDuration))
 	fmt.Fprintf(os.Stderr, "===============================================================================================\n")
@@ -151,9 +177,9 @@ func PrintMetrics(basePath *string, err error) {
 	fmt.Fprintf(os.Stderr, "  parse options         : %8s ~ %12v\n", timePercent(ParseOptionsDuration), duration(ParseOptionsDuration))
 	fmt.Fprintf(os.Stderr, "  list files            : %8s ~ %12v\n", timePercent(ListFilesDuration), duration(ListFilesDuration))
 	fmt.Fprintf(os.Stderr, "  open files            : %8s ~ %12v\n", timePercent(OpenFilesDuration), duration(OpenFilesDuration))
+	fmt.Fprintf(os.Stderr, "  out name calc         : %8s ~ %12v\n", timePercent(MaxOutputNameLenCalcDuration), duration(MaxOutputNameLenCalcDuration))
 	fmt.Fprintf(os.Stderr, "  merge scanners        : %8s ~ %12v\n", timePercent(MergeScannersDuration), duration(MergeScannersDuration))
 	fmt.Fprintf(os.Stderr, "    new writer          : %8s ~ %12v\n", timePercent(NewWriterDuration), duration(NewWriterDuration))
-	fmt.Fprintf(os.Stderr, "    out name calc       : %8s ~ %12v\n", timePercent(MaxOutputNameLenCalcDuration), duration(MaxOutputNameLenCalcDuration))
 	fmt.Fprintf(os.Stderr, "    heap init           : %8s ~ %12v\n", timePercent(HeapInitDuration), duration(HeapInitDuration))
 	fmt.Fprintf(os.Stderr, "    heap populate       : %8s ~ %12v\n", timePercent(HeapPopulateDuration), duration(HeapPopulateDuration))
 	fmt.Fprintf(os.Stderr, "    merge loop          : %8s ~ %12v\n", timePercent(MergeLoopDuration), duration(MergeLoopDuration))
@@ -162,16 +188,20 @@ func PrintMetrics(basePath *string, err error) {
 	fmt.Fprintf(os.Stderr, "      inner heap push   : %8s ~ %12v\n", timePercent(InnerHeapPushDuration), duration(InnerHeapPushDuration))
 	fmt.Fprintf(os.Stderr, "      rest..            : %8s ~ %12v\n", timePercent(restOfMergeLoopDuration), duration(restOfMergeLoopDuration))
 	fmt.Fprintf(os.Stderr, "    rest..              : %8s ~ %12v\n", timePercent(restOfMergeScannersDuration), duration(restOfMergeScannersDuration))
-	fmt.Fprintf(os.Stderr, "  merge scanners brkdwn\n")
+	fmt.Fprintf(os.Stderr, "  merge scanners breakdown\n")
 	fmt.Fprintf(os.Stderr, "    parse timestamp     : %8s ~ %12v\n", timePercent(ParseTimestampDuration), duration(ParseTimestampDuration))
 	fmt.Fprintf(os.Stderr, "    write line          : %8s ~ %12v\n", timePercent(WriteLineDuration), duration(WriteLineDuration))
 	fmt.Fprintf(os.Stderr, "      append format     : %8s ~ %12v\n", timePercent(AppendFormatDuration), duration(AppendFormatDuration))
+	fmt.Fprintf(os.Stderr, "      raw data          : %8s ~ %12v\n", timePercent(WriteRawDataDuration), duration(WriteRawDataDuration))
 	fmt.Fprintf(os.Stderr, "    rest..              : %8s ~ %12v\n", timePercent(restOfMergeScannersBreakdownDuration), duration(restOfMergeScannersBreakdownDuration))
 	fmt.Fprintf(os.Stderr, "  rest..                : %8s ~ %12v\n", timePercent(restOfMainDuration), duration(restOfMainDuration))
+	fmt.Fprintf(os.Stderr, "RingBuffer performance\n")
+	fmt.Fprintf(os.Stderr, "  fill buffer duration  : %8s ~ %12v\n", timePercent(RB_FillBufferDuration), duration(RB_FillBufferDuration))
+	fmt.Fprintf(os.Stderr, "  write line duration   : %8s ~ %12v\n", timePercent(RB_WriteLineDuration), duration(RB_WriteLineDuration))
 	fmt.Fprintf(os.Stderr, "Byte count stats\n")
 	fmt.Fprintf(os.Stderr, "  bytes read            : %8s ~ %12d = %10s ≈ %s\n", "", BytesRead, bytes(BytesRead), bytesSpeed(BytesRead, MergeScannersDuration))
 	fmt.Fprintf(os.Stderr, "  bytes written         : %8s ~ %12d = %10s ≈ %s\n", percent(writtenBytes, writtenBytes), writtenBytes, bytes(writtenBytes), bytesSpeed(writtenBytes, MergeScannersDuration))
-	fmt.Fprintf(os.Stderr, "    raw lines           : %8s ~ %12v = %10s\n", percent(BytesWrittenForRawLines, writtenBytes), BytesWrittenForRawLines, bytes(BytesWrittenForRawLines))
+	fmt.Fprintf(os.Stderr, "    raw data            : %8s ~ %12v = %10s\n", percent(BytesWrittenForRawData, writtenBytes), BytesWrittenForRawData, bytes(BytesWrittenForRawData))
 	fmt.Fprintf(os.Stderr, "    overhead            : %8s ~ %12v = %10s\n", percent(writtenBytesOverhead, writtenBytes), writtenBytesOverhead, bytes(writtenBytesOverhead))
 	fmt.Fprintf(os.Stderr, "      timestamps        : %8s ~ %12v = %10s\n", percent(BytesWrittenForTimestamps, writtenBytes), BytesWrittenForTimestamps, bytes(BytesWrittenForTimestamps))
 	fmt.Fprintf(os.Stderr, "      source names      : %8s ~ %12v = %10s\n", percent(BytesWrittenForOutputNames, writtenBytes), BytesWrittenForOutputNames, bytes(BytesWrittenForOutputNames))
@@ -246,10 +276,12 @@ func printBuckets(total int64, levels []int, values []int64) {
 	for i, level := range levels {
 		value := values[i]
 		cumulative += value
+		//goland:noinspection GoUnhandledErrorResult
 		fmt.Fprintf(os.Stderr, "    ≤ %-6d            : %8s ~ %12d ≈ %8s (cumulative)\n", level, percent(value, total), value, percent(cumulative, total))
 	}
 
 	remaining := total - cumulative
+	//goland:noinspection GoUnhandledErrorResult
 	fmt.Fprintf(os.Stderr, "    rest..              : %8s ~ %12d ≈ %8s (cumulative)\n", percent(remaining, total), remaining, percent(total, total))
 }
 

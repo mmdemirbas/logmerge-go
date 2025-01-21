@@ -1,5 +1,10 @@
+- Simplify file namings and resposibilities
+  - parse.go -> read.go
+  - merge.go -> write.go (merge logic could stay or be moved to another file)
+
 - BUG
   - SOME LINES ARE SKIPPED!!!
+  - Timestamp written without nanoseconds
 
 - Performance
   - Avoid allocations. Look for memory re-use opportunities.
@@ -20,6 +25,7 @@
     Depending on input size and distribution, tools dynamically choose between sorting algorithms
     like quicksort, mergesort, or insertion sort.
   - 'sort' and 'awk': Algorithms are optimized for CPU cache by working on small, contiguous chunks of data that fit in the L1/L2 cache.
+  - Optimize min heap implemenation
 
 - UX
   - Aggressively simplify the code so we can easily implement advanced algorithms and features in the future.

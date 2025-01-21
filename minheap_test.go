@@ -10,8 +10,8 @@ import (
 func TestMinHeap(t *testing.T) {
 	h := &MinHeap{}
 	heap.Init(h)
-	heap.Push(h, &LogLine{Timestamp: time.Now()})
-	heap.Push(h, &LogLine{Timestamp: time.Now().Add(-time.Minute)})
+	heap.Push(h, &LinePrefix{Timestamp: time.Now()})
+	heap.Push(h, &LinePrefix{Timestamp: time.Now().Add(-time.Minute)})
 	if (*h)[0].Timestamp.After((*h)[1].Timestamp) {
 		t.Errorf("MinHeap does not maintain order")
 	}

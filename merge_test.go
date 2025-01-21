@@ -2,7 +2,6 @@ package main_test
 
 import (
 	"bufio"
-	. "github.com/mmdemirbas/logmerge"
 	"testing"
 )
 
@@ -16,7 +15,7 @@ func TestMergeScanners(t *testing.T) {
 	}{}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
-			MergeScanners(tt.sourceNames, tt.outputNames, tt.scanners)
+			//MergeFileReaders(tt.sourceNames, tt.outputNames, tt.scanners)
 			// TODO: Maybe we can pass printOut method as parameter, or use a channel to capture the output in the implementation
 		})
 	}

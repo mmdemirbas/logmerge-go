@@ -4,18 +4,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
-)
-
-var (
-	excludedStrictSuffixes  = []string{".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz"}
-	includedStrictSuffixes  = []string{}
-	excludedLenientSuffixes = []string{}
-	includedLenientSuffixes = []string{".log", ".err", ".error", ".warn", ".warning", ".info", ".txt", ".out", ".debug", ".trace"}
 )
 
 func ListFiles(basePath string) (files []string, err error) {
-	startOfListFiles := time.Now()
+	startOfListFiles := MeasureStart("ListFiles")
 
 	stat, err := os.Stat(basePath)
 

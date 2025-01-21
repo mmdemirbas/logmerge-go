@@ -20,9 +20,3 @@ func TestShouldIncludeFile(t *testing.T) {
 		})
 	}
 }
-
-func assertEquals(t *testing.T, expected any, actual any) {
-	if expected != actual {
-		t.Errorf("\nExpected: < %v >\nbut got : < %v >", expected, actual)
-	}
-}

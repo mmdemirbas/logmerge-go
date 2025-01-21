@@ -31,15 +31,12 @@ func TestParseTimestamp(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			ts := ParseTimestamp(tt.input)
+			buf := NewRingBuffer(128)
+			reader := strings.NewReader(tt.input)
+			buf.Fill(reader)
+			ts := ParseTimestamp(buf)
 			actual := ts.Format(time.RFC3339Nano)
-			assertStringEquals(t, tt.expected, actual, tt.input)
+			assertEquals(t, tt.expected, actual)
 		})
-	}
-}
-
-func assertStringEquals(t *testing.T, expected, actual, input string) {
-	if strings.Compare(actual, expected) != 0 {
-		t.Errorf("\nExpected: < %v >\nbut got : < %v >\nby input: < %v >", expected, actual, input)
 	}
 }
