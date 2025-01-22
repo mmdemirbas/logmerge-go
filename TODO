@@ -1,48 +1,37 @@
+- Add source names as block titles
+- Treat Z as non-UTC timezone to handle mis-configured logs
+
+- Ensure all common log formats are supported
+- Optimize min heap implemention
+- Complete unit tests
+
 - Performance
+  - Consider adaptive sorting like Timsort just like 'sort' command in Unix.
+    Depending on input size and distribution, tools dynamically choose between sorting algorithms
+    like quicksort, mergesort, or insertion sort.
   - Experiment splitting files into chunks and sorting and merging in multiple steps.
-    BE CAREFUL! Do not break the data by adding intermediate file names by mistake!
   - Read files concurrently -> Fill the read buffer while other parts of the program are processing the lines.
   - Close files as soon as they are done
   - Take max open file descriptor limit into account. If there are too many files, we couldn't open all of them simultaneously.
     Consider using temporary intermediate files to store the sorted lines and merge them later using efficient algorithms
     like merge sort.
   - Create an alternative solution with sort and awk to compare performance.
-  - Lines could be exteremely long. Instead of reading line by line, read only necessary part to parse the timestamp.
-    Then read the rest of the line and following timestamp-less lines while transferring them to the output.
-    In that case we don't need extra memory or buffer. (maybe)
   - Implement an alternative in Rust.
-  - Consider adaptive sorting like Timsort just like 'sort' command in Unix.
-    Depending on input size and distribution, tools dynamically choose between sorting algorithms
-    like quicksort, mergesort, or insertion sort.
   - 'sort' and 'awk': Algorithms are optimized for CPU cache by working on small, contiguous chunks of data that fit in the L1/L2 cache.
-  - Optimize min heap implemenation
 
 - UX
   - Aggressively simplify the code so we can easily implement advanced algorithms and features in the future.
-  - Complete unit tests
   - Use named return values to document code better and enjoy better autocomplete.
   - Add a progress bar based on processed size and file count
   - Decide a standard naming for binaries across all projects - Research
   - Add method comments
   - Write README - Document exact behaviour (how timestamp-less lines combined together and sorted first etc)
   - Define install recipe in justfile to install the binary to the system (and uninstall maybe)
-  - Make sure that the lines from the same file prioritized over the lines from other files if they have the same timestamp
-    - This could go more complex:
-      - If the lines from the same file have the same timestamp, they should be sorted by the order they appear in the file
-      - If the lines from the different files have the same timestamp, they should be sorted by the order they appear in the input
-        or by the order they have visited latest. So, the lines from the same files will be grouped together which makes following easier.
-        We could keep track of frequencies etc maybe but this requires careful consideraton and we should avoid unnecessary complexity
-        for a small unnoticable favor to user.
-  - Ensure all common log formats are supported
 
 - Customizations
   - Add standard unix-style options (-h, -q, -v, etc.)
   - Multiple input paths
   - Dry-run
-  - Write buffer size
-  - Total read buffer size
-  - Min/max read buffer size per file
-  - Included / excluded extensions
   - Included / excluded paths
   - Including / excluding symlinks
   - Opt out from adding log file name to the output
@@ -53,4 +42,3 @@
   - Custom source name format
   - Custom timestamp format
   - Default local timezone if no timezone information in the timestamp
-  - Treat Z as non-UTC timezone to handle mis-configured logs

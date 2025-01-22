@@ -9,10 +9,9 @@ import (
 
 // TODO: These settings can be made configurable via command-line flags
 const (
-	disableMetricsCollection = false
-	enableDebugLogging       = false
+	disableMetricsCollection = true
 	writeTimestamp           = true
-	writeSourceNames         = true
+	writeSourceNamesPerLine  = true
 	minTimestampLen          = 15
 	timestampSearchPrefixLen = 250
 	readerBufferSize         = max(timestampSearchPrefixLen, 1024*128) // per file

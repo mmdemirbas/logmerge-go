@@ -240,9 +240,10 @@ func PrintMetrics(
 	fmt.Fprintf(stderr, "Output path             : %s\n", stdoutName)
 	fmt.Fprintf(stderr, "Log path                : %s\n", stderrName)
 	fmt.Fprintf(stderr, "pprof enabled           : %v\n", pprofEnabled)
-	fmt.Fprintf(stderr, "enableDebugLogging      : %v\n", enableDebugLogging)
+	fmt.Fprintf(stderr, "disableMetricsCollection: %v\n", disableMetricsCollection)
 	fmt.Fprintf(stderr, "writeTimestamp          : %v\n", writeTimestamp)
-	fmt.Fprintf(stderr, "writeSourceNames        : %v\n", writeSourceNames)
+	fmt.Fprintf(stderr, "writeSourceNamesPerLine : %v\n", writeSourceNamesPerLine)
+	fmt.Fprintf(stderr, "minTimestampLen         : %12v = %10s\n", minTimestampLen, bytes(minTimestampLen))
 	fmt.Fprintf(stderr, "timestampSearchPrefixLen: %12v = %10s\n", timestampSearchPrefixLen, bytes(timestampSearchPrefixLen))
 	fmt.Fprintf(stderr, "readerBufferSize        : %12v = %10s\n", readerBufferSize, bytes(readerBufferSize))
 	fmt.Fprintf(stderr, "writerBufferSize        : %12v = %10s\n", writerBufferSize, bytes(writerBufferSize))
@@ -253,11 +254,11 @@ func PrintMetrics(
 	fmt.Fprintf(stderr, "\n")
 	fmt.Fprintf(stderr, "===== METRICS SUMMARY ============================================================================================================================================================\n")
 	printTreeNode(stderr, 0, "ListFiles", 1, ListFilesDuration, bytesSpeed(FilesScanned, ListFilesDuration))
-	printTreeNode(stderr, 0, "FillBuffer", FillBufferMetric.CallCount, FillBufferMetric.Duration, bytesSpeed(BytesRead, ProcessDuration))
-	printTreeNode(stderr, 0, "BufferAsSlice", BufferAsSliceMetric.CallCount, BufferAsSliceMetric.Duration, countSpeed(LinesRead, ProcessDuration))
-	printTreeNode(stderr, 0, "ParseTimestamp", ParseTimestampMetric.CallCount, ParseTimestampMetric.Duration, countSpeed(LinesRead, ProcessDuration))
-	printTreeNode(stderr, 0, "PeekNextLineSlice", PeekNextLineSliceMetric.CallCount, PeekNextLineSliceMetric.Duration, countSpeed(LinesRead, ProcessDuration))
-	printTreeNode(stderr, 0, "WriteOutput", WriteOutputMetric.CallCount, WriteOutputMetric.Duration, bytesSpeed(writtenBytes, ProcessDuration))
+	FillBufferMetric.printTreeNode(stderr, "FillBuffer", bytesSpeed(BytesRead, ProcessDuration))
+	BufferAsSliceMetric.printTreeNode(stderr, "BufferAsSlice", countSpeed(LinesRead, ProcessDuration))
+	ParseTimestampMetric.printTreeNode(stderr, "ParseTimestamp", countSpeed(LinesRead, ProcessDuration))
+	PeekNextLineSliceMetric.printTreeNode(stderr, "PeekNextLineSlice", countSpeed(LinesRead, ProcessDuration))
+	WriteOutputMetric.printTreeNode(stderr, "WriteOutput", bytesSpeed(writtenBytes, ProcessDuration))
 	printTreeNode(stderr, 0, "MeasurementOverhead", MeasurementCalls, MeasurementOverheadAvg*MeasurementCalls, "")
 	fmt.Fprintf(stderr, "\n")
 	fmt.Fprintf(stderr, "===== METRICS TREE ===============================================================================================================================================================\n")
@@ -358,6 +359,10 @@ func printTree(stderr *os.File, node *TreeNode, depth int) {
 			printTreeNode(stderr, depth+1, "..rest of "+node.Name, node.Metric.CallCount, rest, "")
 		}
 	}
+}
+
+func (m *CallMetric) printTreeNode(stderr *os.File, name string, extra string) {
+	printTreeNode(stderr, 0, name, m.CallCount, m.Duration, extra)
 }
 
 func printTreeNode(stderr *os.File, depth int, name string, n int64, nanoseconds int64, extra string) {

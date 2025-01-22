@@ -30,7 +30,7 @@ func MergeFiles(inputPath string, stdout *os.File) error {
 	for i, file := range files {
 		sourceName := ""
 		// TODO: Consider measuring overhead of each features separately (overheadOfWriteSourceNames etc)
-		if writeSourceNames {
+		if writeSourceNamesPerLine {
 			rel, err := filepath.Rel(inputPath, file)
 			if err != nil {
 				return fmt.Errorf("failed to calculate relative path for file %s: %v", file, err)
@@ -53,7 +53,7 @@ func MergeFiles(inputPath string, stdout *os.File) error {
 	MeasureSince(startOfOpenFiles)
 
 	// Calculate max output name length
-	if writeSourceNames {
+	if writeSourceNamesPerLine {
 		startOfMaxOutputNameLenCalc := MeasureStart("CalcMaxOutputNameLen")
 		maxOutputNameLen := 0
 		for _, reader := range readers {
@@ -215,7 +215,7 @@ func writeLine(writer *bufio.Writer, timestamp time.Time, reader *FileReader) er
 		WriteOutputMetric.CallCount++
 	}
 
-	if writeSourceNames {
+	if writeSourceNamesPerLine {
 		startOfWriteSourceNames := MeasureStart("WriteSourceNames")
 		n, err := writer.WriteString(reader.SourceName)
 		BytesWrittenForOutputNames += int64(n)
