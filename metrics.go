@@ -25,7 +25,8 @@ var (
 	TotalWriteOutputDuration    int64
 
 	// Metric collection overhead metrics
-	MeasureSinceCalls int64
+	MeasurementCalls       int64
+	MeasurementOverheadAvg int64
 
 	// Byte count stats
 
@@ -122,7 +123,7 @@ func MeasureSince(startNanos time.Time) int64 {
 	elapsed := time.Since(startNanos).Nanoseconds()
 
 	exitContext(elapsed)
-	MeasureSinceCalls++
+	MeasurementCalls++
 
 	return elapsed
 }
@@ -189,7 +190,11 @@ func printTree(stderr *os.File, node *TreeNode, depth int) {
 			printTree(stderr, child, depth+1)
 			childTotal += child.Duration
 		}
-		printTreeNode(stderr, depth+1, "..rest of "+node.Name, node.CallCount, nanoseconds-childTotal)
+
+		rest := nanoseconds - childTotal
+		if rest > 0 {
+			printTreeNode(stderr, depth+1, "..rest of "+node.Name, node.CallCount, rest)
+		}
 	}
 }
 
@@ -266,7 +271,8 @@ func PrintMetrics(
 	fmt.Fprintf(stderr, "FillBuffer              : %8s ~ %12v ≈ %s\n", timePercent(TotalFillBufferDuration), duration(TotalFillBufferDuration), bytesSpeed(BytesRead, ProcessDuration))
 	fmt.Fprintf(stderr, "ParseTimestamp          : %8s ~ %12v ≈ %s\n", timePercent(TotalParseTimestampDuration), duration(TotalParseTimestampDuration), countSpeed(LinesRead, ProcessDuration))
 	fmt.Fprintf(stderr, "WriteOutput             : %8s ~ %12v ≈ %s\n", timePercent(TotalWriteOutputDuration), duration(TotalWriteOutputDuration), bytesSpeed(writtenBytes, ProcessDuration))
-	fmt.Fprintf(stderr, "MeasureSinceCalls       : %8s ~ %12v ≈ %s\n", "", MeasureSinceCalls, count(MeasureSinceCalls))
+	approximageMeasurementOverhead := MeasurementOverheadAvg * MeasurementCalls
+	fmt.Fprintf(stderr, "MeasurementOverhead     : %8s ~ %12v ≈ %v (%v) calls\n", timePercent(approximageMeasurementOverhead), duration(approximageMeasurementOverhead), MeasurementCalls, count(MeasurementCalls))
 	fmt.Fprintf(stderr, "\n")
 	fmt.Fprintf(stderr, "===== METRICS TREE ===============================================================================================================================================================\n")
 	printTree(stderr, metricsTree, 0)

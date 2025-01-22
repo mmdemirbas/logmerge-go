@@ -122,6 +122,16 @@ func main() {
 
 	TotalMainDuration = MeasureSince(startOfMain)
 
+	if !disableMetricsCollection {
+		startOverheadCalc := MeasureStart("MeasurementOverhead")
+		testCount := 1_000_000
+		for i := 0; i < testCount; i++ {
+			start := MeasureStart("MeasurementOverhead")
+			MeasureSince(start)
+		}
+		MeasurementOverheadAvg = MeasureSince(startOverheadCalc) / int64(testCount-1)
+	}
+
 	elapsedTime := time.Since(startTime)
 	PrintMetrics(stderr, startTime, elapsedTime, inputPath, stdout.Name(), stderr.Name(), pprofEnabled, err)
 
