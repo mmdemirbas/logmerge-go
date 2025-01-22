@@ -1,5 +1,4 @@
 - Treat Z as non-UTC timezone to handle mis-configured logs
-- Simplify metric collection for call metrics
 
 - Ensure all common log formats are supported
 - Optimize min heap implemention

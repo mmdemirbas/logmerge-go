@@ -21,28 +21,25 @@ type LinePrefix struct {
 func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
 	bufLen := reader.Buffer.Len()
 	if bufLen < timestampSearchPrefixLen {
-		startOfFillBuffer := MeasureStart("FillBuffer")
+		startTime := MeasureStart("FillBuffer")
 		err := reader.FillBuffer()
 		if err != nil {
 			return nil, fmt.Errorf("failed to fill buffer: %v", err)
 		}
-		FillBufferMetric.Duration += MeasureSince(startOfFillBuffer)
-		FillBufferMetric.CallCount++
+		FillBufferMetric.MeasureSince(startTime)
 
 		if bufLen == 0 && reader.Buffer.IsEmpty() {
 			return nil, nil
 		}
 	}
 
-	startOfBufferAsSlice := MeasureStart("BufferAsSlice")
+	startTime := MeasureStart("BufferAsSlice")
 	buf := reader.Buffer.AsSlice(timestampBuffer)
-	BufferAsSliceMetric.Duration += MeasureSince(startOfBufferAsSlice)
-	BufferAsSliceMetric.CallCount++
+	BufferAsSliceMetric.MeasureSince(startTime)
 
-	startOfParseTimestamp := MeasureStart("ParseTimestamp")
+	startTime = MeasureStart("ParseTimestamp")
 	timestamp := ParseTimestamp(buf)
-	ParseTimestampMetric.Duration += MeasureSince(startOfParseTimestamp)
-	ParseTimestampMetric.CallCount++
+	ParseTimestampMetric.MeasureSince(startTime)
 
 	if timestamp == noTimestamp {
 		LinesWithoutTimestamps++

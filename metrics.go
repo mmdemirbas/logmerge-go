@@ -27,8 +27,8 @@ var (
 	WriteOutputMetric       CallMetric
 
 	// Metric collection overhead metrics
-	MeasurementCalls       int64
-	MeasurementOverheadAvg int64
+	MetricsCalls       int64
+	MetricsOverheadAvg int64
 
 	// Byte count stats
 
@@ -111,6 +111,11 @@ func MeasureStart(name string) time.Time {
 	return time.Now()
 }
 
+func (m *CallMetric) MeasureSince(startNanos time.Time) {
+	m.Duration += MeasureSince(startNanos)
+	m.CallCount++
+}
+
 func MeasureSince(startNanos time.Time) int64 {
 	if disableMetricsCollection {
 		return 0
@@ -119,7 +124,7 @@ func MeasureSince(startNanos time.Time) int64 {
 	elapsed := time.Since(startNanos).Nanoseconds()
 
 	exitContext(elapsed)
-	MeasurementCalls++
+	MetricsCalls++
 
 	return elapsed
 }
@@ -218,7 +223,6 @@ func PrintMetrics(
 	inputPath string,
 	stdoutName string,
 	stderrName string,
-	pprofEnabled bool,
 	err error,
 ) {
 	writtenBytesOverhead := BytesWrittenForTimestamps + BytesWrittenForSourceNamePerLine + BytesWrittenForSourceNamePerBlock + BytesWrittenForMissingNewlines
@@ -261,7 +265,7 @@ func PrintMetrics(
 	ParseTimestampMetric.printTreeNode(stderr, "ParseTimestamp", countSpeed(LinesRead, ProcessDuration))
 	PeekNextLineSliceMetric.printTreeNode(stderr, "PeekNextLineSlice", countSpeed(LinesRead, ProcessDuration))
 	WriteOutputMetric.printTreeNode(stderr, "WriteOutput", bytesSpeed(writtenBytes, ProcessDuration))
-	printTreeNode(stderr, 0, "MeasurementOverhead", MeasurementCalls, MeasurementOverheadAvg*MeasurementCalls, "")
+	printTreeNode(stderr, 0, "MeasurementOverhead", MetricsCalls, MetricsOverheadAvg*MetricsCalls, "")
 	fmt.Fprintf(stderr, "\n")
 	fmt.Fprintf(stderr, "===== METRICS TREE ===============================================================================================================================================================\n")
 	printTree(stderr, metricsTree, 0)

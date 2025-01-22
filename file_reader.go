@@ -52,21 +52,19 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) error {
 	)
 
 	for !r.Buffer.IsEmpty() {
-		startPeekNextLineSlice := MeasureStart("PeekNextLineSlice")
+		startTime := MeasureStart("PeekNextLineSlice")
 		chunk, eol = r.Buffer.PeekNextLineSlice(&latestCharWasCR)
-		PeekNextLineSliceMetric.Duration += MeasureSince(startPeekNextLineSlice)
-		PeekNextLineSliceMetric.CallCount++
+		PeekNextLineSliceMetric.MeasureSince(startTime)
 
 		if chunk != nil {
-			startWriteLinePartial := MeasureStart("WriteLinePartial")
+			startTime = MeasureStart("WriteLinePartial")
 			var n int
 			n, err = writer.Write(chunk)
 			if err == nil {
 				r.Buffer.Skip(n)
 				count += n
 			}
-			WriteOutputMetric.Duration += MeasureSince(startWriteLinePartial)
-			WriteOutputMetric.CallCount++
+			WriteOutputMetric.MeasureSince(startTime)
 		}
 
 		if err != nil {
@@ -77,26 +75,24 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) error {
 		}
 
 		if r.Buffer.IsEmpty() {
-			startOfFillBuffer := MeasureStart("FillBuffer")
+			startTime := MeasureStart("FillBuffer")
 			err = r.FillBuffer()
 			if err != nil {
 				return fmt.Errorf("failed to fill buffer: %v", err)
 			}
-			FillBufferMetric.Duration += MeasureSince(startOfFillBuffer)
-			FillBufferMetric.CallCount++
+			FillBufferMetric.MeasureSince(startTime)
 		}
 	}
 
 	// Ensure \n is written at the end of the line
 	if eol != LF && eol != CRLF {
-		startOfWriteMissingNewline := MeasureStart("WriteMissingNewline")
+		startTime := MeasureStart("WriteMissingNewline")
 		err = writer.WriteByte('\n')
 		BytesWrittenForMissingNewlines++
 		if err != nil {
 			return fmt.Errorf("failed to write newline: %v", err)
 		}
-		WriteOutputMetric.Duration += MeasureSince(startOfWriteMissingNewline)
-		WriteOutputMetric.CallCount++
+		WriteOutputMetric.MeasureSince(startTime)
 	}
 
 	lineLengthWithoutEol := count

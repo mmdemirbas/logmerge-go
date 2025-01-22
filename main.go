@@ -10,7 +10,7 @@ import (
 // TODO: These settings can be made configurable via command-line flags
 const (
 	disableMetricsCollection = true
-	writeTimestamp           = true
+	writeTimestamp           = false
 	writeSourceNamesPerLine  = false
 	writeSourceNamesPerBlock = true
 	minTimestampLen          = 15
@@ -20,6 +20,8 @@ const (
 )
 
 var (
+	pprofEnabled = os.Getenv("ENABLE_PPROF") == "true"
+
 	excludedStrictSuffixes  = []string{".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz"}
 	includedStrictSuffixes  = []string{}
 	excludedLenientSuffixes = []string{}
@@ -27,7 +29,7 @@ var (
 )
 
 func main() {
-	startTime := time.Now()
+	programStartTime := time.Now() // measure program duration even if metrics disabled
 	stdout := os.Stdout
 	stderr := os.Stderr
 	var err error
@@ -39,12 +41,11 @@ func main() {
 		}
 	}()
 
-	startOfMain := MeasureStart("Main")
+	startTimeMain := MeasureStart("Main")
 
 	// Enable profiling only if configured
-	pprofEnabled := os.Getenv("ENABLE_PPROF") == "true"
 	if pprofEnabled {
-		startOfCpuProfile := MeasureStart("CpuProfile")
+		startTime := MeasureStart("CpuProfile")
 		//goland:noinspection GoUnhandledErrorResult
 		fmt.Fprintf(stderr, "Profiling enabled\n")
 
@@ -62,10 +63,10 @@ func main() {
 				defer pprof.StopCPUProfile()
 			}
 		}
-		MeasureSince(startOfCpuProfile)
+		MeasureSince(startTime)
 	}
 
-	startOfParseOptions := MeasureStart("ParseOptions")
+	startTime := MeasureStart("ParseOptions")
 	//goland:noinspection GoUnhandledErrorResult
 	if len(os.Args) < 2 {
 		fmt.Fprintf(stderr, "logmerge\n")
@@ -98,14 +99,14 @@ func main() {
 			defer stderr.Close()
 		}
 	}
-	MeasureSince(startOfParseOptions)
+	MeasureSince(startTime)
 
-	startOfMergeFiles := MeasureStart("MergeFiles")
+	startTime = MeasureStart("MergeFiles")
 	err = MergeFiles(inputPath, stdout)
-	ProcessDuration = MeasureSince(startOfMergeFiles)
+	ProcessDuration = MeasureSince(startTime)
 
 	if pprofEnabled {
-		startOfMemProfile := MeasureStart("MemProfile")
+		startTime = MeasureStart("MemProfile")
 		// Capture memory profile
 		memFile, err := os.Create("out/mem.prof")
 		if err != nil {
@@ -118,23 +119,23 @@ func main() {
 				fmt.Fprintf(stderr, "could not write memory profile: %v\n", err)
 			}
 		}
-		MeasureSince(startOfMemProfile)
+		MeasureSince(startTime)
 	}
 
-	TotalMainDuration = MeasureSince(startOfMain)
+	TotalMainDuration = MeasureSince(startTimeMain)
 
 	if !disableMetricsCollection {
-		startOverheadCalc := MeasureStart("MeasurementOverhead")
+		startTime := MeasureStart("CalcMetricsOverhead")
 		testCount := 1_000_000
 		for i := 0; i < testCount; i++ {
-			start := MeasureStart("MeasurementOverhead")
-			MeasureSince(start)
+			startTime := MeasureStart("CalcMetricsOverhead")
+			MeasureSince(startTime)
 		}
-		MeasurementOverheadAvg = MeasureSince(startOverheadCalc) / int64(testCount-1)
+		MetricsOverheadAvg = MeasureSince(startTime) / int64(testCount-1)
 	}
 
-	elapsedTime := time.Since(startTime)
-	PrintMetrics(stderr, startTime, elapsedTime, inputPath, stdout.Name(), stderr.Name(), pprofEnabled, err)
+	elapsedTime := time.Since(programStartTime)
+	PrintMetrics(stderr, programStartTime, elapsedTime, inputPath, stdout.Name(), stderr.Name(), err)
 
 	if err != nil {
 		//goland:noinspection GoUnhandledErrorResult
