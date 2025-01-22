@@ -17,14 +17,14 @@ type LinePrefix struct {
 }
 
 func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
-	startOfFillBuffer := MeasureStart("FillBuffer")
 	if reader.Buffer.Len() < timestampSearchPrefixLen {
+		startOfFillBuffer := MeasureStart("FillBuffer")
 		err := reader.FillBuffer()
 		if err != nil {
 			return nil, fmt.Errorf("failed to fill buffer: %v", err)
 		}
+		TotalFillBufferDuration += MeasureSince(startOfFillBuffer)
 	}
-	TotalFillBufferDuration += MeasureSince(startOfFillBuffer)
 
 	if reader.Buffer.IsEmpty() {
 		return nil, nil

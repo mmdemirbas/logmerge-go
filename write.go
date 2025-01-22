@@ -53,8 +53,8 @@ func MergeFiles(inputPath string, stdout *os.File) error {
 	MeasureSince(startOfOpenFiles)
 
 	// Calculate max output name length
-	startOfMaxOutputNameLenCalc := MeasureStart("CalcMaxOutputNameLen")
 	if writeSourceNames {
+		startOfMaxOutputNameLenCalc := MeasureStart("CalcMaxOutputNameLen")
 		maxOutputNameLen := 0
 		for _, reader := range readers {
 			if maxOutputNameLen < len(reader.SourceName) {
@@ -65,8 +65,8 @@ func MergeFiles(inputPath string, stdout *os.File) error {
 		for _, reader := range readers {
 			reader.SourceName = fmt.Sprintf("%-*s - ", maxOutputNameLen, reader.SourceName)
 		}
+		MeasureSince(startOfMaxOutputNameLenCalc)
 	}
-	MeasureSince(startOfMaxOutputNameLenCalc)
 
 	startOfMergeScanners := MeasureStart("MergeFileReaders")
 	err = MergeFileReaders(readers, stdout)
@@ -172,20 +172,20 @@ func MergeFileReaders(readers []*FileReader, stdout io.Writer) error {
 		MeasureSince(startOfInnerReadWrite)
 
 		// Put the current line to the heap
-		startOfHeapPush := MeasureStart("HeapPush")
 		if next != nil {
+			startOfHeapPush := MeasureStart("HeapPush")
 			heap.Push(h, next)
 			HeapPushCount++
+			MeasureSince(startOfHeapPush)
 		}
-		MeasureSince(startOfHeapPush)
 	}
 	MeasureSince(startOfMergeLoop)
 	return nil
 }
 
 func writeLine(writer *bufio.Writer, timestamp time.Time, reader *FileReader) error {
-	startOfWriteTimestamp := MeasureStart("WriteTimestamp")
 	if writeTimestamp {
+		startOfWriteTimestamp := MeasureStart("WriteTimestamp")
 		if timestamp == noTimestamp {
 			startOfNoSourceNamePadding := MeasureStart("NoSourceNamePadding")
 			n, err := writer.Write(space36)
@@ -206,28 +206,28 @@ func writeLine(writer *bufio.Writer, timestamp time.Time, reader *FileReader) er
 				return fmt.Errorf("failed to write timestamp: %v", err)
 			}
 
-			startOfAppendFormatPadding := MeasureStart("AppendFormatPadding")
 			if delta := 35 - n; delta > 0 {
+				startOfAppendFormatPadding := MeasureStart("AppendFormatPadding")
 				n, err = writer.Write(space36[:delta])
 				BytesWrittenForTimestamps += int64(n)
 				if err != nil {
 					return fmt.Errorf("failed to write timestamp padding: %v", err)
 				}
+				MeasureSince(startOfAppendFormatPadding)
 			}
-			MeasureSince(startOfAppendFormatPadding)
 		}
+		TotalWriteOutputDuration += MeasureSince(startOfWriteTimestamp)
 	}
-	TotalWriteOutputDuration += MeasureSince(startOfWriteTimestamp)
 
-	startOfWriteSourceNames := MeasureStart("WriteSourceNames")
 	if writeSourceNames {
+		startOfWriteSourceNames := MeasureStart("WriteSourceNames")
 		n, err := writer.WriteString(reader.SourceName)
 		BytesWrittenForOutputNames += int64(n)
 		if err != nil {
 			return fmt.Errorf("failed to write source name: %v", err)
 		}
+		TotalWriteOutputDuration += MeasureSince(startOfWriteSourceNames)
 	}
-	TotalWriteOutputDuration += MeasureSince(startOfWriteSourceNames)
 
 	// Write rest of the line including the new line character
 	beforeWriteRawData := MeasureStart("WriteRawData")

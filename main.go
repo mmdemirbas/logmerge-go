@@ -41,9 +41,9 @@ func main() {
 	startOfMain := MeasureStart("Main")
 
 	// Enable profiling only if configured
-	startOfCpuProfile := MeasureStart("CpuProfile")
 	pprofEnabled := os.Getenv("ENABLE_PPROF") == "true"
 	if pprofEnabled {
+		startOfCpuProfile := MeasureStart("CpuProfile")
 		//goland:noinspection GoUnhandledErrorResult
 		fmt.Fprintf(stderr, "Profiling enabled\n")
 
@@ -61,8 +61,8 @@ func main() {
 				defer pprof.StopCPUProfile()
 			}
 		}
+		MeasureSince(startOfCpuProfile)
 	}
-	MeasureSince(startOfCpuProfile)
 
 	startOfParseOptions := MeasureStart("ParseOptions")
 	//goland:noinspection GoUnhandledErrorResult
@@ -103,8 +103,8 @@ func main() {
 	err = MergeFiles(inputPath, stdout)
 	ProcessDuration = MeasureSince(startOfMergeFiles)
 
-	startOfMemProfile := MeasureStart("MemProfile")
 	if pprofEnabled {
+		startOfMemProfile := MeasureStart("MemProfile")
 		// Capture memory profile
 		memFile, err := os.Create("out/mem.prof")
 		if err != nil {
@@ -117,8 +117,8 @@ func main() {
 				fmt.Fprintf(stderr, "could not write memory profile: %v\n", err)
 			}
 		}
+		MeasureSince(startOfMemProfile)
 	}
-	MeasureSince(startOfMemProfile)
 
 	TotalMainDuration = MeasureSince(startOfMain)
 

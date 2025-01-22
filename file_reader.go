@@ -56,16 +56,16 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) error {
 		chunk, eol = r.Buffer.PeekNextLineSlice(&latestCharWasCR)
 		MeasureSince(startPeekNextLineSlice)
 
-		startWriteLinePartial := MeasureStart("WriteLinePartial")
 		if chunk != nil {
+			startWriteLinePartial := MeasureStart("WriteLinePartial")
 			var n int
 			n, err = writer.Write(chunk)
 			if err == nil {
 				r.Buffer.Skip(n)
 				count += n
 			}
+			TotalWriteOutputDuration += MeasureSince(startWriteLinePartial)
 		}
-		TotalWriteOutputDuration += MeasureSince(startWriteLinePartial)
 
 		if err != nil {
 			return fmt.Errorf("failed to write line to output: %v", err)
@@ -75,27 +75,26 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) error {
 		}
 
 		// TODO: Fill only if empty
-		startOfFillBuffer := MeasureStart("FillBuffer")
 		if r.Buffer.IsEmpty() {
+			startOfFillBuffer := MeasureStart("FillBuffer")
 			err = r.FillBuffer()
 			if err != nil {
 				return fmt.Errorf("failed to fill buffer: %v", err)
 			}
+			TotalFillBufferDuration += MeasureSince(startOfFillBuffer)
 		}
-		TotalFillBufferDuration += MeasureSince(startOfFillBuffer)
 	}
 
 	// Ensure \n is written at the end of the line
-	startOfWriteMissingNewline := MeasureStart("WriteMissingNewline")
 	if eol != LF && eol != CRLF {
-		// Write the last line
+		startOfWriteMissingNewline := MeasureStart("WriteMissingNewline")
 		err = writer.WriteByte('\n')
 		BytesWrittenForMissingNewlines++
 		if err != nil {
 			return fmt.Errorf("failed to write newline: %v", err)
 		}
+		TotalWriteOutputDuration += MeasureSince(startOfWriteMissingNewline)
 	}
-	TotalWriteOutputDuration += MeasureSince(startOfWriteMissingNewline)
 
 	lineLengthWithoutEol := count
 	switch eol {
