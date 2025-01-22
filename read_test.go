@@ -2,7 +2,6 @@ package main_test
 
 import (
 	. "github.com/mmdemirbas/logmerge"
-	"strings"
 	"testing"
 	"time"
 )
@@ -31,10 +30,7 @@ func TestParseTimestamp(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			buf := NewRingBuffer(128)
-			reader := strings.NewReader(tt.input)
-			buf.Fill(reader)
-			ts := ParseTimestamp(buf)
+			ts := ParseTimestamp([]byte(tt.input))
 			actual := ts.Format(time.RFC3339Nano)
 			assertEquals(t, tt.expected, actual)
 		})

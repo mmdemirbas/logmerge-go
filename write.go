@@ -187,10 +187,7 @@ func writeLine(writer *bufio.Writer, timestamp time.Time, reader *FileReader) er
 	if writeTimestamp {
 		startOfWriteTimestamp := MeasureStart("WriteTimestamp")
 		if timestamp == noTimestamp {
-			startOfNoSourceNamePadding := MeasureStart("NoSourceNamePadding")
 			n, err := writer.Write(space36)
-			MeasureSince(startOfNoSourceNamePadding)
-
 			BytesWrittenForTimestamps += int64(n)
 			if err != nil {
 				return fmt.Errorf("failed to write timestamp padding: %v", err)

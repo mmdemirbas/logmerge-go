@@ -17,21 +17,26 @@ type LinePrefix struct {
 }
 
 func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
-	if reader.Buffer.Len() < timestampSearchPrefixLen {
+	bufLen := reader.Buffer.Len()
+	if bufLen < timestampSearchPrefixLen {
 		startOfFillBuffer := MeasureStart("FillBuffer")
 		err := reader.FillBuffer()
 		if err != nil {
 			return nil, fmt.Errorf("failed to fill buffer: %v", err)
 		}
 		TotalFillBufferDuration += MeasureSince(startOfFillBuffer)
+
+		if bufLen == 0 && reader.Buffer.IsEmpty() {
+			return nil, nil
+		}
 	}
 
-	if reader.Buffer.IsEmpty() {
-		return nil, nil
-	}
+	startOfBufferAsSlice := MeasureStart("BufferAsSlice")
+	buf := reader.Buffer.AsSlice(timestampSearchPrefixLen)
+	TotalParseTimestampDuration += MeasureSince(startOfBufferAsSlice)
 
 	startOfParseTimestamp := MeasureStart("ParseTimestamp")
-	timestamp := ParseTimestamp(reader.Buffer)
+	timestamp := ParseTimestamp(buf)
 	TotalParseTimestampDuration += MeasureSince(startOfParseTimestamp)
 
 	if timestamp.Equal(noTimestamp) {
@@ -39,21 +44,20 @@ func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
 	} else {
 		LinesWithTimestamps++
 	}
+
 	return &LinePrefix{Source: reader, Timestamp: timestamp}, nil
 }
 
-func ParseTimestamp(buffer *RingBuffer) time.Time {
+func ParseTimestamp(buffer []byte) time.Time {
+
 	// TODO: What if we have digits before the actual timestamp?
 	//   In this case, we should skip non-digits after the first digit and try parsing from there.
 
-	n := buffer.Len()
-
-	// TODO: Optimize buffer.Peek(i) usages. Timestamp will be at most ~40 chars. Copy that portion maybe?
-	// TODO: Consider getting a Slice from the buffer and using it instead of Peek(i) calls.
+	n := len(buffer)
 
 	i := 0
-	for i < n && (buffer.Peek(i) < '0' || buffer.Peek(i) > '9') {
-		if buffer.Peek(i) == '\r' || buffer.Peek(i) == '\n' {
+	for i < n && (buffer[i] < '0' || buffer[i] > '9') {
+		if buffer[i] == '\r' || buffer[i] == '\n' {
 			ParseTimestamp_NoFirstDigit++
 			return noTimestamp
 		}
@@ -73,7 +77,7 @@ func ParseTimestamp(buffer *RingBuffer) time.Time {
 		return noTimestamp
 	}
 	for j := i + 15; j >= i; j-- {
-		if buffer.Peek(j) == '\r' || buffer.Peek(j) == '\n' {
+		if buffer[j] == '\r' || buffer[j] == '\n' {
 			ParseTimestamp_LineTooShortAfterFirstDigit++
 			return noTimestamp
 		}
@@ -96,7 +100,7 @@ func ParseTimestamp(buffer *RingBuffer) time.Time {
 		return noTimestamp
 	}
 
-	if buffer.Peek(i) == '-' {
+	if buffer[i] == '-' {
 		i++
 	}
 
@@ -110,7 +114,7 @@ func ParseTimestamp(buffer *RingBuffer) time.Time {
 		return noTimestamp
 	}
 
-	if buffer.Peek(i) == '-' {
+	if buffer[i] == '-' {
 		i++
 	}
 
@@ -124,7 +128,7 @@ func ParseTimestamp(buffer *RingBuffer) time.Time {
 		return noTimestamp
 	}
 
-	if i >= n || (buffer.Peek(i) != ' ' && buffer.Peek(i) != 'T' && buffer.Peek(i) != '_') {
+	if i >= n || (buffer[i] != ' ' && buffer[i] != 'T' && buffer[i] != '_') {
 		ParseTimestamp_SpaceOperatorMismatch++
 		return noTimestamp
 	}
@@ -144,9 +148,9 @@ func ParseTimestamp(buffer *RingBuffer) time.Time {
 		ParseTimestamp_NoHourSeparator++
 		return noTimestamp
 	}
-	if buffer.Peek(i) != ':' && buffer.Peek(i) != '.' && buffer.Peek(i) != '-' {
+	if buffer[i] != ':' && buffer[i] != '.' && buffer[i] != '-' {
 		ParseTimestamp_HourSeparatorMismatch++
-		ParseTimestamp_MismatchedHourSeparators = append(ParseTimestamp_MismatchedHourSeparators, buffer.Peek(i))
+		ParseTimestamp_MismatchedHourSeparators = append(ParseTimestamp_MismatchedHourSeparators, buffer[i])
 		return noTimestamp
 	}
 	i++
@@ -165,9 +169,9 @@ func ParseTimestamp(buffer *RingBuffer) time.Time {
 		ParseTimestamp_NoMinuteSeparator++
 		return noTimestamp
 	}
-	if buffer.Peek(i) != ':' && buffer.Peek(i) != '.' && buffer.Peek(i) != '-' {
+	if buffer[i] != ':' && buffer[i] != '.' && buffer[i] != '-' {
 		ParseTimestamp_MinuteSeparatorMismatch++
-		ParseTimestamp_MismatchedMinuteSeparators = append(ParseTimestamp_MismatchedMinuteSeparators, buffer.Peek(i))
+		ParseTimestamp_MismatchedMinuteSeparators = append(ParseTimestamp_MismatchedMinuteSeparators, buffer[i])
 		return noTimestamp
 	}
 	i++
@@ -183,7 +187,7 @@ func ParseTimestamp(buffer *RingBuffer) time.Time {
 	}
 
 	var nsec int
-	if i < n && (buffer.Peek(i) == '.' || buffer.Peek(i) == ',') {
+	if i < n && (buffer[i] == '.' || buffer[i] == ',') {
 		ParseTimestamp_HasNanos++
 		i++
 		var ncount int
@@ -200,7 +204,7 @@ func ParseTimestamp(buffer *RingBuffer) time.Time {
 
 	utc := time.UTC
 	if i < n {
-		switch buffer.Peek(i) {
+		switch buffer[i] {
 		case 'Z':
 			// Already using UTC
 			ParseTimestamp_UtcTimezone++
@@ -208,7 +212,7 @@ func ParseTimestamp(buffer *RingBuffer) time.Time {
 			break
 		case '+', '-':
 			ParseTimestamp_NonUtcTimezone++
-			sign := int(',') - int(buffer.Peek(i))
+			sign := int(',') - int(buffer[i])
 			i++
 
 			if i+2 > n {
@@ -227,7 +231,7 @@ func ParseTimestamp(buffer *RingBuffer) time.Time {
 			}
 
 			tzMin := 0
-			if i < n && buffer.Peek(i) == ':' {
+			if i < n && buffer[i] == ':' {
 				i++
 				if i+2 <= n {
 					tzMin, _ = parseDigits(buffer, &i, 2)
@@ -258,13 +262,13 @@ func ParseTimestamp(buffer *RingBuffer) time.Time {
 	return time.Date(year, time.Month(month), day, hour, minute, second, nsec, utc)
 }
 
-func parseDigits(buffer *RingBuffer, i *int, maxCount int) (val, count int) {
+func parseDigits(buffer []byte, i *int, maxCount int) (val, count int) {
 	end := *i + maxCount
-	if end > buffer.Len() {
-		end = buffer.Len()
+	if end > len(buffer) {
+		end = len(buffer)
 	}
 	for ; *i < end; *i++ {
-		c := buffer.Peek(*i)
+		c := buffer[*i]
 		if c < '0' || c > '9' {
 			break
 		}
