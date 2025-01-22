@@ -10,17 +10,12 @@ var (
 	// Otherwise, we could miss the correct order for the upcoming lines with timestamps.
 	noTimestamp = time.Time{}
 
-	timestampBuffer = make([]byte, 0, timestampSearchPrefixLen)
+	timestampBuffer = make([]byte, 0, TimestampSearchEndIndex)
 )
 
-type LinePrefix struct {
-	Source    *FileReader
-	Timestamp time.Time
-}
-
-func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
+func ReadTimestamp(reader *InputFile) (*time.Time, error) {
 	bufLen := reader.Buffer.Len()
-	if bufLen < timestampSearchPrefixLen {
+	if bufLen < TimestampSearchEndIndex {
 		startTime := MeasureStart("FillBuffer")
 		err := reader.FillBuffer()
 		if err != nil {
@@ -47,7 +42,7 @@ func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
 		LinesWithTimestamps++
 	}
 
-	return &LinePrefix{Source: reader, Timestamp: timestamp}, nil
+	return &timestamp, nil
 }
 
 func ParseTimestamp(buffer []byte) time.Time {
@@ -55,7 +50,7 @@ func ParseTimestamp(buffer []byte) time.Time {
 	//   In this case, we should skip non-digits after the first digit and try parsing from there.
 
 	n := len(buffer)
-	if n < minTimestampLen {
+	if n < ShortestTimestampLen {
 		ParseTimestamp_LineTooShort++
 		return noTimestamp
 	}
@@ -82,12 +77,12 @@ func ParseTimestamp(buffer []byte) time.Time {
 		ParseTimestamp_NoFirstDigit++
 		return noTimestamp
 	}
-	if n < i+minTimestampLen {
+	if n < i+ShortestTimestampLen {
 		ParseTimestamp_LineTooShortAfterFirstDigit++
 		return noTimestamp
 	}
 
-	for j := i + minTimestampLen - 1; j >= i; j-- {
+	for j := i + ShortestTimestampLen - 1; j >= i; j-- {
 		b := buffer[j]
 		if b == '\n' || b == '\r' {
 			ParseTimestamp_LineTooShortAfterFirstDigit++
@@ -284,6 +279,7 @@ func ParseTimestamp(buffer []byte) time.Time {
 	ParseTimestamp_MaxTimestampLength = max(ParseTimestamp_MaxTimestampLength, timestampLen)
 	ParseTimestamp_Lenghts.UpdateBucketCount(timestampLen)
 
+	// TODO: Consider re-using an existing memory area to avoid allocations
 	return time.Date(year, time.Month(month), day, hour, minute, second, nsec, utc)
 }
 

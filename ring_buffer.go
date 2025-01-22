@@ -113,6 +113,54 @@ func (r *RingBuffer) Fill(reader io.Reader) (count int, err error) {
 	return count, err
 }
 
+func (r *RingBuffer) GetNextLineSliceLen(latestCharWasCR *bool) (int, EOLType) {
+	readIndex := r.readIndex
+	writeIndex := r.writeIndex
+	buf := r.buf
+
+	if readIndex == writeIndex {
+		return 0, None // Buffer is empty
+	}
+
+	if *latestCharWasCR {
+		*latestCharWasCR = false
+		if buf[readIndex] == '\n' {
+			return 1, CRLF
+		}
+		return 0, CR
+	}
+
+	var searchUntil int
+	if readIndex < writeIndex {
+		searchUntil = writeIndex
+	} else {
+		searchUntil = r.cap
+	}
+
+	i := readIndex
+	for ; i < searchUntil; i++ {
+		b := buf[i]
+		if b == '\r' || b == '\n' {
+			break
+		}
+	}
+
+	if i == searchUntil {
+		return searchUntil - readIndex, None
+	}
+	if buf[i] == '\r' {
+		if i+1 == searchUntil {
+			*latestCharWasCR = true
+			return searchUntil - readIndex, None // EOL could be CR or CRLF
+		}
+		if buf[i+1] == '\n' {
+			return i + 2 - readIndex, CRLF
+		}
+		return i + 1 - readIndex, CR
+	}
+	return i + 1 - readIndex, LF
+}
+
 // EOLType represents the type of end-of-line character(s) found.
 type EOLType int
 

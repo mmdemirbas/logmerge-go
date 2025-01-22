@@ -40,10 +40,10 @@ func ListFiles(basePath string) (files []string, err error) {
 func ShouldIncludeFile(filePath string) bool {
 	_, fileName := filepath.Split(filePath)
 	lowerName := strings.ToLower(fileName)
-	return !hasSuffix(lowerName, excludedStrictSuffixes...) &&
-		(len(includedStrictSuffixes) == 0 || hasSuffix(lowerName, includedStrictSuffixes...)) &&
-		!hasLenientSuffix(lowerName, excludedLenientSuffixes...) &&
-		(len(includedLenientSuffixes) == 0 || hasLenientSuffix(lowerName, includedLenientSuffixes...))
+	return !hasSuffix(lowerName, ExcludedStrictSuffixes...) &&
+		(len(IncludedStrictSuffixes) == 0 || hasSuffix(lowerName, IncludedStrictSuffixes...)) &&
+		!hasLenientSuffix(lowerName, ExcludedLenientSuffixes...) &&
+		(len(IncludedLenientSuffixes) == 0 || hasLenientSuffix(lowerName, IncludedLenientSuffixes...))
 }
 
 func hasLenientSuffix(s string, suffices ...string) bool {

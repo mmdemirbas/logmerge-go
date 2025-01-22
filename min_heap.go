@@ -1,13 +1,13 @@
 package main
 
-// MinHeap implements a priority queue for LinePrefix
-type MinHeap []*LinePrefix
+// MinHeap implements a priority queue for InputFile
+type MinHeap []*InputFile
 
 func (h MinHeap) Len() int           { return len(h) }
-func (h MinHeap) Less(i, j int) bool { return h[i].Timestamp.Before(h[j].Timestamp) }
+func (h MinHeap) Less(i, j int) bool { return h[i].CurrentTimestamp.Before(*h[j].CurrentTimestamp) }
 func (h MinHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 func (h *MinHeap) Push(x interface{}) {
-	*h = append(*h, x.(*LinePrefix))
+	*h = append(*h, x.(*InputFile))
 }
 func (h *MinHeap) Pop() interface{} {
 	old := *h
@@ -17,7 +17,7 @@ func (h *MinHeap) Pop() interface{} {
 	return item
 }
 
-func (h *MinHeap) Peek() *LinePrefix {
+func (h *MinHeap) Peek() *InputFile {
 	if len(*h) == 0 {
 		return nil
 	}
