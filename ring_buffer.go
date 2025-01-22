@@ -111,77 +111,58 @@ func (r *RingBuffer) Fill(reader io.Reader) (count int, err error) {
 type EOLType int
 
 const (
-	NIL EOLType = iota
+	None EOLType = iota
 	CR
 	LF
 	CRLF
 )
 
-func (r *RingBuffer) WriteLinePartial(writer io.Writer, count *int, latestCharWasCR *bool) (eolType EOLType, err error) {
-	buffer := r.buf
+var newline = []byte{'\n'}
+
+// PeekNextLineSlice returns the slice including the first end-of-line character found in the buffer,
+// and the type of end-of-line character(s) found. If it couldn't find an end-of-line character
+// until the end of the buffer, it returns the slice until the end of the buffer and
+// sets the latestCharWasCR flag if the last character was CR.
+func (r *RingBuffer) PeekNextLineSlice(latestCharWasCR *bool) ([]byte, EOLType) {
 	readIndex := r.readIndex
 	writeIndex := r.writeIndex
-	capacity := r.cap
+
+	if readIndex == writeIndex {
+		return nil, None // Buffer is empty
+	}
 
 	if *latestCharWasCR {
-		if buffer[readIndex] == '\n' {
-			_, err = writer.Write(buffer[readIndex : readIndex+1])
-			r.readIndex = (readIndex + 1) % capacity
-			*count++
-			return CRLF, err
+		if r.buf[readIndex] != '\n' {
+			return nil, CR
 		}
-		return CR, nil
+		return newline, CRLF
 	}
 
+	startOfSearchSlice := MeasureStart("IndexAny")
 	var searchSlice []byte
 	if writeIndex < readIndex {
-		searchSlice = buffer[readIndex:]
+		searchSlice = r.buf[readIndex:]
 	} else {
-		searchSlice = buffer[readIndex:writeIndex]
+		searchSlice = r.buf[readIndex:writeIndex]
 	}
+	MeasureSince(startOfSearchSlice)
 
-	lfIndex := bytes2.IndexByte(searchSlice, '\n')
-	if lfIndex != -1 {
-		// LF found in the first part
-		searchSlice = searchSlice[:lfIndex+1]
-		crIndex := bytes2.IndexByte(searchSlice, '\r')
-		if crIndex == -1 {
-			// CR not found before LF, use LF as EOL
-			eolType = LF
-		} else if crIndex+1 == lfIndex {
-			// CR found just before LF, use CRLF as EOL
-			eolType = CRLF
-		} else {
-			// CR found before LF, use CR as EOL
-			searchSlice = searchSlice[:crIndex+1]
-			eolType = CR
-		}
+	startOfIndexAny := MeasureStart("IndexAny")
+	idx := bytes2.IndexAny(searchSlice, "\r\n")
+	MeasureSince(startOfIndexAny)
 
-		n, err := writer.Write(searchSlice)
-		r.readIndex = (readIndex + n) % capacity
-		*count += n
-
-		return eolType, err
+	if idx == -1 {
+		return searchSlice, None
 	}
-
-	// LF not found in the first part
-	crIndex := bytes2.IndexByte(searchSlice, '\r')
-	if crIndex == -1 {
-		// CR not found in the first part either, continue searching CR and LF in the second part
-	} else if crIndex+1 == capacity {
-		// CR found just before the end of the first part, just check next char to decide CR vs CRLF as EOL
-		searchSlice = searchSlice[:crIndex+1]
+	if searchSlice[idx] == '\n' {
+		return searchSlice[:idx+1], LF
+	}
+	if idx == len(searchSlice)-1 {
 		*latestCharWasCR = true
-	} else {
-		// CR found before the end of the first part, use CR as EOL
-		searchSlice = searchSlice[:crIndex+1]
-		eolType = CR
+		return searchSlice, None // EOL could be CR or CRLF
 	}
-
-	var n int
-	n, err = writer.Write(searchSlice)
-	r.readIndex = (readIndex + n) % capacity
-	*count += n
-
-	return eolType, err
+	if searchSlice[idx+1] == '\n' {
+		return searchSlice[:idx+2], CRLF
+	}
+	return searchSlice[:idx+1], CR
 }

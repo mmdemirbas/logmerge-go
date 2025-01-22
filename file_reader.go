@@ -53,21 +53,30 @@ func (r *FileReader) FillBuffer() error {
 
 func (r *FileReader) WriteLine(writer *bufio.Writer) error {
 	var (
-		count                 = 0
-		latestCharWasCR       = false
-		eol                   = NIL
+		count           = 0
+		latestCharWasCR = false
+		eol             = None
+		chunk           []byte
 		err             error = nil
 	)
 
 	for !r.Buffer.IsEmpty() {
-		startWriteLinePartial := MeasureStart("WriteLinePartial")
-		eol, err = r.Buffer.WriteLinePartial(writer, &count, &latestCharWasCR)
+		startWriteLinePartial := MeasureStart("PeekNextLineSlice")
+		chunk, eol = r.Buffer.PeekNextLineSlice(&latestCharWasCR)
+		if chunk != nil {
+			var n int
+			n, err = writer.Write(chunk)
+			if err == nil {
+				r.Buffer.Skip(n)
+				count += n
+			}
+		}
 		TotalWriteOutputDuration += MeasureSince(startWriteLinePartial)
 
 		if err != nil {
 			return fmt.Errorf("failed to write line to output: %v", err)
 		}
-		if eol != NIL {
+		if eol != None {
 			break
 		}
 
@@ -94,7 +103,7 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) error {
 
 	lineLengthWithoutEol := count
 	switch eol {
-	case NIL:
+	case None:
 	case CR, LF:
 		lineLengthWithoutEol -= 1
 	case CRLF:
