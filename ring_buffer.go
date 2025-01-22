@@ -132,30 +132,31 @@ var newline = []byte{'\n'}
 func (r *RingBuffer) PeekNextLineSlice(latestCharWasCR *bool) ([]byte, EOLType) {
 	readIndex := r.readIndex
 	writeIndex := r.writeIndex
+	buf := r.buf
 
 	if readIndex == writeIndex {
 		return nil, None // Buffer is empty
 	}
 
-	buf := r.buf
 	if *latestCharWasCR {
-		if buf[readIndex] != '\n' {
+		if buf[readIndex] == '\n' {
+			return newline, CRLF
+		} else {
 			return nil, CR
 		}
-		return newline, CRLF
 	}
 
 	var searchUntil int
-	if writeIndex < readIndex {
-		searchUntil = r.cap
-	} else {
+	if readIndex < writeIndex {
 		searchUntil = writeIndex
+	} else {
+		searchUntil = r.cap
 	}
 
 	i := readIndex
 	for ; i < searchUntil; i++ {
 		b := buf[i]
-		if b == '\n' || b == '\r' {
+		if b == '\r' || b == '\n' {
 			break
 		}
 	}
@@ -163,15 +164,15 @@ func (r *RingBuffer) PeekNextLineSlice(latestCharWasCR *bool) ([]byte, EOLType) 
 	if i == searchUntil {
 		return buf[readIndex:searchUntil], None
 	}
-	if buf[i] == '\n' {
-		return buf[readIndex : i+1], LF
+	if buf[i] == '\r' {
+		if i+1 == searchUntil {
+			*latestCharWasCR = true
+			return buf[readIndex:searchUntil], None // EOL could be CR or CRLF
+		}
+		if buf[i+1] == '\n' {
+			return buf[readIndex : i+2], CRLF
+		}
+		return buf[readIndex : i+1], CR
 	}
-	if i == searchUntil-1 {
-		*latestCharWasCR = true
-		return buf[readIndex:searchUntil], None // EOL could be CR or CRLF
-	}
-	if buf[i+1] == '\n' {
-		return buf[readIndex : i+2], CRLF
-	}
-	return buf[readIndex : i+1], CR
+	return buf[readIndex : i+1], LF
 }
