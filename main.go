@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 	"runtime/pprof"
+	"time"
 )
 
 // TODO: These settings can be made configurable via command-line flags
 const (
+	disableMetricsCollection = true
 	enableDebugLogging       = false
 	writeTimestamp           = true
 	writeSourceNames         = true
@@ -24,6 +26,7 @@ var (
 )
 
 func main() {
+	startTime := time.Now()
 	stdout := os.Stdout
 	stderr := os.Stderr
 	var err error
@@ -119,7 +122,8 @@ func main() {
 
 	TotalMainDuration = MeasureSince(startOfMain)
 
-	PrintMetrics(stderr, startOfMain, inputPath, stdout.Name(), stderr.Name(), pprofEnabled, err)
+	elapsedTime := time.Since(startTime)
+	PrintMetrics(stderr, startTime, elapsedTime, inputPath, stdout.Name(), stderr.Name(), pprofEnabled, err)
 
 	if err != nil {
 		//goland:noinspection GoUnhandledErrorResult

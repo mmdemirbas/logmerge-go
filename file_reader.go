@@ -52,8 +52,11 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) error {
 	)
 
 	for !r.Buffer.IsEmpty() {
-		startWriteLinePartial := MeasureStart("PeekNextLineSlice")
+		startPeekNextLineSlice := MeasureStart("PeekNextLineSlice")
 		chunk, eol = r.Buffer.PeekNextLineSlice(&latestCharWasCR)
+		MeasureSince(startPeekNextLineSlice)
+
+		startWriteLinePartial := MeasureStart("WriteLinePartial")
 		if chunk != nil {
 			var n int
 			n, err = writer.Write(chunk)
@@ -73,12 +76,13 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) error {
 
 		// TODO: Fill only if empty
 		startOfFillBuffer := MeasureStart("FillBuffer")
-		err = r.FillBuffer()
-		TotalFillBufferDuration += MeasureSince(startOfFillBuffer)
-
-		if err != nil {
-			return fmt.Errorf("failed to fill buffer: %v", err)
+		if r.Buffer.IsEmpty() {
+			err = r.FillBuffer()
+			if err != nil {
+				return fmt.Errorf("failed to fill buffer: %v", err)
+			}
 		}
+		TotalFillBufferDuration += MeasureSince(startOfFillBuffer)
 	}
 
 	// Ensure \n is written at the end of the line

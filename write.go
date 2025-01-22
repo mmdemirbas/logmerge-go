@@ -87,12 +87,6 @@ func MergeFileReaders(readers []*FileReader, stdout io.Writer) error {
 	heap.Init(h)
 	MeasureSince(startOfHeapInit)
 
-	startOfCalcExpectedByteCount := MeasureStart("CalcExpectedByteCount")
-	for _, reader := range readers {
-		ExpectedBytesToRead += int64(reader.FileSize)
-	}
-	MeasureSince(startOfCalcExpectedByteCount)
-
 	// Populate heap with the first entry from each file
 	startOfHeapPopulate := MeasureStart("HeapPopulate")
 	for _, reader := range readers {

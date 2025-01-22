@@ -24,13 +24,13 @@ var (
 	TotalParseTimestampDuration int64
 	TotalWriteOutputDuration    int64
 
+	// Metric collection overhead metrics
+	MeasureSinceCalls                  int64
+	ApproximateMetricsOverheadDuration int64
+
 	// Byte count stats
 
-	ExpectedBytesToRead int64
-	BytesRead           int64
-
-	// Written bytes breakdown
-
+	BytesRead                      int64
 	BytesWrittenForTimestamps      int64
 	BytesWrittenForOutputNames     int64
 	BytesWrittenForRawData         int64
@@ -58,17 +58,17 @@ var (
 	// ParseTimestamp debugging
 
 	ParseTimestamp_NoFirstDigit                int64
-	ParseTimestamp_MinFirstDigitIndex          int = 1<<31 - 1
+	ParseTimestamp_MinFirstDigitIndex          = 1<<31 - 1
 	ParseTimestamp_MaxFirstDigitIndex          int
-	ParseTimestamp_MinFirstDigitIndexActual    int = 1<<31 - 1
+	ParseTimestamp_MinFirstDigitIndexActual    = 1<<31 - 1
 	ParseTimestamp_MaxFirstDigitIndexActual    int
-	ParseTimestamp_DigitIndexLevels                = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200, 225, 250, 300, 350, 400, 450, 500, 1000, 5000, 10000, 20000, 30000, 40000, 50000}
-	ParseTimestamp_FirstDigitIndexValues           = make([]int64, len(ParseTimestamp_DigitIndexLevels))
-	ParseTimestamp_FirstDigitIndexValuesActual     = make([]int64, len(ParseTimestamp_DigitIndexLevels))
-	ParseTimestamp_LastDigitIndexValues            = make([]int64, len(ParseTimestamp_DigitIndexLevels))
-	ParseTimestamp_MinTimestampEndIndex        int = 1<<31 - 1
+	ParseTimestamp_DigitIndexLevels            = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200, 225, 250, 300, 350, 400, 450, 500, 1000, 5000, 10000, 20000, 30000, 40000, 50000}
+	ParseTimestamp_FirstDigitIndexValues       = make([]int64, len(ParseTimestamp_DigitIndexLevels))
+	ParseTimestamp_FirstDigitIndexValuesActual = make([]int64, len(ParseTimestamp_DigitIndexLevels))
+	ParseTimestamp_LastDigitIndexValues        = make([]int64, len(ParseTimestamp_DigitIndexLevels))
+	ParseTimestamp_MinTimestampEndIndex        = 1<<31 - 1
 	ParseTimestamp_MaxTimestampEndIndex        int
-	ParseTimestamp_MinTimestampLength          int = 1<<31 - 1
+	ParseTimestamp_MinTimestampLength          = 1<<31 - 1
 	ParseTimestamp_MaxTimestampLength          int
 	ParseTimestamp_LenghtBucketLevels          = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 500, 1000, 10000, 50000}
 	ParseTimestamp_LengthBucketValues          = make([]int64, len(ParseTimestamp_LenghtBucketLevels))
@@ -108,49 +108,71 @@ var (
 )
 
 func MeasureStart(name string) time.Time {
-	now := time.Now()
+	if disableMetricsCollection {
+		return noTimestamp
+	}
 	enterContext(name)
-	return now
+	return time.Now()
 }
 
 func MeasureSince(startNanos time.Time) int64 {
-	elapsed := time.Since(startNanos)
+	if disableMetricsCollection {
+		return 0
+	}
+
+	elapsed := time.Since(startNanos).Nanoseconds()
+
 	exitContext(elapsed)
-	return elapsed.Nanoseconds()
+	MeasureSinceCalls++
+	ApproximateMetricsOverheadDuration += time.Since(startNanos).Nanoseconds() - elapsed
+
+	return elapsed
 }
 
 type TreeNode struct {
-	Name     string
-	Count    int64
-	Duration time.Duration
+	Name      string
+	CallCount int64
+	Duration  int64
 
 	Parent         *TreeNode
 	Children       []*TreeNode
 	ChildrenByName map[string]*TreeNode
 }
 
-var metricsTree = &TreeNode{Name: "Metrics Tree", Count: 1}
+var metricsTree = &TreeNode{Name: "Metrics Tree", CallCount: 1}
 var currentTreeNode = metricsTree
 
 func enterContext(name string) {
-	if currentTreeNode.ChildrenByName == nil {
-		currentTreeNode.ChildrenByName = make(map[string]*TreeNode)
+	// Do as less work as possible since this is not measured
+	children := currentTreeNode.ChildrenByName
+	if children == nil {
+		currentTreeNode = &TreeNode{Name: name, Parent: currentTreeNode}
+	} else {
+		existingNode, ok := children[name]
+		if !ok {
+			currentTreeNode = &TreeNode{Name: name, Parent: currentTreeNode}
+		} else {
+			currentTreeNode = existingNode
+		}
 	}
-
-	child, ok := currentTreeNode.ChildrenByName[name]
-	if !ok {
-		child = &TreeNode{Name: name, Parent: currentTreeNode}
-		currentTreeNode.ChildrenByName[name] = child
-		currentTreeNode.Children = append(currentTreeNode.Children, child)
-	}
-
-	currentTreeNode = child
-	currentTreeNode.Count++
 }
 
-func exitContext(duration time.Duration) {
-	currentTreeNode.Duration += duration
+func exitContext(duration int64) {
+	name := currentTreeNode.Name
 	parent := currentTreeNode.Parent
+
+	if parent.ChildrenByName == nil {
+		parent.ChildrenByName = make(map[string]*TreeNode)
+	}
+
+	_, ok := parent.ChildrenByName[name]
+	if !ok {
+		parent.ChildrenByName[name] = currentTreeNode
+		parent.Children = append(parent.Children, currentTreeNode)
+	}
+
+	currentTreeNode.CallCount++
+	currentTreeNode.Duration += duration
 
 	if parent == metricsTree {
 		parent.Duration += duration
@@ -159,34 +181,37 @@ func exitContext(duration time.Duration) {
 	currentTreeNode = parent
 }
 
-func printTree(stderr *os.File, tree *TreeNode, depth int) {
-	nanoseconds := tree.Duration.Nanoseconds()
-	printTreeNode(stderr, tree, tree.Name, depth, nanoseconds)
+func printTree(stderr *os.File, node *TreeNode, depth int) {
+	nanoseconds := node.Duration
+	printTreeNode(stderr, depth, node.Name, node.CallCount, nanoseconds)
 
-	if tree.Children != nil {
+	if node.Children != nil {
 		childTotal := int64(0)
-		for _, child := range tree.Children {
+		for _, child := range node.Children {
 			printTree(stderr, child, depth+1)
-			childTotal += child.Duration.Nanoseconds()
+			childTotal += child.Duration
 		}
-		printTreeNode(stderr, tree, "..rest of "+tree.Name, depth+1, nanoseconds-childTotal)
+		if node == metricsTree {
+			printTreeNode(stderr, depth+1, "ApproximateMetricsOverhead", MeasureSinceCalls, ApproximateMetricsOverheadDuration)
+		}
+		printTreeNode(stderr, depth+1, "..rest of "+node.Name, node.CallCount, nanoseconds-childTotal)
 	}
 }
 
-func printTreeNode(stderr *os.File, tree *TreeNode, name string, depth int, nanoseconds int64) {
+func printTreeNode(stderr *os.File, depth int, name string, count int64, nanoseconds int64) {
 	padLen := 45
 	//goland:noinspection GoUnhandledErrorResult
 	fmt.Fprintf(
 		stderr,
-		"%-*s%-*s : %8s ~ %12v ≈ %12v avg of %7v times\n",
+		"%-*s%-*s : %8s ~ %12v ≈ %12v avg of %9v times\n",
 		depth*2,
 		"",
 		padLen-depth*2,
 		name,
 		timePercent(nanoseconds),
 		duration(nanoseconds),
-		duration(nanoseconds/max(1, tree.Count)),
-		tree.Count,
+		duration(nanoseconds/max(1, count)),
+		count,
 	)
 }
 
@@ -200,7 +225,16 @@ func UpdateBucketCount(n int, levels []int, values []int64) {
 }
 
 //goland:noinspection GoUnhandledErrorResult
-func PrintMetrics(stderr *os.File, startTime time.Time, inputPath string, stdoutName string, stderrName string, pprofEnabled bool, err error) {
+func PrintMetrics(
+	stderr *os.File,
+	startTime time.Time,
+	elapsedTime time.Duration,
+	inputPath string,
+	stdoutName string,
+	stderrName string,
+	pprofEnabled bool,
+	err error,
+) {
 	writtenBytesOverhead := BytesWrittenForTimestamps + BytesWrittenForOutputNames + BytesWrittenForMissingNewlines
 	writtenBytes := BytesWrittenForRawData + writtenBytesOverhead
 
@@ -214,7 +248,7 @@ func PrintMetrics(stderr *os.File, startTime time.Time, inputPath string, stdout
 	fmt.Fprintf(stderr, "===== SUMMARY ====================================================================================================================================================================\n")
 	fmt.Fprintf(stderr, "Start time              : %s\n", startTime.Format(time.RFC3339Nano))
 	fmt.Fprintf(stderr, "Error                   : %v\n", err)
-	fmt.Fprintf(stderr, "Total main duration     : %v\n", duration(TotalMainDuration))
+	fmt.Fprintf(stderr, "Total main duration     : %v\n", elapsedTime)
 	fmt.Fprintf(stderr, "\n")
 	fmt.Fprintf(stderr, "===== CONFIGURATION ==============================================================================================================================================================\n")
 	fmt.Fprintf(stderr, "Input path              : %s\n", inputPath)
