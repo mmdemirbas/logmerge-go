@@ -11,7 +11,8 @@ import (
 const (
 	disableMetricsCollection = true
 	writeTimestamp           = true
-	writeSourceNamesPerLine  = true
+	writeSourceNamesPerLine  = false
+	writeSourceNamesPerBlock = true
 	minTimestampLen          = 15
 	timestampSearchPrefixLen = 250
 	readerBufferSize         = max(timestampSearchPrefixLen, 1024*128) // per file

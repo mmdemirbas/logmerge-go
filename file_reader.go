@@ -8,11 +8,12 @@ import (
 )
 
 type FileReader struct {
-	File       *os.File
-	Buffer     *RingBuffer
-	SourceName string
-	FileSize   int
-	BytesRead  int
+	File               *os.File
+	Buffer             *RingBuffer
+	SourceName         string
+	SourceNameForLine  string
+	SourceNameForBlock string
+	FileSize           int
 }
 
 // NewFileReader creates a new FileReader.
@@ -38,7 +39,6 @@ func (r *FileReader) FillBuffer() error {
 	}
 
 	BytesRead += int64(n)
-	r.BytesRead += n
 	return err
 }
 
@@ -76,7 +76,6 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) error {
 			break
 		}
 
-		// TODO: Fill only if empty
 		if r.Buffer.IsEmpty() {
 			startOfFillBuffer := MeasureStart("FillBuffer")
 			err = r.FillBuffer()

@@ -32,11 +32,12 @@ var (
 
 	// Byte count stats
 
-	BytesRead                      int64
-	BytesWrittenForTimestamps      int64
-	BytesWrittenForOutputNames     int64
-	BytesWrittenForRawData         int64
-	BytesWrittenForMissingNewlines int64
+	BytesRead                         int64
+	BytesWrittenForTimestamps         int64
+	BytesWrittenForSourceNamePerLine  int64
+	BytesWrittenForSourceNamePerBlock int64
+	BytesWrittenForRawData            int64
+	BytesWrittenForMissingNewlines    int64
 
 	// Line count stats
 
@@ -220,7 +221,7 @@ func PrintMetrics(
 	pprofEnabled bool,
 	err error,
 ) {
-	writtenBytesOverhead := BytesWrittenForTimestamps + BytesWrittenForOutputNames + BytesWrittenForMissingNewlines
+	writtenBytesOverhead := BytesWrittenForTimestamps + BytesWrittenForSourceNamePerLine + BytesWrittenForSourceNamePerBlock + BytesWrittenForMissingNewlines
 	writtenBytes := BytesWrittenForRawData + writtenBytesOverhead
 
 	if stdoutName == "" {
@@ -243,6 +244,7 @@ func PrintMetrics(
 	fmt.Fprintf(stderr, "disableMetricsCollection: %v\n", disableMetricsCollection)
 	fmt.Fprintf(stderr, "writeTimestamp          : %v\n", writeTimestamp)
 	fmt.Fprintf(stderr, "writeSourceNamesPerLine : %v\n", writeSourceNamesPerLine)
+	fmt.Fprintf(stderr, "writeSourceNamesPerBlock: %v\n", writeSourceNamesPerBlock)
 	fmt.Fprintf(stderr, "minTimestampLen         : %12v = %10s\n", minTimestampLen, bytes(minTimestampLen))
 	fmt.Fprintf(stderr, "timestampSearchPrefixLen: %12v = %10s\n", timestampSearchPrefixLen, bytes(timestampSearchPrefixLen))
 	fmt.Fprintf(stderr, "readerBufferSize        : %12v = %10s\n", readerBufferSize, bytes(readerBufferSize))
@@ -275,7 +277,8 @@ func PrintMetrics(
 	fmt.Fprintf(stderr, "    raw data            : %8s ~ %12v = %10s\n", percent(BytesWrittenForRawData, writtenBytes), BytesWrittenForRawData, bytes(BytesWrittenForRawData))
 	fmt.Fprintf(stderr, "    overhead            : %8s ~ %12v = %10s\n", percent(writtenBytesOverhead, writtenBytes), writtenBytesOverhead, bytes(writtenBytesOverhead))
 	fmt.Fprintf(stderr, "      timestamps        : %8s ~ %12v = %10s\n", percent(BytesWrittenForTimestamps, writtenBytes), BytesWrittenForTimestamps, bytes(BytesWrittenForTimestamps))
-	fmt.Fprintf(stderr, "      source names      : %8s ~ %12v = %10s\n", percent(BytesWrittenForOutputNames, writtenBytes), BytesWrittenForOutputNames, bytes(BytesWrittenForOutputNames))
+	fmt.Fprintf(stderr, "      source name @line : %8s ~ %12v = %10s\n", percent(BytesWrittenForSourceNamePerLine, writtenBytes), BytesWrittenForSourceNamePerLine, bytes(BytesWrittenForSourceNamePerLine))
+	fmt.Fprintf(stderr, "      source name @block: %8s ~ %12v = %10s\n", percent(BytesWrittenForSourceNamePerBlock, writtenBytes), BytesWrittenForSourceNamePerBlock, bytes(BytesWrittenForSourceNamePerBlock))
 	fmt.Fprintf(stderr, "      missing newlines  : %8s ~ %12v = %10s\n", percent(BytesWrittenForMissingNewlines, writtenBytes), BytesWrittenForMissingNewlines, bytes(BytesWrittenForMissingNewlines))
 	fmt.Fprintf(stderr, "Line count stats\n")
 	fmt.Fprintf(stderr, "  lines read            : %8s ~ %12d = %10s ≈ %s\n", percent(LinesRead, LinesRead), LinesRead, count(LinesRead), countSpeed(LinesRead, ProcessDuration))

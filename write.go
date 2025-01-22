@@ -30,7 +30,7 @@ func MergeFiles(inputPath string, stdout *os.File) error {
 	for i, file := range files {
 		sourceName := ""
 		// TODO: Consider measuring overhead of each features separately (overheadOfWriteSourceNames etc)
-		if writeSourceNamesPerLine {
+		if writeSourceNamesPerLine || writeSourceNamesPerBlock {
 			rel, err := filepath.Rel(inputPath, file)
 			if err != nil {
 				return fmt.Errorf("failed to calculate relative path for file %s: %v", file, err)
@@ -52,20 +52,27 @@ func MergeFiles(inputPath string, stdout *os.File) error {
 	}
 	MeasureSince(startOfOpenFiles)
 
-	// Calculate max output name length
 	if writeSourceNamesPerLine {
-		startOfMaxOutputNameLenCalc := MeasureStart("CalcMaxOutputNameLen")
-		maxOutputNameLen := 0
+		startTime := MeasureStart("SetSourceNameForLine")
+		maxSourceNameLen := 0
 		for _, reader := range readers {
-			if maxOutputNameLen < len(reader.SourceName) {
-				maxOutputNameLen = len(reader.SourceName)
+			sourceNameLen := len(reader.SourceName)
+			if maxSourceNameLen < sourceNameLen {
+				maxSourceNameLen = sourceNameLen
 			}
 		}
-		// pad output names to max length
+		// pad source names to max length
 		for _, reader := range readers {
-			reader.SourceName = fmt.Sprintf("%-*s - ", maxOutputNameLen, reader.SourceName)
+			reader.SourceNameForLine = fmt.Sprintf("%-*s - ", maxSourceNameLen, reader.SourceName)
 		}
-		MeasureSince(startOfMaxOutputNameLenCalc)
+		MeasureSince(startTime)
+	}
+	if writeSourceNamesPerBlock {
+		startTime := MeasureStart("SetSourceNameForBlock")
+		for _, reader := range readers {
+			reader.SourceNameForBlock = fmt.Sprintf("\n--- %s ---\n", reader.SourceName)
+		}
+		MeasureSince(startTime)
 	}
 
 	startOfMergeScanners := MeasureStart("MergeFileReaders")
@@ -96,7 +103,7 @@ func MergeFileReaders(readers []*FileReader, stdout io.Writer) error {
 
 		if err != nil {
 			//goland:noinspection GoUnhandledErrorResult
-			return fmt.Errorf("failed to read line prefix from %s: %v", reader.SourceName, err)
+			return fmt.Errorf("failed to read line prefix from %s: %v", reader.File.Name(), err)
 		}
 		if entry != nil {
 			startOfHeapPush := MeasureStart("HeapPush")
@@ -123,6 +130,17 @@ func MergeFileReaders(readers []*FileReader, stdout io.Writer) error {
 		if nextInHeap != nil {
 			untilTimestamp = nextInHeap.Timestamp
 		}
+
+		if writeSourceNamesPerBlock {
+			startTime := MeasureStart("WriteSourceNamePerBlock")
+			n, err := writer.WriteString(source.SourceNameForBlock)
+			BytesWrittenForSourceNamePerBlock += int64(n)
+			MeasureSince(startTime)
+			if err != nil {
+				return fmt.Errorf("failed to write source name: %v", err)
+			}
+		}
+
 		startOfWriteLine := MeasureStart("WriteLine")
 		err := writeLine(writer, current.Timestamp, source)
 		successiveLineCount := 1
@@ -139,10 +157,12 @@ func MergeFileReaders(readers []*FileReader, stdout io.Writer) error {
 
 		if err != nil {
 			//goland:noinspection GoUnhandledErrorResult
-			return fmt.Errorf("failed to read line prefix from %s: %v", source.SourceName, err)
+			return fmt.Errorf("failed to read line prefix from %s: %v", source.File.Name(), err)
 		}
+
 		for next != nil && !next.Timestamp.After(untilTimestamp) {
 			if next.Timestamp != noTimestamp {
+				// Timestamp changed
 				SuccessiveLineCounts.UpdateBucketCount(successiveLineCount)
 				successiveLineCount = 0
 			}
@@ -162,7 +182,7 @@ func MergeFileReaders(readers []*FileReader, stdout io.Writer) error {
 
 			if err != nil {
 				//goland:noinspection GoUnhandledErrorResult
-				return fmt.Errorf("failed to read line prefix from %s: %v", source.SourceName, err)
+				return fmt.Errorf("failed to read line prefix from %s: %v", source.File.Name(), err)
 			}
 		}
 
@@ -214,11 +234,10 @@ func writeLine(writer *bufio.Writer, timestamp time.Time, reader *FileReader) er
 		WriteOutputMetric.Duration += MeasureSince(startOfWriteTimestamp)
 		WriteOutputMetric.CallCount++
 	}
-
 	if writeSourceNamesPerLine {
-		startOfWriteSourceNames := MeasureStart("WriteSourceNames")
-		n, err := writer.WriteString(reader.SourceName)
-		BytesWrittenForOutputNames += int64(n)
+		startOfWriteSourceNames := MeasureStart("WriteSourceNamePerLine")
+		n, err := writer.WriteString(reader.SourceNameForLine)
+		BytesWrittenForSourceNamePerLine += int64(n)
 		if err != nil {
 			return fmt.Errorf("failed to write source name: %v", err)
 		}
