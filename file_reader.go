@@ -13,7 +13,6 @@ type FileReader struct {
 	SourceName string
 	FileSize   int
 	BytesRead  int
-	eof        bool
 }
 
 // NewFileReader creates a new FileReader.
@@ -33,21 +32,13 @@ func NewFileReader(file *os.File, sourceName string, bufferSize int) (*FileReade
 
 // FillBuffer reads data from the file into the buffer to fill the empty slots.
 func (r *FileReader) FillBuffer() error {
-	if r.eof {
-		return nil
-	}
-	if r.Buffer.IsFull() {
+	n, err := r.Buffer.Fill(r.File)
+	if err == io.EOF {
 		return nil
 	}
 
-	n, err := r.Buffer.Fill(r.File)
 	BytesRead += int64(n)
 	r.BytesRead += n
-
-	if err == io.EOF || n == 0 {
-		r.eof = true
-		return nil
-	}
 	return err
 }
 
