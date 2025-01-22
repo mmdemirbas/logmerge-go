@@ -59,15 +59,14 @@ func (r *RingBuffer) Peek(index int) byte {
 
 // Skip advances the read position by one byte.
 func (r *RingBuffer) Skip(count int) {
-	// TODO: Try reset
 	newReadIndex := (r.readIndex + count) % r.cap
-	//if newReadIndex == r.writeIndex {
-	//	// Reset buffer if empty for better memory usage
-	//	r.readIndex = 0
-	//	r.writeIndex = 0
-	//} else {
-	//}
-	r.readIndex = newReadIndex
+	if newReadIndex == r.writeIndex {
+		// Reset buffer if empty for better memory usage
+		r.readIndex = 0
+		r.writeIndex = 0
+	} else {
+		r.readIndex = newReadIndex
+	}
 }
 
 // Read returns the next byte to be read from the buffer and advances the read position by one byte.
