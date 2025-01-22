@@ -80,6 +80,7 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) error {
 			break
 		}
 
+		// TODO: Fill only if empty
 		startOfFillBuffer := MeasureStart("FillBuffer")
 		err = r.FillBuffer()
 		TotalFillBufferDuration += MeasureSince(startOfFillBuffer)

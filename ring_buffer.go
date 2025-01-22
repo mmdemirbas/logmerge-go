@@ -1,7 +1,6 @@
 package main
 
 import (
-	bytes2 "bytes"
 	"io"
 )
 
@@ -60,7 +59,15 @@ func (r *RingBuffer) Peek(index int) byte {
 
 // Skip advances the read position by one byte.
 func (r *RingBuffer) Skip(count int) {
-	r.readIndex = (r.readIndex + count) % r.cap
+	// TODO: Try reset
+	newReadIndex := (r.readIndex + count) % r.cap
+	//if newReadIndex == r.writeIndex {
+	//	// Reset buffer if empty for better memory usage
+	//	r.readIndex = 0
+	//	r.writeIndex = 0
+	//} else {
+	//}
+	r.readIndex = newReadIndex
 }
 
 // Read returns the next byte to be read from the buffer and advances the read position by one byte.
@@ -131,38 +138,41 @@ func (r *RingBuffer) PeekNextLineSlice(latestCharWasCR *bool) ([]byte, EOLType) 
 		return nil, None // Buffer is empty
 	}
 
+	buf := r.buf
 	if *latestCharWasCR {
-		if r.buf[readIndex] != '\n' {
+		if buf[readIndex] != '\n' {
 			return nil, CR
 		}
 		return newline, CRLF
 	}
 
-	startOfSearchSlice := MeasureStart("IndexAny")
-	var searchSlice []byte
+	var searchUntil int
 	if writeIndex < readIndex {
-		searchSlice = r.buf[readIndex:]
+		searchUntil = r.cap
 	} else {
-		searchSlice = r.buf[readIndex:writeIndex]
+		searchUntil = writeIndex
 	}
-	MeasureSince(startOfSearchSlice)
 
-	startOfIndexAny := MeasureStart("IndexAny")
-	idx := bytes2.IndexAny(searchSlice, "\r\n")
-	MeasureSince(startOfIndexAny)
+	i := readIndex
+	for ; i < searchUntil; i++ {
+		b := buf[i]
+		if b == '\n' || b == '\r' {
+			break
+		}
+	}
 
-	if idx == -1 {
-		return searchSlice, None
+	if i == searchUntil {
+		return buf[readIndex:searchUntil], None
 	}
-	if searchSlice[idx] == '\n' {
-		return searchSlice[:idx+1], LF
+	if buf[i] == '\n' {
+		return buf[readIndex : i+1], LF
 	}
-	if idx == len(searchSlice)-1 {
+	if i == searchUntil-1 {
 		*latestCharWasCR = true
-		return searchSlice, None // EOL could be CR or CRLF
+		return buf[readIndex:searchUntil], None // EOL could be CR or CRLF
 	}
-	if searchSlice[idx+1] == '\n' {
-		return searchSlice[:idx+2], CRLF
+	if buf[i+1] == '\n' {
+		return buf[readIndex : i+2], CRLF
 	}
-	return searchSlice[:idx+1], CR
+	return buf[readIndex : i+1], CR
 }
