@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"time"
 )
 
@@ -24,7 +25,8 @@ func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to fill buffer: %v", err)
 		}
-		TotalFillBufferDuration += MeasureSince(startOfFillBuffer)
+		FillBufferMetric.Duration += MeasureSince(startOfFillBuffer)
+		FillBufferMetric.CallCount++
 
 		if bufLen == 0 && reader.Buffer.IsEmpty() {
 			return nil, nil
@@ -33,11 +35,13 @@ func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
 
 	startOfBufferAsSlice := MeasureStart("BufferAsSlice")
 	buf := reader.Buffer.AsSlice(timestampSearchPrefixLen)
-	TotalParseTimestampDuration += MeasureSince(startOfBufferAsSlice)
+	BufferAsSliceMetric.Duration += MeasureSince(startOfBufferAsSlice)
+	BufferAsSliceMetric.CallCount++
 
 	startOfParseTimestamp := MeasureStart("ParseTimestamp")
 	timestamp := ParseTimestamp(buf)
-	TotalParseTimestampDuration += MeasureSince(startOfParseTimestamp)
+	ParseTimestampMetric.Duration += MeasureSince(startOfParseTimestamp)
+	ParseTimestampMetric.CallCount++
 
 	if timestamp.Equal(noTimestamp) {
 		LinesWithoutTimestamps++
@@ -49,6 +53,11 @@ func ReadLinePrefix(reader *FileReader) (*LinePrefix, error) {
 }
 
 func ParseTimestamp(buffer []byte) time.Time {
+	defer func() {
+		if rec := recover(); rec != nil {
+			fmt.Fprintf(os.Stderr, "ParseTimestamp: Recovered from panic: %v. len(buffer): %v, buffer: %v\n", rec, len(buffer), string(buffer))
+		}
+	}()
 
 	// TODO: What if we have digits before the actual timestamp?
 	//   In this case, we should skip non-digits after the first digit and try parsing from there.
@@ -72,11 +81,11 @@ func ParseTimestamp(buffer []byte) time.Time {
 		ParseTimestamp_NoFirstDigit++
 		return noTimestamp
 	}
-	if i+15 > n {
+	if i+minTimestampLen > n {
 		ParseTimestamp_LineTooShortAfterFirstDigit++
 		return noTimestamp
 	}
-	for j := i + 15; j >= i; j-- {
+	for j := i + minTimestampLen - 1; j >= i; j-- {
 		if buffer[j] == '\r' || buffer[j] == '\n' {
 			ParseTimestamp_LineTooShortAfterFirstDigit++
 			return noTimestamp

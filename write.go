@@ -213,7 +213,8 @@ func writeLine(writer *bufio.Writer, timestamp time.Time, reader *FileReader) er
 				MeasureSince(startOfAppendFormatPadding)
 			}
 		}
-		TotalWriteOutputDuration += MeasureSince(startOfWriteTimestamp)
+		WriteOutputMetric.Duration += MeasureSince(startOfWriteTimestamp)
+		WriteOutputMetric.CallCount++
 	}
 
 	if writeSourceNames {
@@ -223,7 +224,8 @@ func writeLine(writer *bufio.Writer, timestamp time.Time, reader *FileReader) er
 		if err != nil {
 			return fmt.Errorf("failed to write source name: %v", err)
 		}
-		TotalWriteOutputDuration += MeasureSince(startOfWriteSourceNames)
+		WriteOutputMetric.Duration += MeasureSince(startOfWriteSourceNames)
+		WriteOutputMetric.CallCount++
 	}
 
 	// Write rest of the line including the new line character

@@ -54,7 +54,8 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) error {
 	for !r.Buffer.IsEmpty() {
 		startPeekNextLineSlice := MeasureStart("PeekNextLineSlice")
 		chunk, eol = r.Buffer.PeekNextLineSlice(&latestCharWasCR)
-		MeasureSince(startPeekNextLineSlice)
+		PeekNextLineSliceMetric.Duration += MeasureSince(startPeekNextLineSlice)
+		PeekNextLineSliceMetric.CallCount++
 
 		if chunk != nil {
 			startWriteLinePartial := MeasureStart("WriteLinePartial")
@@ -64,7 +65,8 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) error {
 				r.Buffer.Skip(n)
 				count += n
 			}
-			TotalWriteOutputDuration += MeasureSince(startWriteLinePartial)
+			WriteOutputMetric.Duration += MeasureSince(startWriteLinePartial)
+			WriteOutputMetric.CallCount++
 		}
 
 		if err != nil {
@@ -81,7 +83,8 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) error {
 			if err != nil {
 				return fmt.Errorf("failed to fill buffer: %v", err)
 			}
-			TotalFillBufferDuration += MeasureSince(startOfFillBuffer)
+			FillBufferMetric.Duration += MeasureSince(startOfFillBuffer)
+			FillBufferMetric.CallCount++
 		}
 	}
 
@@ -93,7 +96,8 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) error {
 		if err != nil {
 			return fmt.Errorf("failed to write newline: %v", err)
 		}
-		TotalWriteOutputDuration += MeasureSince(startOfWriteMissingNewline)
+		WriteOutputMetric.Duration += MeasureSince(startOfWriteMissingNewline)
+		WriteOutputMetric.CallCount++
 	}
 
 	lineLengthWithoutEol := count

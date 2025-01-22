@@ -17,12 +17,15 @@ var (
 
 	// Timing stats (nanoseconds)
 
-	TotalMainDuration           int64
-	ListFilesDuration           int64
-	ProcessDuration             int64
-	TotalFillBufferDuration     int64
-	TotalParseTimestampDuration int64
-	TotalWriteOutputDuration    int64
+	TotalMainDuration int64
+	ListFilesDuration int64
+	ProcessDuration   int64
+
+	FillBufferMetric        Metric
+	BufferAsSliceMetric     Metric
+	ParseTimestampMetric    Metric
+	PeekNextLineSliceMetric Metric
+	WriteOutputMetric       Metric
 
 	// Metric collection overhead metrics
 	MeasurementCalls       int64
@@ -128,17 +131,21 @@ func MeasureSince(startNanos time.Time) int64 {
 	return elapsed
 }
 
-type TreeNode struct {
-	Name      string
+type Metric struct {
 	CallCount int64
 	Duration  int64
+}
+
+type TreeNode struct {
+	Name   string
+	Metric Metric
 
 	Parent         *TreeNode
 	Children       []*TreeNode
 	ChildrenByName map[string]*TreeNode
 }
 
-var metricsTree = &TreeNode{Name: "Metrics Tree", CallCount: 1}
+var metricsTree = &TreeNode{Name: "Metrics Tree", Metric: Metric{CallCount: 1}}
 var currentTreeNode = metricsTree
 
 func enterContext(name string) {
@@ -170,48 +177,50 @@ func exitContext(duration int64) {
 		parent.Children = append(parent.Children, currentTreeNode)
 	}
 
-	currentTreeNode.CallCount++
-	currentTreeNode.Duration += duration
+	currentTreeNode.Metric.CallCount++
+	currentTreeNode.Metric.Duration += duration
 
 	if parent == metricsTree {
-		parent.Duration += duration
+		parent.Metric.Duration += duration
 	}
 
 	currentTreeNode = parent
 }
 
 func printTree(stderr *os.File, node *TreeNode, depth int) {
-	nanoseconds := node.Duration
-	printTreeNode(stderr, depth, node.Name, node.CallCount, nanoseconds)
+	nanoseconds := node.Metric.Duration
+	printTreeNode(stderr, depth, node.Name, node.Metric.CallCount, nanoseconds, "")
 
 	if node.Children != nil {
 		childTotal := int64(0)
 		for _, child := range node.Children {
 			printTree(stderr, child, depth+1)
-			childTotal += child.Duration
+			childTotal += child.Metric.Duration
 		}
 
 		rest := nanoseconds - childTotal
 		if rest > 0 {
-			printTreeNode(stderr, depth+1, "..rest of "+node.Name, node.CallCount, rest)
+			printTreeNode(stderr, depth+1, "..rest of "+node.Name, node.Metric.CallCount, rest, "")
 		}
 	}
 }
 
-func printTreeNode(stderr *os.File, depth int, name string, count int64, nanoseconds int64) {
+func printTreeNode(stderr *os.File, depth int, name string, n int64, nanoseconds int64, extra string) {
 	padLen := 45
 	//goland:noinspection GoUnhandledErrorResult
 	fmt.Fprintf(
 		stderr,
-		"%-*s%-*s : %8s ~ %12v ≈ %12v avg of %9v times\n",
+		"%-*s%-*s : %8s ~ %12v ≈ %12v avg of %9v times = %12v %s\n",
 		depth*2,
 		"",
 		padLen-depth*2,
 		name,
 		timePercent(nanoseconds),
 		duration(nanoseconds),
-		duration(nanoseconds/max(1, count)),
-		count,
+		duration(nanoseconds/max(1, n)),
+		n,
+		count(n),
+		extra,
 	)
 }
 
@@ -267,12 +276,13 @@ func PrintMetrics(
 	fmt.Fprintf(stderr, "includedLenientSuffixes : %v\n", includedLenientSuffixes)
 	fmt.Fprintf(stderr, "\n")
 	fmt.Fprintf(stderr, "===== METRICS SUMMARY ============================================================================================================================================================\n")
-	fmt.Fprintf(stderr, "ListFiles               : %8s ~ %12v ≈ %s\n", timePercent(ListFilesDuration), duration(ListFilesDuration), countSpeed(FilesScanned, ListFilesDuration))
-	fmt.Fprintf(stderr, "FillBuffer              : %8s ~ %12v ≈ %s\n", timePercent(TotalFillBufferDuration), duration(TotalFillBufferDuration), bytesSpeed(BytesRead, ProcessDuration))
-	fmt.Fprintf(stderr, "ParseTimestamp          : %8s ~ %12v ≈ %s\n", timePercent(TotalParseTimestampDuration), duration(TotalParseTimestampDuration), countSpeed(LinesRead, ProcessDuration))
-	fmt.Fprintf(stderr, "WriteOutput             : %8s ~ %12v ≈ %s\n", timePercent(TotalWriteOutputDuration), duration(TotalWriteOutputDuration), bytesSpeed(writtenBytes, ProcessDuration))
-	approximageMeasurementOverhead := MeasurementOverheadAvg * MeasurementCalls
-	fmt.Fprintf(stderr, "MeasurementOverhead     : %8s ~ %12v ≈ %v (%v) calls\n", timePercent(approximageMeasurementOverhead), duration(approximageMeasurementOverhead), MeasurementCalls, count(MeasurementCalls))
+	printTreeNode(stderr, 0, "ListFiles", 1, ListFilesDuration, bytesSpeed(FilesScanned, ListFilesDuration))
+	printTreeNode(stderr, 0, "FillBufferMetric", FillBufferMetric.CallCount, FillBufferMetric.Duration, bytesSpeed(BytesRead, ProcessDuration))
+	printTreeNode(stderr, 0, "BufferAsSliceMetric", BufferAsSliceMetric.CallCount, BufferAsSliceMetric.Duration, countSpeed(LinesRead, ProcessDuration))
+	printTreeNode(stderr, 0, "ParseTimestampMetric", ParseTimestampMetric.CallCount, ParseTimestampMetric.Duration, countSpeed(LinesRead, ProcessDuration))
+	printTreeNode(stderr, 0, "PeekNextLineSliceMetric", PeekNextLineSliceMetric.CallCount, PeekNextLineSliceMetric.Duration, countSpeed(LinesRead, ProcessDuration))
+	printTreeNode(stderr, 0, "WriteOutputMetric", WriteOutputMetric.CallCount, WriteOutputMetric.Duration, bytesSpeed(writtenBytes, ProcessDuration))
+	printTreeNode(stderr, 0, "MeasurementOverhead", MeasurementCalls, MeasurementOverheadAvg*MeasurementCalls, "")
 	fmt.Fprintf(stderr, "\n")
 	fmt.Fprintf(stderr, "===== METRICS TREE ===============================================================================================================================================================\n")
 	printTree(stderr, metricsTree, 0)

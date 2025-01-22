@@ -14,6 +14,7 @@ const (
 	writeTimestamp           = true
 	writeSourceNames         = true
 	timestampSearchPrefixLen = 250
+	minTimestampLen          = 15
 	readerBufferSize         = max(timestampSearchPrefixLen, 1024*128) // per file
 	writerBufferSize         = 1024 * 1024 * 100
 )
