@@ -143,8 +143,7 @@ func MergeFileReaders(readers []*FileReader, stdout io.Writer) error {
 		}
 		for next != nil && !next.Timestamp.After(untilTimestamp) {
 			if next.Timestamp != noTimestamp {
-				MaxSuccessiveLineCount = max(MaxSuccessiveLineCount, int64(successiveLineCount))
-				UpdateBucketCount(successiveLineCount, SuccessiveLineCountBucketLevels, SuccessiveLineCountBucketValues)
+				SuccessiveLineCounts.UpdateBucketCount(successiveLineCount)
 				successiveLineCount = 0
 			}
 
@@ -167,8 +166,7 @@ func MergeFileReaders(readers []*FileReader, stdout io.Writer) error {
 			}
 		}
 
-		MaxSuccessiveLineCount = max(MaxSuccessiveLineCount, int64(successiveLineCount))
-		UpdateBucketCount(successiveLineCount, SuccessiveLineCountBucketLevels, SuccessiveLineCountBucketValues)
+		SuccessiveLineCounts.UpdateBucketCount(successiveLineCount)
 		MeasureSince(startOfInnerReadWrite)
 
 		// Put the current line to the heap

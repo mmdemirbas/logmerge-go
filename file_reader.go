@@ -111,8 +111,7 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) error {
 
 	LinesRead++
 	BytesWrittenForRawData += int64(count)
-	MaxLineLength = max(MaxLineLength, lineLengthWithoutEol)
-	UpdateBucketCount(lineLengthWithoutEol, LineLengthBucketLevels, LineLengthBucketValues)
+	LineLengths.UpdateBucketCount(lineLengthWithoutEol)
 
 	return nil
 }

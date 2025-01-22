@@ -80,7 +80,7 @@ func ParseTimestamp(buffer []byte) time.Time {
 	if i < n {
 		ParseTimestamp_MinFirstDigitIndex = min(ParseTimestamp_MinFirstDigitIndex, firstDigitIndex)
 		ParseTimestamp_MaxFirstDigitIndex = max(ParseTimestamp_MaxFirstDigitIndex, firstDigitIndex)
-		UpdateBucketCount(firstDigitIndex, ParseTimestamp_DigitIndexLevels, ParseTimestamp_FirstDigitIndexValues)
+		ParseTimestamp_FirstDigitIndexes.UpdateBucketCount(firstDigitIndex)
 	} else {
 		ParseTimestamp_NoFirstDigit++
 		return noTimestamp
@@ -218,7 +218,7 @@ func ParseTimestamp(buffer []byte) time.Time {
 		i++
 		var ncount int
 		nsec, ncount = parseDigits(buffer, n, &i, 9)
-		UpdateBucketCount(ncount, ParseTimestamp_NanosLengthBucketLevels, ParseTimestamp_NanosLengthBucketValues)
+		ParseTimestamp_NanosLengths.UpdateBucketCount(ncount)
 		// Normalize nanoseconds in one step
 		for ncount < 9 {
 			nsec *= 10
@@ -276,16 +276,16 @@ func ParseTimestamp(buffer []byte) time.Time {
 
 	ParseTimestamp_MinTimestampEndIndex = min(ParseTimestamp_MinTimestampEndIndex, i)
 	ParseTimestamp_MaxTimestampEndIndex = max(ParseTimestamp_MaxTimestampEndIndex, i)
-	UpdateBucketCount(i, ParseTimestamp_DigitIndexLevels, ParseTimestamp_LastDigitIndexValues)
+	ParseTimestamp_LastDigitIndexes.UpdateBucketCount(i)
 
 	ParseTimestamp_MinFirstDigitIndexActual = min(ParseTimestamp_MinFirstDigitIndexActual, firstDigitIndex)
 	ParseTimestamp_MaxFirstDigitIndexActual = max(ParseTimestamp_MaxFirstDigitIndexActual, firstDigitIndex)
-	UpdateBucketCount(firstDigitIndex, ParseTimestamp_DigitIndexLevels, ParseTimestamp_FirstDigitIndexValuesActual)
+	ParseTimestamp_FirstDigitIndexesActual.UpdateBucketCount(firstDigitIndex)
 
 	timestampLen := i - firstDigitIndex
 	ParseTimestamp_MinTimestampLength = min(ParseTimestamp_MinTimestampLength, timestampLen)
 	ParseTimestamp_MaxTimestampLength = max(ParseTimestamp_MaxTimestampLength, timestampLen)
-	UpdateBucketCount(timestampLen, ParseTimestamp_LenghtBucketLevels, ParseTimestamp_LengthBucketValues)
+	ParseTimestamp_Lenghts.UpdateBucketCount(timestampLen)
 
 	return time.Date(year, time.Month(month), day, hour, minute, second, nsec, utc)
 }

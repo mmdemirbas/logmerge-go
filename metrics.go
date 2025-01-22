@@ -1,4 +1,3 @@
-// metrics.go
 package main
 
 import (
@@ -21,11 +20,11 @@ var (
 	ListFilesDuration int64
 	ProcessDuration   int64
 
-	FillBufferMetric        Metric
-	BufferAsSliceMetric     Metric
-	ParseTimestampMetric    Metric
-	PeekNextLineSliceMetric Metric
-	WriteOutputMetric       Metric
+	FillBufferMetric        CallMetric
+	BufferAsSliceMetric     CallMetric
+	ParseTimestampMetric    CallMetric
+	PeekNextLineSliceMetric CallMetric
+	WriteOutputMetric       CallMetric
 
 	// Metric collection overhead metrics
 	MeasurementCalls       int64
@@ -46,17 +45,12 @@ var (
 	LinesWithoutTimestamps int64
 
 	// Line length stats
-
-	MaxLineLength          int
-	LineLengthBucketLevels = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000}
-	LineLengthBucketValues = make([]int64, len(LineLengthBucketLevels))
+	LineLengths = NewBucketMetric(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000)
 
 	// Merge debugging
-	HeapPopCount                    int64
-	HeapPushCount                   int64
-	MaxSuccessiveLineCount          int64
-	SuccessiveLineCountBucketLevels = []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100}
-	SuccessiveLineCountBucketValues = make([]int64, len(SuccessiveLineCountBucketLevels))
+	HeapPopCount         int64
+	HeapPushCount        int64
+	SuccessiveLineCounts = NewBucketMetric(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100)
 
 	// ParseTimestamp debugging
 
@@ -66,15 +60,14 @@ var (
 	ParseTimestamp_MinFirstDigitIndexActual    = 1<<31 - 1
 	ParseTimestamp_MaxFirstDigitIndexActual    int
 	ParseTimestamp_DigitIndexLevels            = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200, 225, 250, 300, 350, 400, 450, 500, 1000, 5000, 10000, 20000, 30000, 40000, 50000}
-	ParseTimestamp_FirstDigitIndexValues       = make([]int64, len(ParseTimestamp_DigitIndexLevels))
-	ParseTimestamp_FirstDigitIndexValuesActual = make([]int64, len(ParseTimestamp_DigitIndexLevels))
-	ParseTimestamp_LastDigitIndexValues        = make([]int64, len(ParseTimestamp_DigitIndexLevels))
+	ParseTimestamp_FirstDigitIndexes           = NewBucketMetric(ParseTimestamp_DigitIndexLevels...)
+	ParseTimestamp_FirstDigitIndexesActual     = NewBucketMetric(ParseTimestamp_DigitIndexLevels...)
+	ParseTimestamp_LastDigitIndexes            = NewBucketMetric(ParseTimestamp_DigitIndexLevels...)
 	ParseTimestamp_MinTimestampEndIndex        = 1<<31 - 1
 	ParseTimestamp_MaxTimestampEndIndex        int
 	ParseTimestamp_MinTimestampLength          = 1<<31 - 1
 	ParseTimestamp_MaxTimestampLength          int
-	ParseTimestamp_LenghtBucketLevels          = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 500, 1000, 10000, 50000}
-	ParseTimestamp_LengthBucketValues          = make([]int64, len(ParseTimestamp_LenghtBucketLevels))
+	ParseTimestamp_Lenghts                     = NewBucketMetric(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 500, 1000, 10000, 50000)
 	ParseTimestamp_LineTooShort                int64
 	ParseTimestamp_LineTooShortAfterFirstDigit int64
 	ParseTimestamp_NoYear                      int64
@@ -100,8 +93,7 @@ var (
 	ParseTimestamp_SecondOutOfRange            int64
 	ParseTimestamp_HasNanos                    int64
 	ParseTimestamp_HasNotNanos                 int64
-	ParseTimestamp_NanosLengthBucketLevels     = []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
-	ParseTimestamp_NanosLengthBucketValues     = make([]int64, len(ParseTimestamp_NanosLengthBucketLevels))
+	ParseTimestamp_NanosLengths                = NewBucketMetric(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
 	ParseTimestamp_NoTimezone                  int64
 	ParseTimestamp_UtcTimezone                 int64
 	ParseTimestamp_NonUtcTimezone              int64
@@ -131,21 +123,51 @@ func MeasureSince(startNanos time.Time) int64 {
 	return elapsed
 }
 
-type Metric struct {
+type BucketMetric struct {
+	levels []int
+	values []int64
+	min    int64
+	max    int64
+}
+
+func NewBucketMetric(levels ...int) *BucketMetric {
+	return &BucketMetric{
+		levels: levels,
+		values: make([]int64, len(levels)),
+		min:    1<<63 - 1,
+		max:    0,
+	}
+}
+
+func (b *BucketMetric) UpdateBucketCount(n int) {
+	if disableMetricsCollection {
+		return
+	}
+	for i, level := range b.levels {
+		if n <= level {
+			b.values[i]++
+			break
+		}
+	}
+	b.min = min(b.min, int64(n))
+	b.max = max(b.max, int64(n))
+}
+
+type CallMetric struct {
 	CallCount int64
 	Duration  int64
 }
 
 type TreeNode struct {
 	Name   string
-	Metric Metric
+	Metric CallMetric
 
 	Parent         *TreeNode
 	Children       []*TreeNode
 	ChildrenByName map[string]*TreeNode
 }
 
-var metricsTree = &TreeNode{Name: "Metrics Tree", Metric: Metric{CallCount: 1}}
+var metricsTree = &TreeNode{Name: "Metrics Tree", Metric: CallMetric{CallCount: 1}}
 var currentTreeNode = metricsTree
 
 func enterContext(name string) {
@@ -185,52 +207,6 @@ func exitContext(duration int64) {
 	}
 
 	currentTreeNode = parent
-}
-
-func printTree(stderr *os.File, node *TreeNode, depth int) {
-	nanoseconds := node.Metric.Duration
-	printTreeNode(stderr, depth, node.Name, node.Metric.CallCount, nanoseconds, "")
-
-	if node.Children != nil {
-		childTotal := int64(0)
-		for _, child := range node.Children {
-			printTree(stderr, child, depth+1)
-			childTotal += child.Metric.Duration
-		}
-
-		rest := nanoseconds - childTotal
-		if rest > 0 {
-			printTreeNode(stderr, depth+1, "..rest of "+node.Name, node.Metric.CallCount, rest, "")
-		}
-	}
-}
-
-func printTreeNode(stderr *os.File, depth int, name string, n int64, nanoseconds int64, extra string) {
-	padLen := 45
-	//goland:noinspection GoUnhandledErrorResult
-	fmt.Fprintf(
-		stderr,
-		"%-*s%-*s : %8s ~ %12v ≈ %12v avg of %9v times = %12v %s\n",
-		depth*2,
-		"",
-		padLen-depth*2,
-		name,
-		timePercent(nanoseconds),
-		duration(nanoseconds),
-		duration(nanoseconds/max(1, n)),
-		n,
-		count(n),
-		extra,
-	)
-}
-
-func UpdateBucketCount(n int, levels []int, values []int64) {
-	for i, level := range levels {
-		if n <= level {
-			values[i]++
-			break
-		}
-	}
 }
 
 //goland:noinspection GoUnhandledErrorResult
@@ -305,26 +281,26 @@ func PrintMetrics(
 	fmt.Fprintf(stderr, "    with timestamp      : %8s ~ %12v = %10s\n", percent(LinesWithTimestamps, LinesRead), LinesWithTimestamps, count(LinesWithTimestamps))
 	fmt.Fprintf(stderr, "    without timestamp   : %8s ~ %12v = %10s\n", percent(LinesWithoutTimestamps, LinesRead), LinesWithoutTimestamps, count(LinesWithoutTimestamps))
 	fmt.Fprintf(stderr, "Line length stats\n")
-	fmt.Fprintf(stderr, "  max line length       : %8s ~ %12d\n", "", MaxLineLength)
+	fmt.Fprintf(stderr, "  max line length       : %8s ~ %12d\n", "", LineLengths.max)
 	fmt.Fprintf(stderr, "  line length buckets\n")
-	printBuckets(stderr, LinesRead, LineLengthBucketLevels, LineLengthBucketValues)
+	LineLengths.printBuckets(stderr, LinesRead)
 	fmt.Fprintf(stderr, "Merge debugging\n")
 	fmt.Fprintf(stderr, "  heap pop count        : %8s ~ %12d ≈ %s\n", "", HeapPopCount, count(HeapPopCount))
 	fmt.Fprintf(stderr, "  heap push count       : %8s ~ %12d ≈ %s\n", "", HeapPushCount, count(HeapPushCount))
-	fmt.Fprintf(stderr, "  max successive lines  : %8s ~ %12v = %10s\n", "", MaxSuccessiveLineCount, count(MaxSuccessiveLineCount))
+	fmt.Fprintf(stderr, "  max successive lines  : %8s ~ %12v = %10s\n", "", SuccessiveLineCounts.max, count(SuccessiveLineCounts.max))
 	fmt.Fprintf(stderr, "  successive line count buckets\n")
-	printBuckets(stderr, LinesRead, SuccessiveLineCountBucketLevels, SuccessiveLineCountBucketValues)
+	SuccessiveLineCounts.printBuckets(stderr, LinesRead)
 	fmt.Fprintf(stderr, "ParseTimestamp debugging\n")
 	fmt.Fprintf(stderr, "  first digit index     : %8s ~ %8d min ≈ %8d max\n", "", ParseTimestamp_MinFirstDigitIndex, ParseTimestamp_MaxFirstDigitIndex)
 	fmt.Fprintf(stderr, "  start digit index     : %8s ~ %8d min ≈ %8d max\n", "", ParseTimestamp_MinFirstDigitIndexActual, ParseTimestamp_MaxFirstDigitIndexActual)
 	fmt.Fprintf(stderr, "  end digit index       : %8s ~ %8d min ≈ %8d max\n", "", ParseTimestamp_MinTimestampEndIndex, ParseTimestamp_MaxTimestampEndIndex)
 	fmt.Fprintf(stderr, "  digit index buckets\n")
 	for i, level := range ParseTimestamp_DigitIndexLevels {
-		fmt.Fprintf(stderr, "    ≤ %-6d            : %8s ~ %7d frst ≈ %8d start ≈ %8d end\n", level, "", ParseTimestamp_FirstDigitIndexValues[i], ParseTimestamp_FirstDigitIndexValuesActual[i], ParseTimestamp_LastDigitIndexValues[i])
+		fmt.Fprintf(stderr, "    ≤ %-6d            : %8s ~ %7d frst ≈ %8d start ≈ %8d end\n", level, "", ParseTimestamp_FirstDigitIndexes.values[i], ParseTimestamp_FirstDigitIndexesActual.values[i], ParseTimestamp_LastDigitIndexes.values[i])
 	}
 	fmt.Fprintf(stderr, "  timestamp length      : %8s ~ %8d min ≈ %8d max\n", "", ParseTimestamp_MinTimestampLength, ParseTimestamp_MaxTimestampLength)
 	fmt.Fprintf(stderr, "  timestamp length buckets\n")
-	printBuckets(stderr, LinesWithTimestamps, ParseTimestamp_LenghtBucketLevels, ParseTimestamp_LengthBucketValues)
+	ParseTimestamp_Lenghts.printBuckets(stderr, LinesWithTimestamps)
 	fmt.Fprintf(stderr, "  too short             : %8s ~ %12d\n", "", ParseTimestamp_LineTooShort)
 	fmt.Fprintf(stderr, "  no digit              : %8s ~ %12d\n", "", ParseTimestamp_NoFirstDigit)
 	fmt.Fprintf(stderr, "  too short after digit : %8s ~ %12d\n", "", ParseTimestamp_LineTooShortAfterFirstDigit)
@@ -350,7 +326,7 @@ func PrintMetrics(
 	fmt.Fprintf(stderr, "  has nanos             : %8s ~ %12d\n", percent(ParseTimestamp_HasNanos, ParseTimestamp_HasNanos+ParseTimestamp_HasNotNanos), ParseTimestamp_HasNanos)
 	fmt.Fprintf(stderr, "  has not nanos         : %8s ~ %12d\n", percent(ParseTimestamp_HasNotNanos, ParseTimestamp_HasNanos+ParseTimestamp_HasNotNanos), ParseTimestamp_HasNotNanos)
 	fmt.Fprintf(stderr, "  nanos length buckets\n")
-	printBuckets(stderr, ParseTimestamp_HasNanos, ParseTimestamp_NanosLengthBucketLevels, ParseTimestamp_NanosLengthBucketValues)
+	ParseTimestamp_NanosLengths.printBuckets(stderr, ParseTimestamp_HasNanos)
 	fmt.Fprintf(stderr, "  no timezone           : %8s ~ %12d\n", "", ParseTimestamp_NoTimezone)
 	fmt.Fprintf(stderr, "  UTC timezone          : %8s ~ %12d\n", "", ParseTimestamp_UtcTimezone)
 	fmt.Fprintf(stderr, "  non-UTC timezone      : %8s ~ %12d\n", "", ParseTimestamp_NonUtcTimezone)
@@ -366,11 +342,48 @@ func PrintMetrics(
 	fmt.Fprintf(stderr, "==================================================================================================================================================================================\n")
 }
 
-func printBuckets(stderr *os.File, total int64, levels []int, values []int64) {
+func printTree(stderr *os.File, node *TreeNode, depth int) {
+	nanoseconds := node.Metric.Duration
+	printTreeNode(stderr, depth, node.Name, node.Metric.CallCount, nanoseconds, "")
+
+	if node.Children != nil {
+		childTotal := int64(0)
+		for _, child := range node.Children {
+			printTree(stderr, child, depth+1)
+			childTotal += child.Metric.Duration
+		}
+
+		rest := nanoseconds - childTotal
+		if rest > 0 {
+			printTreeNode(stderr, depth+1, "..rest of "+node.Name, node.Metric.CallCount, rest, "")
+		}
+	}
+}
+
+func printTreeNode(stderr *os.File, depth int, name string, n int64, nanoseconds int64, extra string) {
+	padLen := 45
+	//goland:noinspection GoUnhandledErrorResult
+	fmt.Fprintf(
+		stderr,
+		"%-*s%-*s : %8s ~ %12v ≈ %12v avg of %9v times = %12v %s\n",
+		depth*2,
+		"",
+		padLen-depth*2,
+		name,
+		timePercent(nanoseconds),
+		duration(nanoseconds),
+		duration(nanoseconds/max(1, n)),
+		n,
+		count(n),
+		extra,
+	)
+}
+
+func (b *BucketMetric) printBuckets(stderr *os.File, total int64) {
 	var cumulative int64
 
-	for i, level := range levels {
-		value := values[i]
+	for i, level := range b.levels {
+		value := b.values[i]
 		cumulative += value
 		//goland:noinspection GoUnhandledErrorResult
 		fmt.Fprintf(stderr, "    ≤ %-6d            : %8s ~ %12d ≈ %8s (cumulative)\n", level, percent(value, total), value, percent(cumulative, total))
