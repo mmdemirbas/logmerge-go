@@ -9,7 +9,7 @@ import (
 
 // TODO: These settings can be made configurable via command-line flags
 const (
-	disableMetricsCollection = true
+	disableMetricsCollection = false
 	enableDebugLogging       = false
 	writeTimestamp           = true
 	writeSourceNames         = true

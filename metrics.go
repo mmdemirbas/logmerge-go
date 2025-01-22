@@ -25,8 +25,7 @@ var (
 	TotalWriteOutputDuration    int64
 
 	// Metric collection overhead metrics
-	MeasureSinceCalls                  int64
-	ApproximateMetricsOverheadDuration int64
+	MeasureSinceCalls int64
 
 	// Byte count stats
 
@@ -124,7 +123,6 @@ func MeasureSince(startNanos time.Time) int64 {
 
 	exitContext(elapsed)
 	MeasureSinceCalls++
-	ApproximateMetricsOverheadDuration += time.Since(startNanos).Nanoseconds() - elapsed
 
 	return elapsed
 }
@@ -190,9 +188,6 @@ func printTree(stderr *os.File, node *TreeNode, depth int) {
 		for _, child := range node.Children {
 			printTree(stderr, child, depth+1)
 			childTotal += child.Duration
-		}
-		if node == metricsTree {
-			printTreeNode(stderr, depth+1, "ApproximateMetricsOverhead", MeasureSinceCalls, ApproximateMetricsOverheadDuration)
 		}
 		printTreeNode(stderr, depth+1, "..rest of "+node.Name, node.CallCount, nanoseconds-childTotal)
 	}
@@ -271,6 +266,7 @@ func PrintMetrics(
 	fmt.Fprintf(stderr, "FillBuffer              : %8s ~ %12v ≈ %s\n", timePercent(TotalFillBufferDuration), duration(TotalFillBufferDuration), bytesSpeed(BytesRead, ProcessDuration))
 	fmt.Fprintf(stderr, "ParseTimestamp          : %8s ~ %12v ≈ %s\n", timePercent(TotalParseTimestampDuration), duration(TotalParseTimestampDuration), countSpeed(LinesRead, ProcessDuration))
 	fmt.Fprintf(stderr, "WriteOutput             : %8s ~ %12v ≈ %s\n", timePercent(TotalWriteOutputDuration), duration(TotalWriteOutputDuration), bytesSpeed(writtenBytes, ProcessDuration))
+	fmt.Fprintf(stderr, "MeasureSinceCalls       : %8s ~ %12v ≈ %s\n", "", MeasureSinceCalls, count(MeasureSinceCalls))
 	fmt.Fprintf(stderr, "\n")
 	fmt.Fprintf(stderr, "===== METRICS TREE ===============================================================================================================================================================\n")
 	printTree(stderr, metricsTree, 0)
