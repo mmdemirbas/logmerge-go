@@ -142,7 +142,7 @@ func MergeFileReaders(readers []*FileReader, stdout io.Writer) error {
 			return fmt.Errorf("failed to read line prefix from %s: %v", source.SourceName, err)
 		}
 		for next != nil && !next.Timestamp.After(untilTimestamp) {
-			if !next.Timestamp.Equal(noTimestamp) {
+			if next.Timestamp != noTimestamp {
 				MaxSuccessiveLineCount = max(MaxSuccessiveLineCount, int64(successiveLineCount))
 				UpdateBucketCount(successiveLineCount, SuccessiveLineCountBucketLevels, SuccessiveLineCountBucketValues)
 				successiveLineCount = 0

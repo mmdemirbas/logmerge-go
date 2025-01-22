@@ -177,8 +177,7 @@ func (r *RingBuffer) PeekNextLineSlice(latestCharWasCR *bool) ([]byte, EOLType) 
 	return buf[readIndex : i+1], LF
 }
 
-// o1
-func (r *RingBuffer) AsSlice(maxLen int) []byte {
+func (r *RingBuffer) AsSlice(buffer []byte) []byte {
 	readIndex := r.readIndex
 	writeIndex := r.writeIndex
 
@@ -186,23 +185,28 @@ func (r *RingBuffer) AsSlice(maxLen int) []byte {
 		return nil
 	}
 
-	total := r.Len()
-	if maxLen > total {
-		maxLen = total
-	}
-
 	if readIndex < writeIndex {
-		return r.buf[readIndex : readIndex+maxLen]
+		return r.buf[readIndex:writeIndex]
 	}
 
-	firstSegLen := r.cap - readIndex
-	if maxLen <= firstSegLen {
-		return r.buf[readIndex : readIndex+maxLen]
+	if writeIndex == 0 {
+		return r.buf[readIndex:]
 	}
 
-	remainder := maxLen - firstSegLen
-	result := make([]byte, maxLen)
-	copy(result, r.buf[readIndex:])
-	copy(result[firstSegLen:], r.buf[:remainder])
-	return result
+	outLen := cap(buffer)
+	ringBufferLen := r.Len()
+	if outLen > ringBufferLen {
+		outLen = ringBufferLen
+	}
+
+	headLen := r.cap - readIndex
+	if outLen <= headLen {
+		return r.buf[readIndex:]
+	}
+
+	tailLen := outLen - headLen
+	buffer = buffer[:outLen]
+	copy(buffer, r.buf[readIndex:])
+	copy(buffer[headLen:], r.buf[:tailLen])
+	return buffer
 }
