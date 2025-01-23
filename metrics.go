@@ -188,10 +188,10 @@ func enterContext(name string) {
 		currentTreeNode = &TreeNode{Name: name, Parent: currentTreeNode}
 	} else {
 		existingNode, ok := children[name]
-		if !ok {
-			currentTreeNode = &TreeNode{Name: name, Parent: currentTreeNode}
-		} else {
+		if ok {
 			currentTreeNode = existingNode
+		} else {
+			currentTreeNode = &TreeNode{Name: name, Parent: currentTreeNode}
 		}
 	}
 }
@@ -213,10 +213,6 @@ func exitContext(duration int64) {
 	currentTreeNode.Metric.CallCount++
 	currentTreeNode.Metric.Duration += duration
 
-	if parent == metricsTree {
-		parent.Metric.Duration += duration
-	}
-
 	currentTreeNode = parent
 }
 
@@ -224,6 +220,9 @@ func exitContext(duration int64) {
 func PrintMetrics(startTime time.Time, elapsedTime time.Duration, inputPath string, err error) {
 	writtenBytesOverhead := BytesWrittenForTimestamps + BytesWrittenForSourceNamePerLine + BytesWrittenForSourceNamePerBlock + BytesWrittenForMissingNewlines
 	writtenBytes := BytesWrittenForRawData + writtenBytesOverhead
+
+	TotalMainDuration = elapsedTime.Nanoseconds()
+	metricsTree.Metric.Duration = TotalMainDuration
 
 	fmt.Fprintf(Stderr, "===== SUMMARY ====================================================================================================================================================================\n")
 	fmt.Fprintf(Stderr, "Start time              : %s\n", startTime.Format(time.RFC3339Nano))
@@ -249,8 +248,8 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, inputPath stri
 	fmt.Fprintf(Stderr, "ShortestTimestampLen    : %12v = %10s\n", ShortestTimestampLen, bytes(int64(ShortestTimestampLen)))
 	fmt.Fprintf(Stderr, "TimestampSearchEndIndex : %12v = %10s\n", TimestampSearchEndIndex, bytes(int64(TimestampSearchEndIndex)))
 	fmt.Fprintf(Stderr, "\n")
-	fmt.Fprintf(Stderr, "ReaderBufferSize        : %12v = %10s\n", ReaderBufferSize, bytes(int64(ReaderBufferSize)))
-	fmt.Fprintf(Stderr, "WriterBufferSize        : %12v = %10s\n", WriterBufferSize, bytes(int64(WriterBufferSize)))
+	fmt.Fprintf(Stderr, "BufferSizeForRead       : %12v = %10s\n", BufferSizeForRead, bytes(int64(BufferSizeForRead)))
+	fmt.Fprintf(Stderr, "BufferSizeForWrite      : %12v = %10s\n", BufferSizeForWrite, bytes(int64(BufferSizeForWrite)))
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "ExcludedStrictSuffixes  : %v\n", ExcludedStrictSuffixes)
 	fmt.Fprintf(Stderr, "IncludedStrictSuffixes  : %v\n", IncludedStrictSuffixes)
@@ -296,7 +295,7 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, inputPath stri
 	fmt.Fprintf(Stderr, "GC pause duration                    : %12v = %10s\n", MemStats.PauseTotalNs, duration(int64(MemStats.PauseTotalNs)))
 	fmt.Fprintf(Stderr, "Number of completed GC cycles        : %12v = %10s\n", MemStats.NumGC, count(int64(MemStats.NumGC)))
 	fmt.Fprintf(Stderr, "Number of forced GC cycles by app    : %12v = %10s\n", MemStats.NumForcedGC, count(int64(MemStats.NumForcedGC)))
-	fmt.Fprintf(Stderr, "GCCPUFraction                        : %12v = %10s\n", MemStats.GCCPUFraction, percent(int64(MemStats.GCCPUFraction*(1<<30)), 1<<30))
+	fmt.Fprintf(Stderr, "GCCPUFraction                        : %.2f / %s\n", MemStats.GCCPUFraction*1_000_000, "1_000_000")
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "===== METRICS SUMMARY ============================================================================================================================================================\n")
 	printTreeNode(0, "ListFiles", 1, ListFilesDuration, bytesSpeed(FilesScanned, ListFilesDuration))

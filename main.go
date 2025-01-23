@@ -25,9 +25,8 @@ var (
 	ShortestTimestampLen    = 15
 	TimestampSearchEndIndex = 250
 
-	// TODO: Make Read buffer size total, not per file
-	ReaderBufferSize = max(TimestampSearchEndIndex, 1024*128) // per file
-	WriterBufferSize = 1024 * 1024 * 100
+	BufferSizeForRead  = 1024 * 1024 * 100
+	BufferSizeForWrite = 1024 * 1024 * 100
 
 	ExcludedStrictSuffixes  = []string{".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz"}
 	IncludedStrictSuffixes  = []string{}
@@ -46,11 +45,8 @@ func main() {
 		}
 	}()
 
-	startTimeMain := MeasureStart("Main")
-
 	// Enable profiling only if configured
 	if EnableProfiling {
-		startTime := MeasureStart("CpuProfile")
 		//goland:noinspection GoUnhandledErrorResult
 		fmt.Fprintf(Stderr, "Profiling enabled\n")
 
@@ -68,10 +64,8 @@ func main() {
 				defer pprof.StopCPUProfile()
 			}
 		}
-		MeasureSince(startTime)
 	}
 
-	startTime := MeasureStart("ParseOptions")
 	//goland:noinspection GoUnhandledErrorResult
 	if len(os.Args) < 2 {
 		fmt.Fprintf(Stderr, "logmerge\n")
@@ -104,12 +98,10 @@ func main() {
 			defer Stderr.Close()
 		}
 	}
-	MeasureSince(startTime)
 
 	err = MergeFiles(inputPath)
 
 	if EnableProfiling {
-		startTime = MeasureStart("MemProfile")
 		// Capture memory profile
 		memFile, err := os.Create("out/mem.prof")
 		if err != nil {
@@ -122,9 +114,7 @@ func main() {
 				fmt.Fprintf(Stderr, "could not write memory profile: %v\n", err)
 			}
 		}
-		MeasureSince(startTime)
 	}
-	TotalMainDuration = MeasureSince(startTimeMain)
 
 	if !DisableMetricsCollection {
 		startTime := MeasureStart("CalcMetricsOverhead")

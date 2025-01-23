@@ -14,14 +14,14 @@ var (
 )
 
 func MergeFiles(inputPath string) error {
-	startTime := MeasureStart("ListFiles")
 	files, err := ListFiles(inputPath)
-	ListFilesDuration = MeasureSince(startTime)
 
 	MatchedFiles = files
 	if err != nil {
 		return fmt.Errorf("failed to detect files: %v", err)
 	}
+
+	perFileBufferSize := max(TimestampSearchEndIndex, BufferSizeForRead/len(files))
 
 	readers := make([]*InputFile, len(files))
 	for i, file := range files {
@@ -40,7 +40,7 @@ func MergeFiles(inputPath string) error {
 			return fmt.Errorf("failed to open file %s: %v", file, err)
 		}
 
-		reader, err := NewInputFile(f, sourceName, ReaderBufferSize)
+		reader, err := NewInputFile(f, sourceName, perFileBufferSize)
 		if err != nil {
 			return fmt.Errorf("failed to create reader for file %s: %v", file, err)
 		}
@@ -72,15 +72,15 @@ func MergeFiles(inputPath string) error {
 }
 
 func MergeFileReaders(readers []*InputFile) error {
-	writer := bufio.NewWriterSize(Stdout, WriterBufferSize)
+	writer := bufio.NewWriterSize(Stdout, BufferSizeForWrite)
 	defer writer.Flush()
 
+	startTime := MeasureStart("HeapInit")
 	// Initialize heap
 	h := &MinHeap{}
 	heap.Init(h)
 
 	// Populate heap with the first entry from each file
-	startTime := MeasureStart("HeapPopulate")
 	for _, reader := range readers {
 		startTime := MeasureStart("ReadTimestamp")
 		timestamp, err := ReadTimestamp(reader)
@@ -99,7 +99,6 @@ func MergeFileReaders(readers []*InputFile) error {
 	MeasureSince(startTime)
 
 	// Merge logs
-	startTime = MeasureStart("MergeLoop")
 	for h.Len() > 0 {
 		startTime := MeasureStart("HeapPop")
 		reader := heap.Pop(h).(*InputFile)
@@ -201,7 +200,6 @@ func MergeFileReaders(readers []*InputFile) error {
 			HeapPushMetric.MeasureSince(startTime)
 		}
 	}
-	MeasureSince(startTime)
 	return nil
 }
 
@@ -248,9 +246,5 @@ func writeLine(writer *bufio.Writer, timestamp *time.Time, reader *InputFile) er
 	}
 
 	// Write rest of the line including the new line character
-	startTime := MeasureStart("WriteRawData")
-	err := reader.WriteLine(writer)
-	MeasureSince(startTime)
-
-	return err
+	return reader.WriteLine(writer)
 }
