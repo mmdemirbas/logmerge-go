@@ -15,13 +15,15 @@ var (
 	DisableMetricsCollection = false
 	EnableProfiling          = os.Getenv("ENABLE_PPROF") == "true"
 
-	WriteSourceNamesPerBlock = false
-	WriteSourceNamesPerLine  = true
-	WriteTimestampPerLine    = true
+	WriteSourceNamesPerBlock = true
+	WriteSourceNamesPerLine  = false
+	WriteTimestampPerLine    = false
 
-	MinTimestamp       = noTimestamp
-	MaxTimestamp       = MyTime(1<<63 - 1)
-	IgnoreTimezoneInfo = false
+	// Default values: noTimestamp and MyTime(1<<63 - 1)
+	// 20250117 13:12:41.434816 to 2025-01-17 13:14:12,863
+	MinTimestamp       = NewMyTime(2025, 1, 17, 13, 12, 41, 434816000, 0, 0, 0)
+	MaxTimestamp       = NewMyTime(2025, 1, 17, 13, 14, 12, 863000000, 0, 0, 0)
+	IgnoreTimezoneInfo = true
 
 	ShortestTimestampLen    = 15
 	TimestampSearchEndIndex = 250
@@ -32,7 +34,9 @@ var (
 	ExcludedStrictSuffixes  = []string{".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz"}
 	IncludedStrictSuffixes  = []string{}
 	ExcludedLenientSuffixes = []string{}
-	IncludedLenientSuffixes = []string{".log", ".err", ".error", ".warn", ".warning", ".info", ".txt", ".out", ".debug", ".trace"}
+	IncludedLenientSuffixes = []string{".log", ".err", ".error", ".warn", ".warning", ".info", ".out", ".debug", ".trace"}
+
+	// TODO: Support source name aliasing (e.g. "console.log" -> "driver")
 )
 
 func main() {
@@ -96,6 +100,8 @@ func main() {
 			defer Stderr.Close()
 		}
 	}
+
+	// TODO: Catch interrupt signal during merge process and print the metrics anyway
 
 	err = MergeFiles(inputPath)
 

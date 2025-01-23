@@ -14,8 +14,8 @@ OUTPUT_FILE := "output.log"
 
 # Test params
 
-RUN_ARGS := "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1734940586637_0046-short-success"
-
+RUN_ARGS := "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1737096599066_0003-WORKING-WITH-PROTOBUF"
+#RUN_ARGS := "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1734940586637_0046-short-success"
 #RUN_ARGS := "/Users/md/dev/mmdemirbas/logmerge/examples/small"
 
 # Display this help message

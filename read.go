@@ -55,6 +55,7 @@ func ParseTimestamp(buffer []byte) MyTime {
 			fmt.Fprintf(Stderr, "ParseTimestamp: Recovered from panic: %v. Buffer: %s\n", r, buffer)
 		}
 	}()
+
 	// TODO: What if we have digits before the actual timestamp?
 	//   In this case, we should skip non-digits after the first digit and try parsing from there.
 

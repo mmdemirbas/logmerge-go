@@ -35,6 +35,8 @@ var (
 	// Byte count stats
 
 	BytesRead                         int64
+	BytesReadAndSkipped               int64
+	BytesNotRead                      int64
 	BytesWrittenForTimestamps         int64
 	BytesWrittenForSourceNamePerLine  int64
 	BytesWrittenForSourceNamePerBlock int64
@@ -45,6 +47,7 @@ var (
 
 	// TODO: Add SkippedLinesCount, SkippedBytesCount etc. to get better insights into filtered results
 	LinesRead              int64
+	LinesReadAndSkipped    int64
 	LinesWithTimestamps    int64
 	LinesWithoutTimestamps int64
 
@@ -217,8 +220,12 @@ func exitContext(duration int64) {
 
 //goland:noinspection GoUnhandledErrorResult
 func PrintMetrics(startTime time.Time, elapsedTime time.Duration, inputPath string, err error) {
+	inputBytes := BytesRead + BytesNotRead
+	bytesReadAndProcessed := BytesRead - BytesReadAndSkipped
+	linesReadAndProcessed := LinesRead - LinesReadAndSkipped
+
 	writtenBytesOverhead := BytesWrittenForTimestamps + BytesWrittenForSourceNamePerLine + BytesWrittenForSourceNamePerBlock + BytesWrittenForMissingNewlines
-	writtenBytes := BytesWrittenForRawData + writtenBytesOverhead
+	outputBytes := BytesWrittenForRawData + writtenBytesOverhead
 
 	TotalMainDuration = elapsedTime.Nanoseconds()
 	metricsTree.Metric.Duration = TotalMainDuration
@@ -302,7 +309,7 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, inputPath stri
 	BufferAsSliceMetric.printTreeNode("BufferAsSlice", countSpeed(LinesRead, ProcessDuration))
 	ParseTimestampMetric.printTreeNode("ParseTimestamp", countSpeed(LinesRead, ProcessDuration))
 	PeekNextLineSliceMetric.printTreeNode("PeekNextLineSlice", countSpeed(LinesRead, ProcessDuration))
-	WriteOutputMetric.printTreeNode("WriteOutput", bytesSpeed(writtenBytes, ProcessDuration))
+	WriteOutputMetric.printTreeNode("WriteOutput", bytesSpeed(outputBytes, ProcessDuration))
 	printTreeNode(0, "MetricsOverhead", MetricsCalls, MetricsOverheadAvg*MetricsCalls, "")
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "===== METRICS TREE ===============================================================================================================================================================\n")
@@ -310,30 +317,37 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, inputPath stri
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "===== METRIC DETAILS =============================================================================================================================================================\n")
 	fmt.Fprintf(Stderr, "File count stats\n")
-	fmt.Fprintf(Stderr, "  dirs scanned          : %8s ~ %12d\n", "", DirsScanned)
-	fmt.Fprintf(Stderr, "  files scanned         : %8s ~ %12d\n", percent(FilesScanned, FilesScanned), FilesScanned)
-	fmt.Fprintf(Stderr, "  files matched         : %8s ~ %12d\n", percent(FilesMatched, FilesScanned), FilesMatched)
+	fmt.Fprintf(Stderr, "  dirs scanned          : %8s ~ %14d\n", "", DirsScanned)
+	fmt.Fprintf(Stderr, "  files scanned         : %8s ~ %14d\n", percent(FilesScanned, FilesScanned), FilesScanned)
+	fmt.Fprintf(Stderr, "  files matched         : %8s ~ %14d\n", percent(FilesMatched, FilesScanned), FilesMatched)
 	fmt.Fprintf(Stderr, "Byte count stats\n")
-	fmt.Fprintf(Stderr, "  bytes read            : %8s ~ %12d = %10s ≈ %s\n", "", BytesRead, bytes(BytesRead), bytesSpeed(BytesRead, ProcessDuration))
-	fmt.Fprintf(Stderr, "  bytes written         : %8s ~ %12d = %10s ≈ %s\n", percent(writtenBytes, writtenBytes), writtenBytes, bytes(writtenBytes), bytesSpeed(writtenBytes, ProcessDuration))
-	fmt.Fprintf(Stderr, "    raw data            : %8s ~ %12v = %10s\n", percent(BytesWrittenForRawData, writtenBytes), BytesWrittenForRawData, bytes(BytesWrittenForRawData))
-	fmt.Fprintf(Stderr, "    overhead            : %8s ~ %12v = %10s\n", percent(writtenBytesOverhead, writtenBytes), writtenBytesOverhead, bytes(writtenBytesOverhead))
-	fmt.Fprintf(Stderr, "      source name @block: %8s ~ %12v = %10s\n", percent(BytesWrittenForSourceNamePerBlock, writtenBytes), BytesWrittenForSourceNamePerBlock, bytes(BytesWrittenForSourceNamePerBlock))
-	fmt.Fprintf(Stderr, "      source name @line : %8s ~ %12v = %10s\n", percent(BytesWrittenForSourceNamePerLine, writtenBytes), BytesWrittenForSourceNamePerLine, bytes(BytesWrittenForSourceNamePerLine))
-	fmt.Fprintf(Stderr, "      timestamps  @line : %8s ~ %12v = %10s\n", percent(BytesWrittenForTimestamps, writtenBytes), BytesWrittenForTimestamps, bytes(BytesWrittenForTimestamps))
-	fmt.Fprintf(Stderr, "      missing newlines  : %8s ~ %12v = %10s\n", percent(BytesWrittenForMissingNewlines, writtenBytes), BytesWrittenForMissingNewlines, bytes(BytesWrittenForMissingNewlines))
+	fmt.Fprintf(Stderr, "  input bytes           : %8s ~ %14d = %10s ≈ %s\n", percent(inputBytes, inputBytes), inputBytes, bytes(inputBytes), bytesSpeed(inputBytes, ProcessDuration))
+	fmt.Fprintf(Stderr, "    read                : %8s ~ %14d = %10s ≈ %s\n", percent(BytesRead, inputBytes), BytesRead, bytes(BytesRead), bytesSpeed(BytesRead, ProcessDuration))
+	fmt.Fprintf(Stderr, "      read and skipped  : %8s ~ %14d = %10s ≈ %s\n", percent(BytesReadAndSkipped, inputBytes), BytesReadAndSkipped, bytes(BytesReadAndSkipped), bytesSpeed(BytesReadAndSkipped, ProcessDuration))
+	fmt.Fprintf(Stderr, "      read and processed: %8s ~ %14d = %10s ≈ %s\n", percent(bytesReadAndProcessed, inputBytes), bytesReadAndProcessed, bytes(bytesReadAndProcessed), bytesSpeed(bytesReadAndProcessed, ProcessDuration))
+	fmt.Fprintf(Stderr, "    not read            : %8s ~ %14d = %10s ≈ %s\n", percent(BytesNotRead, inputBytes), BytesNotRead, bytes(BytesNotRead), bytesSpeed(BytesNotRead, ProcessDuration))
+	fmt.Fprintf(Stderr, "  output bytes          : %8s ~ %14d = %10s ≈ %s\n", percent(outputBytes, outputBytes), outputBytes, bytes(outputBytes), bytesSpeed(outputBytes, ProcessDuration))
+	fmt.Fprintf(Stderr, "    raw data            : %8s ~ %14v = %10s\n", percent(BytesWrittenForRawData, outputBytes), BytesWrittenForRawData, bytes(BytesWrittenForRawData))
+	fmt.Fprintf(Stderr, "    overhead            : %8s ~ %14v = %10s\n", percent(writtenBytesOverhead, outputBytes), writtenBytesOverhead, bytes(writtenBytesOverhead))
+	fmt.Fprintf(Stderr, "      source name @block: %8s ~ %14v = %10s\n", percent(BytesWrittenForSourceNamePerBlock, outputBytes), BytesWrittenForSourceNamePerBlock, bytes(BytesWrittenForSourceNamePerBlock))
+	fmt.Fprintf(Stderr, "      source name @line : %8s ~ %14v = %10s\n", percent(BytesWrittenForSourceNamePerLine, outputBytes), BytesWrittenForSourceNamePerLine, bytes(BytesWrittenForSourceNamePerLine))
+	fmt.Fprintf(Stderr, "      timestamps  @line : %8s ~ %14v = %10s\n", percent(BytesWrittenForTimestamps, outputBytes), BytesWrittenForTimestamps, bytes(BytesWrittenForTimestamps))
+	fmt.Fprintf(Stderr, "      missing newlines  : %8s ~ %14v = %10s\n", percent(BytesWrittenForMissingNewlines, outputBytes), BytesWrittenForMissingNewlines, bytes(BytesWrittenForMissingNewlines))
 	fmt.Fprintf(Stderr, "Line count stats\n")
-	fmt.Fprintf(Stderr, "  lines read            : %8s ~ %12d = %10s ≈ %s\n", percent(LinesRead, LinesRead), LinesRead, count(LinesRead), countSpeed(LinesRead, ProcessDuration))
-	fmt.Fprintf(Stderr, "    with timestamp      : %8s ~ %12v = %10s\n", percent(LinesWithTimestamps, LinesRead), LinesWithTimestamps, count(LinesWithTimestamps))
-	fmt.Fprintf(Stderr, "    without timestamp   : %8s ~ %12v = %10s\n", percent(LinesWithoutTimestamps, LinesRead), LinesWithoutTimestamps, count(LinesWithoutTimestamps))
+	fmt.Fprintf(Stderr, "  lines read            : %8s ~ %14d = %10s ≈ %s\n", percent(LinesRead, LinesRead), LinesRead, count(LinesRead), countSpeed(LinesRead, ProcessDuration))
+	fmt.Fprintf(Stderr, "    with timestamp      : %8s ~ %14v = %10s\n", percent(LinesWithTimestamps, LinesRead), LinesWithTimestamps, count(LinesWithTimestamps))
+	fmt.Fprintf(Stderr, "    without timestamp   : %8s ~ %14v = %10s\n", percent(LinesWithoutTimestamps, LinesRead), LinesWithoutTimestamps, count(LinesWithoutTimestamps))
+	fmt.Fprintf(Stderr, "  lines read            : %8s ~ %14d = %10s ≈ %s\n", percent(LinesRead, LinesRead), LinesRead, count(LinesRead), countSpeed(LinesRead, ProcessDuration))
+	fmt.Fprintf(Stderr, "    skipped             : %8s ~ %14v = %10s\n", percent(LinesReadAndSkipped, LinesRead), LinesReadAndSkipped, count(LinesReadAndSkipped))
+	fmt.Fprintf(Stderr, "    processed           : %8s ~ %14v = %10s\n", percent(linesReadAndProcessed, LinesRead), linesReadAndProcessed, count(linesReadAndProcessed))
 	fmt.Fprintf(Stderr, "Line length stats\n")
-	fmt.Fprintf(Stderr, "  max line length       : %8s ~ %12d\n", "", LineLengths.max)
+	fmt.Fprintf(Stderr, "  max line length       : %8s ~ %14d\n", "", LineLengths.max)
 	fmt.Fprintf(Stderr, "  line length buckets\n")
 	LineLengths.printBuckets(LinesRead)
 	fmt.Fprintf(Stderr, "Merge debugging\n")
-	fmt.Fprintf(Stderr, "  heap pop count        : %8s ~ %12d ≈ %s\n", "", HeapPopMetric.CallCount, count(HeapPopMetric.CallCount))
-	fmt.Fprintf(Stderr, "  heap push count       : %8s ~ %12d ≈ %s\n", "", HeapPushMetric.CallCount, count(HeapPushMetric.CallCount))
-	fmt.Fprintf(Stderr, "  max successive lines  : %8s ~ %12v = %10s\n", "", SuccessiveLineCounts.max, count(SuccessiveLineCounts.max))
+	fmt.Fprintf(Stderr, "  heap pop count        : %8s ~ %14d ≈ %s\n", "", HeapPopMetric.CallCount, count(HeapPopMetric.CallCount))
+	fmt.Fprintf(Stderr, "  heap push count       : %8s ~ %14d ≈ %s\n", "", HeapPushMetric.CallCount, count(HeapPushMetric.CallCount))
+	fmt.Fprintf(Stderr, "  max successive lines  : %8s ~ %14v = %10s\n", "", SuccessiveLineCounts.max, count(SuccessiveLineCounts.max))
 	fmt.Fprintf(Stderr, "  successive line count buckets\n")
 	SuccessiveLineCounts.printBuckets(LinesRead)
 	fmt.Fprintf(Stderr, "ParseTimestamp debugging\n")
@@ -347,38 +361,38 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, inputPath stri
 	fmt.Fprintf(Stderr, "  timestamp length      : %8s ~ %8d min ≈ %8d max\n", "", ParseTimestamp_MinTimestampLength, ParseTimestamp_MaxTimestampLength)
 	fmt.Fprintf(Stderr, "  timestamp length buckets\n")
 	ParseTimestamp_Lenghts.printBuckets(LinesWithTimestamps)
-	fmt.Fprintf(Stderr, "  too short             : %8s ~ %12d\n", "", ParseTimestamp_LineTooShort)
-	fmt.Fprintf(Stderr, "  no digit              : %8s ~ %12d\n", "", ParseTimestamp_NoFirstDigit)
-	fmt.Fprintf(Stderr, "  too short after digit : %8s ~ %12d\n", "", ParseTimestamp_LineTooShortAfterFirstDigit)
-	fmt.Fprintf(Stderr, "  no year               : %8s ~ %12d\n", "", ParseTimestamp_NoYear)
-	fmt.Fprintf(Stderr, "  2-digit year 1900     : %8s ~ %12d\n", "", ParseTimestamp_2DigitYear_1900)
-	fmt.Fprintf(Stderr, "  2-digit year 2000     : %8s ~ %12d\n", "", ParseTimestamp_2DigitYear_2000)
-	fmt.Fprintf(Stderr, "  4-digit year out-range: %8s ~ %12d\n", "", ParseTimestamp_4DigitYear_OutOfRange)
-	fmt.Fprintf(Stderr, "  no month              : %8s ~ %12d\n", "", ParseTimestamp_NoMonth)
-	fmt.Fprintf(Stderr, "  month out of range    : %8s ~ %12d\n", "", ParseTimestamp_MonthOutOfRange)
-	fmt.Fprintf(Stderr, "  no day                : %8s ~ %12d\n", "", ParseTimestamp_NoDay)
-	fmt.Fprintf(Stderr, "  day out of range      : %8s ~ %12d\n", "", ParseTimestamp_DayOutOfRange)
-	fmt.Fprintf(Stderr, "  space operator mismtch: %8s ~ %12d\n", "", ParseTimestamp_SpaceOperatorMismatch)
-	fmt.Fprintf(Stderr, "  no hour               : %8s ~ %12d\n", "", ParseTimestamp_NoHour)
-	fmt.Fprintf(Stderr, "  hour out of range     : %8s ~ %12d\n", "", ParseTimestamp_HourOutOfRange)
-	fmt.Fprintf(Stderr, "  no hour separator     : %8s ~ %12d\n", "", ParseTimestamp_NoHourSeparator)
-	fmt.Fprintf(Stderr, "  hour separator mismtch: %8s ~ %12d => %v\n", "", ParseTimestamp_HourSeparatorMismatch, ParseTimestamp_MismatchedHourSeparators)
-	fmt.Fprintf(Stderr, "  no minute             : %8s ~ %12d\n", "", ParseTimestamp_NoMinute)
-	fmt.Fprintf(Stderr, "  minute out of range   : %8s ~ %12d\n", "", ParseTimestamp_MinuteOutOfRange)
-	fmt.Fprintf(Stderr, "  no minute separator   : %8s ~ %12d\n", "", ParseTimestamp_NoMinuteSeparator)
-	fmt.Fprintf(Stderr, "  minute sep. mismatch  : %8s ~ %12d => %v\n", "", ParseTimestamp_MinuteSeparatorMismatch, ParseTimestamp_MismatchedMinuteSeparators)
-	fmt.Fprintf(Stderr, "  no second             : %8s ~ %12d\n", "", ParseTimestamp_NoSecond)
-	fmt.Fprintf(Stderr, "  second out of range   : %8s ~ %12d\n", "", ParseTimestamp_SecondOutOfRange)
-	fmt.Fprintf(Stderr, "  has nanos             : %8s ~ %12d\n", percent(ParseTimestamp_HasNanos, ParseTimestamp_HasNanos+ParseTimestamp_HasNotNanos), ParseTimestamp_HasNanos)
-	fmt.Fprintf(Stderr, "  has not nanos         : %8s ~ %12d\n", percent(ParseTimestamp_HasNotNanos, ParseTimestamp_HasNanos+ParseTimestamp_HasNotNanos), ParseTimestamp_HasNotNanos)
+	fmt.Fprintf(Stderr, "  too short             : %8s ~ %14d\n", "", ParseTimestamp_LineTooShort)
+	fmt.Fprintf(Stderr, "  no digit              : %8s ~ %14d\n", "", ParseTimestamp_NoFirstDigit)
+	fmt.Fprintf(Stderr, "  too short after digit : %8s ~ %14d\n", "", ParseTimestamp_LineTooShortAfterFirstDigit)
+	fmt.Fprintf(Stderr, "  no year               : %8s ~ %14d\n", "", ParseTimestamp_NoYear)
+	fmt.Fprintf(Stderr, "  2-digit year 1900     : %8s ~ %14d\n", "", ParseTimestamp_2DigitYear_1900)
+	fmt.Fprintf(Stderr, "  2-digit year 2000     : %8s ~ %14d\n", "", ParseTimestamp_2DigitYear_2000)
+	fmt.Fprintf(Stderr, "  4-digit year out-range: %8s ~ %14d\n", "", ParseTimestamp_4DigitYear_OutOfRange)
+	fmt.Fprintf(Stderr, "  no month              : %8s ~ %14d\n", "", ParseTimestamp_NoMonth)
+	fmt.Fprintf(Stderr, "  month out of range    : %8s ~ %14d\n", "", ParseTimestamp_MonthOutOfRange)
+	fmt.Fprintf(Stderr, "  no day                : %8s ~ %14d\n", "", ParseTimestamp_NoDay)
+	fmt.Fprintf(Stderr, "  day out of range      : %8s ~ %14d\n", "", ParseTimestamp_DayOutOfRange)
+	fmt.Fprintf(Stderr, "  space operator mismtch: %8s ~ %14d\n", "", ParseTimestamp_SpaceOperatorMismatch)
+	fmt.Fprintf(Stderr, "  no hour               : %8s ~ %14d\n", "", ParseTimestamp_NoHour)
+	fmt.Fprintf(Stderr, "  hour out of range     : %8s ~ %14d\n", "", ParseTimestamp_HourOutOfRange)
+	fmt.Fprintf(Stderr, "  no hour separator     : %8s ~ %14d\n", "", ParseTimestamp_NoHourSeparator)
+	fmt.Fprintf(Stderr, "  hour separator mismtch: %8s ~ %14d => %v\n", "", ParseTimestamp_HourSeparatorMismatch, ParseTimestamp_MismatchedHourSeparators)
+	fmt.Fprintf(Stderr, "  no minute             : %8s ~ %14d\n", "", ParseTimestamp_NoMinute)
+	fmt.Fprintf(Stderr, "  minute out of range   : %8s ~ %14d\n", "", ParseTimestamp_MinuteOutOfRange)
+	fmt.Fprintf(Stderr, "  no minute separator   : %8s ~ %14d\n", "", ParseTimestamp_NoMinuteSeparator)
+	fmt.Fprintf(Stderr, "  minute sep. mismatch  : %8s ~ %14d => %v\n", "", ParseTimestamp_MinuteSeparatorMismatch, ParseTimestamp_MismatchedMinuteSeparators)
+	fmt.Fprintf(Stderr, "  no second             : %8s ~ %14d\n", "", ParseTimestamp_NoSecond)
+	fmt.Fprintf(Stderr, "  second out of range   : %8s ~ %14d\n", "", ParseTimestamp_SecondOutOfRange)
+	fmt.Fprintf(Stderr, "  has nanos             : %8s ~ %14d\n", percent(ParseTimestamp_HasNanos, ParseTimestamp_HasNanos+ParseTimestamp_HasNotNanos), ParseTimestamp_HasNanos)
+	fmt.Fprintf(Stderr, "  has not nanos         : %8s ~ %14d\n", percent(ParseTimestamp_HasNotNanos, ParseTimestamp_HasNanos+ParseTimestamp_HasNotNanos), ParseTimestamp_HasNotNanos)
 	fmt.Fprintf(Stderr, "  nanos length buckets\n")
 	ParseTimestamp_NanosLengths.printBuckets(ParseTimestamp_HasNanos)
-	fmt.Fprintf(Stderr, "  no timezone           : %8s ~ %12d\n", "", ParseTimestamp_NoTimezone)
-	fmt.Fprintf(Stderr, "  UTC timezone          : %8s ~ %12d\n", "", ParseTimestamp_UtcTimezone)
-	fmt.Fprintf(Stderr, "  non-UTC timezone      : %8s ~ %12d\n", "", ParseTimestamp_NonUtcTimezone)
-	fmt.Fprintf(Stderr, "  timezone early return : %8s ~ %12d\n", "", ParseTimestamp_TimezoneEarlyReturn)
-	fmt.Fprintf(Stderr, "  no timezone hour      : %8s ~ %12d\n", "", ParseTimestamp_NoTimezoneHour)
-	fmt.Fprintf(Stderr, "  tz hour out-range     : %8s ~ %12d\n", "", ParseTimestamp_TimezoneHourOutOfRange)
+	fmt.Fprintf(Stderr, "  no timezone           : %8s ~ %14d\n", "", ParseTimestamp_NoTimezone)
+	fmt.Fprintf(Stderr, "  UTC timezone          : %8s ~ %14d\n", "", ParseTimestamp_UtcTimezone)
+	fmt.Fprintf(Stderr, "  non-UTC timezone      : %8s ~ %14d\n", "", ParseTimestamp_NonUtcTimezone)
+	fmt.Fprintf(Stderr, "  timezone early return : %8s ~ %14d\n", "", ParseTimestamp_TimezoneEarlyReturn)
+	fmt.Fprintf(Stderr, "  no timezone hour      : %8s ~ %14d\n", "", ParseTimestamp_NoTimezoneHour)
+	fmt.Fprintf(Stderr, "  tz hour out-range     : %8s ~ %14d\n", "", ParseTimestamp_TimezoneHourOutOfRange)
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "===== FILE LIST ==================================================================================================================================================================\n")
 	fmt.Fprintf(Stderr, "File list (%d files):\n", len(MatchedFiles))
@@ -415,7 +429,7 @@ func printTreeNode(depth int, name string, n int64, nanoseconds int64, extra str
 	//goland:noinspection GoUnhandledErrorResult
 	fmt.Fprintf(
 		Stderr,
-		"%-*s%-*s : %8s ~ %12v ≈ %12v avg of %9v times = %12v %s\n",
+		"%-*s%-*s : %8s ~ %14v ≈ %12v avg of %9v times = %12v %s\n",
 		depth*2,
 		"",
 		padLen-depth*2,
@@ -436,12 +450,12 @@ func (b *BucketMetric) printBuckets(total int64) {
 		value := b.values[i]
 		cumulative += value
 		//goland:noinspection GoUnhandledErrorResult
-		fmt.Fprintf(Stderr, "    ≤ %-6d            : %8s ~ %12d ≈ %8s (cumulative)\n", level, percent(value, total), value, percent(cumulative, total))
+		fmt.Fprintf(Stderr, "    ≤ %-6d            : %8s ~ %14d ≈ %8s (cumulative)\n", level, percent(value, total), value, percent(cumulative, total))
 	}
 
 	remaining := total - cumulative
 	//goland:noinspection GoUnhandledErrorResult
-	fmt.Fprintf(Stderr, "    rest..              : %8s ~ %12d ≈ %8s (cumulative)\n", percent(remaining, total), remaining, percent(total, total))
+	fmt.Fprintf(Stderr, "    rest..              : %8s ~ %14d ≈ %8s (cumulative)\n", percent(remaining, total), remaining, percent(total, total))
 }
 
 func duration(d int64) time.Duration {

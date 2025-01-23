@@ -15,7 +15,9 @@ type InputFile struct {
 	SourceName         string
 	SourceNamePerBlock string
 	SourceNamePerLine  string
-	FileSize           int // TODO: unused
+	FileSize           int
+	BytesRead          int
+	Done               bool
 }
 
 func NewInputFile(file *os.File, sourceName string, bufferSize int) (*InputFile, error) {
@@ -39,23 +41,23 @@ func (r *InputFile) FillBuffer() error {
 		return nil
 	}
 
-	BytesRead += int64(n)
+	r.BytesRead += n
 	return err
 }
 
 func (r *InputFile) SkipLine() error {
 	var (
-		count                 = 0
-		n                     = 0
-		latestCharWasCR       = false
-		eol                   = None
-		err             error = nil
+		lineLengthWithoutEol       = 0
+		n                          = 0
+		latestCharWasCR            = false
+		eol                        = None
+		err                  error = nil
 	)
 
 	for !r.Buffer.IsEmpty() {
-		n, eol = r.Buffer.GetNextLineSliceLen(&latestCharWasCR)
-		r.Buffer.Skip(n)
-		count += n
+		n, eol = r.Buffer.SkipNextLineSlice(&latestCharWasCR)
+		lineLengthWithoutEol += n
+		BytesReadAndSkipped += int64(n)
 		if eol != None {
 			break
 		}
@@ -70,7 +72,6 @@ func (r *InputFile) SkipLine() error {
 		}
 	}
 
-	lineLengthWithoutEol := count
 	switch eol {
 	case None:
 	case CR, LF:

@@ -1,7 +1,4 @@
-- Treat Z as non-UTC timezone to handle mis-configured logs
-
 - Ensure all common log formats are supported
-- Optimize min heap implemention
 - Complete unit tests
 
 - Performance
@@ -10,7 +7,6 @@
     like quicksort, mergesort, or insertion sort.
   - Experiment splitting files into chunks and sorting and merging in multiple steps.
   - Read files concurrently -> Fill the read buffer while other parts of the program are processing the lines.
-  - Close files as soon as they are done
   - Take max open file descriptor limit into account. If there are too many files, we couldn't open all of them simultaneously.
     Consider using temporary intermediate files to store the sorted lines and merge them later using efficient algorithms
     like merge sort.
@@ -21,7 +17,6 @@
 - UX
   - Aggressively simplify the code so we can easily implement advanced algorithms and features in the future.
   - Use named return values to document code better and enjoy better autocomplete.
-  - Add a progress bar based on processed size and file count
   - Decide a standard naming for binaries across all projects - Research
   - Add method comments
   - Write README - Document exact behaviour (how timestamp-less lines combined together and sorted first etc)
@@ -33,7 +28,6 @@
   - Dry-run
   - Included / excluded paths
   - Including / excluding symlinks
-  - Opt out from adding log file name to the output
   - Opt out from adding standardized timestamp to the output
   - Opt in to add standardized log level to the output
   - Opt in to remove timestamp from raw line

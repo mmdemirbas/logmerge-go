@@ -113,7 +113,7 @@ func (r *RingBuffer) Fill(reader io.Reader) (count int, err error) {
 	return count, err
 }
 
-func (r *RingBuffer) GetNextLineSliceLen(latestCharWasCR *bool) (int, EOLType) {
+func (r *RingBuffer) SkipNextLineSlice(latestCharWasCR *bool) (int, EOLType) {
 	readIndex := r.readIndex
 	writeIndex := r.writeIndex
 	buf := r.buf
@@ -125,6 +125,7 @@ func (r *RingBuffer) GetNextLineSliceLen(latestCharWasCR *bool) (int, EOLType) {
 	if *latestCharWasCR {
 		*latestCharWasCR = false
 		if buf[readIndex] == '\n' {
+			r.Skip(1)
 			return 1, CRLF
 		}
 		return 0, CR
@@ -146,18 +147,23 @@ func (r *RingBuffer) GetNextLineSliceLen(latestCharWasCR *bool) (int, EOLType) {
 	}
 
 	if i == searchUntil {
+		r.Skip(searchUntil - readIndex)
 		return searchUntil - readIndex, None
 	}
 	if buf[i] == '\r' {
 		if i+1 == searchUntil {
 			*latestCharWasCR = true
+			r.Skip(searchUntil - readIndex)
 			return searchUntil - readIndex, None // EOL could be CR or CRLF
 		}
 		if buf[i+1] == '\n' {
+			r.Skip(i + 2 - readIndex)
 			return i + 2 - readIndex, CRLF
 		}
+		r.Skip(i + 1 - readIndex)
 		return i + 1 - readIndex, CR
 	}
+	r.Skip(i + 1 - readIndex)
 	return i + 1 - readIndex, LF
 }
 

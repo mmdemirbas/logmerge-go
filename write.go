@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 var (
@@ -30,7 +31,9 @@ func MergeFiles(inputPath string) error {
 	perFileBufferSize := max(TimestampSearchEndIndex, BufferSizeForRead/len(files))
 
 	readers := make([]*InputFile, len(files))
-	for i, file := range files {
+	readers = readers[:0]
+
+	for _, file := range files {
 		sourceName := ""
 		// TODO: Consider measuring overhead of each features separately (overheadOfWriteSourceNames etc)
 		if WriteSourceNamesPerBlock || WriteSourceNamesPerLine {
@@ -43,14 +46,15 @@ func MergeFiles(inputPath string) error {
 
 		f, err := os.Open(file)
 		if err != nil {
-			return fmt.Errorf("failed to open file %s: %v", file, err)
+			fmt.Fprintf(Stderr, "failed to open file %s: %v", file, err)
+			continue
 		}
 
 		reader, err := NewInputFile(f, sourceName, perFileBufferSize)
 		if err != nil {
 			return fmt.Errorf("failed to create reader for file %s: %v", file, err)
 		}
-		readers[i] = reader
+		readers = append(readers, reader)
 		defer reader.Close()
 	}
 
@@ -99,6 +103,41 @@ func MergeFiles(inputPath string) error {
 	}
 	MeasureSince(startTime)
 
+	go func() {
+		totalCount := len(readers)
+		totalSize := 0
+
+		for _, reader := range readers {
+			totalSize += reader.FileSize
+		}
+
+		totalCount100 := float64(totalCount) / 100
+		totalSize100 := float64(totalSize) / 100
+
+		totalCountString := count(int64(totalCount))
+		totalSizeString := bytes(int64(totalSize))
+
+		fmt.Fprintf(Stderr, "\n")
+
+		ticker := time.NewTicker(1 * time.Second)
+		for range ticker.C {
+			completedCount := 0
+			completedSize := 0
+			for _, reader := range readers {
+				if reader.Done {
+					completedSize += reader.FileSize
+					completedCount++
+				} else {
+					completedSize += reader.BytesRead
+				}
+			}
+			fmt.Fprintf(Stderr, "Progress: %.2f %% of data (%12s / %12s) - %.2f of files (%12s / %12s)\r",
+				float64(completedSize)/totalSize100, bytes(int64(completedSize)), totalSizeString,
+				float64(completedCount)/totalCount100, count(int64(completedCount)), totalCountString,
+			)
+		}
+	}()
+
 	// Merge logs
 	for h.Len() > 0 {
 		startTime := MeasureStart("HeapPop")
@@ -107,11 +146,11 @@ func MergeFiles(inputPath string) error {
 		HeapPopMetric.MeasureSince(startTime)
 
 		// TODO: Hand off writing to a separate goroutine responsible for writing to the output
-		processedLineCount := 0
+		skippedLineCount := 0
 
 		// Skip lines until finding an eligible line
 		for reader.TimestampParsed && reader.Timestamp.Before(MinTimestamp) {
-			processedLineCount++
+			skippedLineCount++
 			err := reader.SkipLine()
 			if err != nil {
 				return fmt.Errorf("failed to skip line from %s: %v", reader.File.Name(), err)
@@ -135,6 +174,7 @@ func MergeFiles(inputPath string) error {
 
 		shouldWriteSourceName := WriteSourceNamesPerBlock
 		successiveLineCount := 0
+		processedLineCount := 0
 
 		// Write lines until reaching the known bigger timestamp or a skip-line or the end of the file
 		for reader.TimestampParsed && !reader.Timestamp.After(effectiveMaxTimestamp) {
@@ -181,13 +221,25 @@ func MergeFiles(inputPath string) error {
 				successiveLineCount = 0
 			}
 		}
-		LinesRead += int64(processedLineCount)
+
+		LinesRead += int64(processedLineCount + skippedLineCount)
+		LinesReadAndSkipped += int64(skippedLineCount)
 
 		if reader.TimestampParsed && !reader.Timestamp.After(MaxTimestamp) {
-			// Put the current line to the heap
+			// Put the next entry to the heap
 			startTime = MeasureStart("HeapPush")
 			heap.Push(h, reader)
 			HeapPushMetric.MeasureSince(startTime)
+		} else {
+			// Close the file
+			err := reader.Close()
+			if err != nil {
+				fmt.Fprintf(Stderr, "failed to close file %s: %v", reader.File.Name(), err)
+			}
+			// Update metrics
+			BytesRead += int64(reader.BytesRead)
+			BytesNotRead += int64(reader.FileSize - reader.BytesRead)
+			reader.Done = true
 		}
 	}
 	return nil
