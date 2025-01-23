@@ -79,9 +79,7 @@ func (r *InputFile) SkipLine() error {
 		lineLengthWithoutEol -= 2
 	}
 
-	LinesRead++
 	LineLengths.UpdateBucketCount(lineLengthWithoutEol)
-
 	return nil
 }
 
@@ -147,7 +145,6 @@ func (r *InputFile) WriteLine(writer *bufio.Writer) error {
 		lineLengthWithoutEol -= 2
 	}
 
-	LinesRead++
 	BytesWrittenForRawData += int64(count)
 	LineLengths.UpdateBucketCount(lineLengthWithoutEol)
 

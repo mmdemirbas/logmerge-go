@@ -106,10 +106,12 @@ func MergeFileReaders(readers []*InputFile) error {
 		HeapPopMetric.MeasureSince(startTime)
 
 		// TODO: Hand off writing to a separate goroutine responsible for writing to the output
+		processedLineCount := 0
 
 		// Skip lines until finding an eligible line
 		timestamp := &reader.CurrentTimestamp
 		for timestamp != nil && timestamp.Before(MinTimestamp) {
+			processedLineCount++
 			err := reader.SkipLine()
 			if err != nil {
 				return fmt.Errorf("failed to skip line from %s: %v", reader.File.Name(), err)
@@ -184,21 +186,20 @@ func MergeFileReaders(readers []*InputFile) error {
 			if newTimestamp == nil || *newTimestamp != noTimestamp {
 				// Timestamp changed
 				timestamp = newTimestamp
+				processedLineCount += successiveLineCount
 				SuccessiveLineCounts.UpdateBucketCount(successiveLineCount)
 				successiveLineCount = 0
 			}
 		}
+		LinesRead += int64(processedLineCount)
 
-		if timestamp == nil || timestamp.After(MaxTimestamp) {
-			// File is done
-			continue
+		if timestamp != nil && !timestamp.After(MaxTimestamp) {
+			// Put the current line to the heap
+			startTime = MeasureStart("HeapPush")
+			reader.CurrentTimestamp = *timestamp
+			heap.Push(h, reader)
+			HeapPushMetric.MeasureSince(startTime)
 		}
-
-		// Put the current line to the heap
-		startTime = MeasureStart("HeapPush")
-		reader.CurrentTimestamp = *timestamp
-		heap.Push(h, reader)
-		HeapPushMetric.MeasureSince(startTime)
 	}
 	MeasureSince(startTime)
 	return nil

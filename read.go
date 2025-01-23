@@ -283,6 +283,7 @@ func ParseTimestamp(buffer []byte) time.Time {
 	return time.Date(year, time.Month(month), day, hour, minute, second, nsec, utc)
 }
 
+// TODO consider inlining or improving parseDigits performance
 func parseDigits(buffer []byte, n int, i *int, maxCount int) (val, count int) {
 	end := *i + maxCount
 	if end > n {

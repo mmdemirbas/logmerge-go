@@ -6,6 +6,9 @@ import (
 	"time"
 )
 
+// TODO: Consider sampling metrics (e.g. measure per 1000 lines instead of every single line)
+// TODO: Consider batching metrics (e.g. accumulate data locally per 1000 lines, then merge to the global metrics)
+
 var (
 	// File count stats
 
@@ -41,6 +44,7 @@ var (
 
 	// Line count stats
 
+	// TODO: Add SkippedLinesCount, SkippedBytesCount etc. to get better insights into filtered results
 	LinesRead              int64
 	LinesWithTimestamps    int64
 	LinesWithoutTimestamps int64
@@ -176,6 +180,7 @@ type TreeNode struct {
 var metricsTree = &TreeNode{Name: "Metrics Tree", Metric: CallMetric{CallCount: 1}}
 var currentTreeNode = metricsTree
 
+// TODO: Optimize metrics collection
 func enterContext(name string) {
 	// Do as less work as possible since this is not measured
 	children := currentTreeNode.ChildrenByName
@@ -252,18 +257,6 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, inputPath stri
 	fmt.Fprintf(Stderr, "ExcludedLenientSuffixes : %v\n", ExcludedLenientSuffixes)
 	fmt.Fprintf(Stderr, "IncludedLenientSuffixes : %v\n", IncludedLenientSuffixes)
 	fmt.Fprintf(Stderr, "\n")
-	fmt.Fprintf(Stderr, "===== METRICS SUMMARY ============================================================================================================================================================\n")
-	printTreeNode(0, "ListFiles", 1, ListFilesDuration, bytesSpeed(FilesScanned, ListFilesDuration))
-	FillBufferMetric.printTreeNode("FillBuffer", bytesSpeed(BytesRead, ProcessDuration))
-	BufferAsSliceMetric.printTreeNode("BufferAsSlice", countSpeed(LinesRead, ProcessDuration))
-	ParseTimestampMetric.printTreeNode("ParseTimestamp", countSpeed(LinesRead, ProcessDuration))
-	PeekNextLineSliceMetric.printTreeNode("PeekNextLineSlice", countSpeed(LinesRead, ProcessDuration))
-	WriteOutputMetric.printTreeNode("WriteOutput", bytesSpeed(writtenBytes, ProcessDuration))
-	printTreeNode(0, "MetricsOverhead", MetricsCalls, MetricsOverheadAvg*MetricsCalls, "")
-	fmt.Fprintf(Stderr, "\n")
-	fmt.Fprintf(Stderr, "===== METRICS TREE ===============================================================================================================================================================\n")
-	printTree(metricsTree, 0)
-	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "===== RUNTIME STATS ==============================================================================================================================================================\n")
 	MemStats := runtime.MemStats{}
 	runtime.ReadMemStats(&MemStats)
@@ -299,11 +292,23 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, inputPath stri
 	fmt.Fprintf(Stderr, "Allocated other system allocations   : %12v = %10s\n", MemStats.OtherSys, bytes(int64(MemStats.OtherSys)))
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "Target heap size of the next GC cycle: %12v = %10s\n", MemStats.NextGC, bytes(int64(MemStats.NextGC)))
-	fmt.Fprintf(Stderr, "Last GC finish time                  : %12v = %10s\n", MemStats.LastGC, time.Unix(0, int64(MemStats.LastGC)).Format(time.RFC3339Nano))
+	fmt.Fprintf(Stderr, "Last GC finish time                  : %s\n", time.Unix(0, int64(MemStats.LastGC)).Format(time.RFC3339Nano))
 	fmt.Fprintf(Stderr, "GC pause duration                    : %12v = %10s\n", MemStats.PauseTotalNs, duration(int64(MemStats.PauseTotalNs)))
 	fmt.Fprintf(Stderr, "Number of completed GC cycles        : %12v = %10s\n", MemStats.NumGC, count(int64(MemStats.NumGC)))
 	fmt.Fprintf(Stderr, "Number of forced GC cycles by app    : %12v = %10s\n", MemStats.NumForcedGC, count(int64(MemStats.NumForcedGC)))
 	fmt.Fprintf(Stderr, "GCCPUFraction                        : %12v = %10s\n", MemStats.GCCPUFraction, percent(int64(MemStats.GCCPUFraction*(1<<30)), 1<<30))
+	fmt.Fprintf(Stderr, "\n")
+	fmt.Fprintf(Stderr, "===== METRICS SUMMARY ============================================================================================================================================================\n")
+	printTreeNode(0, "ListFiles", 1, ListFilesDuration, bytesSpeed(FilesScanned, ListFilesDuration))
+	FillBufferMetric.printTreeNode("FillBuffer", bytesSpeed(BytesRead, ProcessDuration))
+	BufferAsSliceMetric.printTreeNode("BufferAsSlice", countSpeed(LinesRead, ProcessDuration))
+	ParseTimestampMetric.printTreeNode("ParseTimestamp", countSpeed(LinesRead, ProcessDuration))
+	PeekNextLineSliceMetric.printTreeNode("PeekNextLineSlice", countSpeed(LinesRead, ProcessDuration))
+	WriteOutputMetric.printTreeNode("WriteOutput", bytesSpeed(writtenBytes, ProcessDuration))
+	printTreeNode(0, "MetricsOverhead", MetricsCalls, MetricsOverheadAvg*MetricsCalls, "")
+	fmt.Fprintf(Stderr, "\n")
+	fmt.Fprintf(Stderr, "===== METRICS TREE ===============================================================================================================================================================\n")
+	printTree(metricsTree, 0)
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "===== METRIC DETAILS =============================================================================================================================================================\n")
 	fmt.Fprintf(Stderr, "File count stats\n")
