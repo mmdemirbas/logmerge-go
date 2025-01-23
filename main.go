@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"runtime"
 	"runtime/pprof"
 	"time"
 )
@@ -15,7 +14,6 @@ var (
 
 	DisableMetricsCollection = false
 	EnableProfiling          = os.Getenv("ENABLE_PPROF") == "true"
-	EnableMemStats           = true
 
 	WriteSourceNamesPerBlock = false
 	WriteSourceNamesPerLine  = true
@@ -126,14 +124,6 @@ func main() {
 		}
 		MeasureSince(startTime)
 	}
-
-	if EnableMemStats {
-		MemStatsAfter := runtime.MemStats{}
-		runtime.GC()
-		runtime.ReadMemStats(&MemStatsAfter)
-		fmt.Fprintf(Stderr, "MemStatsAfter: %+v\n", MemStatsAfter)
-	}
-
 	TotalMainDuration = MeasureSince(startTimeMain)
 
 	if !DisableMetricsCollection {
@@ -150,8 +140,6 @@ func main() {
 	PrintMetrics(programStartTime, elapsedTime, inputPath, err)
 
 	if err != nil {
-		//goland:noinspection GoUnhandledErrorResult
-		fmt.Fprintf(Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
