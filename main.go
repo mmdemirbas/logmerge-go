@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"runtime/pprof"
 	"time"
 )
@@ -14,17 +15,19 @@ var (
 
 	DisableMetricsCollection = false
 	EnableProfiling          = os.Getenv("ENABLE_PPROF") == "true"
+	EnableMemStats           = true
 
 	WriteSourceNamesPerBlock = false
 	WriteSourceNamesPerLine  = true
 	WriteTimestampPerLine    = true
 
-	MinTimestamp = time.Time{}
+	MinTimestamp = noTimestamp
 	MaxTimestamp = time.Date(9999, 12, 31, 23, 59, 59, 999999999, time.UTC)
 
 	ShortestTimestampLen    = 15
 	TimestampSearchEndIndex = 250
 
+	// TODO: Make Read buffer size total, not per file
 	ReaderBufferSize = max(TimestampSearchEndIndex, 1024*128) // per file
 	WriterBufferSize = 1024 * 1024 * 100
 
@@ -105,9 +108,7 @@ func main() {
 	}
 	MeasureSince(startTime)
 
-	startTime = MeasureStart("MergeFiles")
 	err = MergeFiles(inputPath)
-	ProcessDuration = MeasureSince(startTime)
 
 	if EnableProfiling {
 		startTime = MeasureStart("MemProfile")
@@ -124,6 +125,13 @@ func main() {
 			}
 		}
 		MeasureSince(startTime)
+	}
+
+	if EnableMemStats {
+		MemStatsAfter := runtime.MemStats{}
+		runtime.GC()
+		runtime.ReadMemStats(&MemStatsAfter)
+		fmt.Fprintf(Stderr, "MemStatsAfter: %+v\n", MemStatsAfter)
 	}
 
 	TotalMainDuration = MeasureSince(startTimeMain)

@@ -14,7 +14,6 @@ var (
 )
 
 func MergeFiles(inputPath string) error {
-	// Find files to process
 	startTime := MeasureStart("ListFiles")
 	files, err := ListFiles(inputPath)
 	ListFilesDuration = MeasureSince(startTime)
@@ -92,7 +91,7 @@ func MergeFileReaders(readers []*InputFile) error {
 		}
 		if timestamp != nil {
 			startTime = MeasureStart("HeapPush")
-			reader.CurrentTimestamp = timestamp
+			reader.CurrentTimestamp = *timestamp
 			heap.Push(h, reader)
 			HeapPushMetric.MeasureSince(startTime)
 		}
@@ -109,7 +108,7 @@ func MergeFileReaders(readers []*InputFile) error {
 		// TODO: Hand off writing to a separate goroutine responsible for writing to the output
 
 		// Skip lines until finding an eligible line
-		timestamp := reader.CurrentTimestamp
+		timestamp := &reader.CurrentTimestamp
 		for timestamp != nil && timestamp.Before(MinTimestamp) {
 			err := reader.SkipLine()
 			if err != nil {
@@ -133,17 +132,19 @@ func MergeFileReaders(readers []*InputFile) error {
 			continue
 		}
 
-		var effectiveMaxTimestamp = &MaxTimestamp
+		var effectiveMaxTimestamp time.Time
 		nextReader := h.Peek()
-		if nextReader != nil && effectiveMaxTimestamp.After(*nextReader.CurrentTimestamp) {
+		if nextReader != nil && nextReader.CurrentTimestamp.Before(MaxTimestamp) {
 			effectiveMaxTimestamp = nextReader.CurrentTimestamp
+		} else {
+			effectiveMaxTimestamp = MaxTimestamp
 		}
 
 		shouldWriteSourceName := WriteSourceNamesPerBlock
 		successiveLineCount := 0
 
 		// Write lines until reaching the known bigger timestamp or a skip-line or the end of the file
-		for timestamp != nil && !timestamp.After(*effectiveMaxTimestamp) {
+		for timestamp != nil && !timestamp.After(effectiveMaxTimestamp) {
 			if shouldWriteSourceName {
 				shouldWriteSourceName = false
 				startTime = MeasureStart("WriteSourceNamePerBlock")
@@ -155,11 +156,14 @@ func MergeFileReaders(readers []*InputFile) error {
 				}
 			}
 
-			startTime = MeasureStart("WriteLine")
-			timestampToWrite := timestamp
-			if successiveLineCount > 0 {
+			var timestampToWrite *time.Time
+			if successiveLineCount != 0 {
 				timestampToWrite = &noTimestamp
+			} else {
+				timestampToWrite = timestamp
 			}
+
+			startTime = MeasureStart("WriteLine")
 			err := writeLine(writer, timestampToWrite, reader)
 			successiveLineCount++
 			MeasureSince(startTime)
@@ -192,7 +196,7 @@ func MergeFileReaders(readers []*InputFile) error {
 
 		// Put the current line to the heap
 		startTime = MeasureStart("HeapPush")
-		reader.CurrentTimestamp = timestamp
+		reader.CurrentTimestamp = *timestamp
 		heap.Push(h, reader)
 		HeapPushMetric.MeasureSince(startTime)
 	}

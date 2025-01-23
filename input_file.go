@@ -11,7 +11,7 @@ import (
 type InputFile struct {
 	File               *os.File
 	Buffer             *RingBuffer
-	CurrentTimestamp   *time.Time
+	CurrentTimestamp   time.Time
 	SourceName         string
 	SourceNamePerBlock string
 	SourceNamePerLine  string

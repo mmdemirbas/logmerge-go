@@ -66,7 +66,7 @@ run run_name="default":
     mkdir -p {{ LOG_DIR }} {{ BIN_DIR }} {{ OUT_DIR }}
     go build -ldflags="-s -w" -o {{ BIN_DIR }}/{{ BINARY_NAME }} *.go
     {{ BIN_DIR }}/{{ BINARY_NAME }} {{ RUN_ARGS }} \
-        > {{ OUT_DIR }}/output.log \
+        > {{ OUT_DIR }}/stdout.log \
         2> {{ LOG_DIR }}/{{ run_name }}.err
 
 #    go run $(ls *.go | grep -v _test.go) {{ RUN_ARGS }}
@@ -75,6 +75,11 @@ run run_name="default":
 [group("run")]
 profile run_name="default":
     ENABLE_PPROF=true just run {{ run_name }}
+
+# Run application with profiling and capture CPU and memory profiles
+[group("run")]
+trace run_name="default":
+    GODEBUG=gctrace=1 just run {{ run_name }}
 
 # Browse captured CPU profile in a web browser
 [group("inspect")]

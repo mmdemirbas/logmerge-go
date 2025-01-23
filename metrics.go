@@ -232,6 +232,7 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, inputPath stri
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "DisableMetricsCollection: %v\n", DisableMetricsCollection)
 	fmt.Fprintf(Stderr, "EnableProfiling         : %v\n", EnableProfiling)
+	fmt.Fprintf(Stderr, "EnableMemStats          : %v\n", EnableMemStats)
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "WriteSourceNamesPerBlock: %v\n", WriteSourceNamesPerBlock)
 	fmt.Fprintf(Stderr, "WriteSourceNamesPerLine : %v\n", WriteSourceNamesPerLine)
