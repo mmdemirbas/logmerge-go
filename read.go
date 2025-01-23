@@ -2,29 +2,30 @@ package main
 
 import (
 	"fmt"
-	"time"
 )
 
 var (
 	// Return the minimum time for the lines with no timestamp, so that those lines are listed first.
 	// Otherwise, we could miss the correct order for the upcoming lines with timestamps.
-	noTimestamp = time.Time{}
+	noTimestamp = MyTime(0)
 
 	timestampBuffer = make([]byte, 0, TimestampSearchEndIndex)
 )
 
-func ReadTimestamp(reader *InputFile) (*time.Time, error) {
+func UpdateTimestamp(reader *InputFile) error {
 	bufLen := reader.Buffer.Len()
 	if bufLen < TimestampSearchEndIndex {
 		startTime := MeasureStart("FillBuffer")
 		err := reader.FillBuffer()
 		if err != nil {
-			return nil, fmt.Errorf("failed to fill buffer: %v", err)
+			reader.TimestampParsed = false
+			return fmt.Errorf("failed to fill buffer: %v", err)
 		}
 		FillBufferMetric.MeasureSince(startTime)
 
 		if bufLen == 0 && reader.Buffer.IsEmpty() {
-			return nil, nil
+			reader.TimestampParsed = false
+			return nil
 		}
 	}
 
@@ -42,10 +43,18 @@ func ReadTimestamp(reader *InputFile) (*time.Time, error) {
 		LinesWithTimestamps++
 	}
 
-	return &timestamp, nil
+	reader.TimestampParsed = true
+	reader.Timestamp = timestamp
+	return nil
 }
 
-func ParseTimestamp(buffer []byte) time.Time {
+func ParseTimestamp(buffer []byte) MyTime {
+	defer func() {
+		if r := recover(); r != nil {
+			//goland:noinspection GoUnhandledErrorResult
+			fmt.Fprintf(Stderr, "ParseTimestamp: Recovered from panic: %v. Buffer: %s\n", r, buffer)
+		}
+	}()
 	// TODO: What if we have digits before the actual timestamp?
 	//   In this case, we should skip non-digits after the first digit and try parsing from there.
 
@@ -204,8 +213,7 @@ func ParseTimestamp(buffer []byte) time.Time {
 	}
 
 	var nsec int
-	b = buffer[i]
-	if i < n && (b == '.' || b == ',') {
+	if i < n && (buffer[i] == '.' || buffer[i] == ',') {
 		ParseTimestamp_HasNanos++
 		i++
 		var ncount int
@@ -220,7 +228,10 @@ func ParseTimestamp(buffer []byte) time.Time {
 		ParseTimestamp_HasNotNanos++
 	}
 
-	utc := time.UTC
+	//utc := time.UTC
+	tzSign := 0
+	tzHour := 0
+	tzMin := 0
 	if i < n {
 		b = buffer[i]
 		switch b {
@@ -231,7 +242,7 @@ func ParseTimestamp(buffer []byte) time.Time {
 			break
 		case '+', '-':
 			ParseTimestamp_NonUtcTimezone++
-			sign := int(',') - int(b)
+			tzSign = int(',') - int(b)
 			i++
 
 			if i+2 > n {
@@ -239,7 +250,7 @@ func ParseTimestamp(buffer []byte) time.Time {
 				break
 			}
 
-			tzHour, hcount := parseDigits(buffer, n, &i, 2)
+			tzHour, hcount = parseDigits(buffer, n, &i, 2)
 			if hcount == 0 {
 				ParseTimestamp_NoTimezoneHour++
 				break
@@ -249,16 +260,12 @@ func ParseTimestamp(buffer []byte) time.Time {
 				break
 			}
 
-			tzMin := 0
+			tzMin = 0
 			if i < n && buffer[i] == ':' {
 				i++
 				if i+2 <= n {
 					tzMin, _ = parseDigits(buffer, n, &i, 2)
 				}
-			}
-
-			if tzHour != 0 || tzMin != 0 {
-				utc = time.FixedZone("", sign*(tzHour*3600+tzMin*60))
 			}
 
 		default:
@@ -279,8 +286,7 @@ func ParseTimestamp(buffer []byte) time.Time {
 	ParseTimestamp_MaxTimestampLength = max(ParseTimestamp_MaxTimestampLength, timestampLen)
 	ParseTimestamp_Lenghts.UpdateBucketCount(timestampLen)
 
-	// TODO: Consider re-using an existing memory area to avoid allocations
-	return time.Date(year, time.Month(month), day, hour, minute, second, nsec, utc)
+	return NewMyTime(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin)
 }
 
 // TODO consider inlining or improving parseDigits performance

@@ -4,7 +4,7 @@ package main
 type MinHeap []*InputFile
 
 func (h MinHeap) Len() int           { return len(h) }
-func (h MinHeap) Less(i, j int) bool { return h[i].CurrentTimestamp.Before(h[j].CurrentTimestamp) }
+func (h MinHeap) Less(i, j int) bool { return h[i].Timestamp.Before(h[j].Timestamp) }
 func (h MinHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 func (h *MinHeap) Push(x interface{}) {
 	*h = append(*h, x.(*InputFile))

@@ -20,7 +20,7 @@ var (
 	WriteTimestampPerLine    = true
 
 	MinTimestamp = noTimestamp
-	MaxTimestamp = time.Date(9999, 12, 31, 23, 59, 59, 999999999, time.UTC)
+	MaxTimestamp = MyTime(1<<63 - 1)
 
 	ShortestTimestampLen    = 15
 	TimestampSearchEndIndex = 250
@@ -47,9 +47,6 @@ func main() {
 
 	// Enable profiling only if configured
 	if EnableProfiling {
-		//goland:noinspection GoUnhandledErrorResult
-		fmt.Fprintf(Stderr, "Profiling enabled\n")
-
 		// Start CPU profiling
 		cpuFile, err := os.Create("out/cpu.prof")
 		if err != nil {

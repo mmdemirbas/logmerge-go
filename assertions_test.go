@@ -6,15 +6,20 @@ import (
 
 import "reflect"
 
+const (
+	expectedFormat    = "\nExpected: <%v> (%T)\nActual  : <%v> (%T)"
+	notExpectedFormat = "\nNot expected: <%v> (%T)\nActual      : <%v> (%T)"
+)
+
 func assertEquals(t *testing.T, expected, actual any) {
 	if !isDeepEqual(expected, actual) {
-		t.Errorf("\nExpected: <%v> (%T)\nActual  : <%v> (%T)", expected, expected, actual, actual)
+		t.Errorf(expectedFormat, expected, expected, actual, actual)
 	}
 }
 
 func assertNotEquals(t *testing.T, expected, actual any) {
 	if isDeepEqual(expected, actual) {
-		t.Errorf("\nNot expected: <%v> (%T)\nActual      : <%v> (%T)", expected, expected, actual, actual)
+		t.Errorf(notExpectedFormat, expected, expected, actual, actual)
 	}
 }
 

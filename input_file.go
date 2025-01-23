@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 )
 
 type InputFile struct {
 	File               *os.File
 	Buffer             *RingBuffer
-	CurrentTimestamp   time.Time
+	TimestampParsed    bool
+	Timestamp          MyTime
 	SourceName         string
 	SourceNamePerBlock string
 	SourceNamePerLine  string

@@ -6,14 +6,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 )
 
 var (
-	space36 = []byte("                                    ")
+	space30 = []byte("                              ")
 )
 
 func MergeFiles(inputPath string) error {
+	defer func() {
+		if r := recover(); r != nil {
+			//goland:noinspection GoUnhandledErrorResult
+			fmt.Fprintf(Stderr, "MergeFiles: Recovered from panic: %v\n", r)
+		}
+	}()
+
 	files, err := ListFiles(inputPath)
 
 	MatchedFiles = files
@@ -68,10 +74,6 @@ func MergeFiles(inputPath string) error {
 		}
 	}
 
-	return MergeFileReaders(readers)
-}
-
-func MergeFileReaders(readers []*InputFile) error {
 	writer := bufio.NewWriterSize(Stdout, BufferSizeForWrite)
 	defer writer.Flush()
 
@@ -82,16 +84,15 @@ func MergeFileReaders(readers []*InputFile) error {
 
 	// Populate heap with the first entry from each file
 	for _, reader := range readers {
-		startTime := MeasureStart("ReadTimestamp")
-		timestamp, err := ReadTimestamp(reader)
+		startTime := MeasureStart("UpdateTimestamp")
+		err := UpdateTimestamp(reader)
 		MeasureSince(startTime)
 
 		if err != nil {
 			return fmt.Errorf("failed to read line prefix from %s: %v", reader.File.Name(), err)
 		}
-		if timestamp != nil {
+		if reader.TimestampParsed {
 			startTime = MeasureStart("HeapPush")
-			reader.CurrentTimestamp = *timestamp
 			heap.Push(h, reader)
 			HeapPushMetric.MeasureSince(startTime)
 		}
@@ -102,41 +103,32 @@ func MergeFileReaders(readers []*InputFile) error {
 	for h.Len() > 0 {
 		startTime := MeasureStart("HeapPop")
 		reader := heap.Pop(h).(*InputFile)
+		nextReader := h.Peek()
 		HeapPopMetric.MeasureSince(startTime)
 
 		// TODO: Hand off writing to a separate goroutine responsible for writing to the output
 		processedLineCount := 0
 
 		// Skip lines until finding an eligible line
-		timestamp := &reader.CurrentTimestamp
-		for timestamp != nil && timestamp.Before(MinTimestamp) {
+		for reader.TimestampParsed && reader.Timestamp.Before(MinTimestamp) {
 			processedLineCount++
 			err := reader.SkipLine()
 			if err != nil {
 				return fmt.Errorf("failed to skip line from %s: %v", reader.File.Name(), err)
 			}
 
-			startTime = MeasureStart("ReadTimestamp")
-			newTimestamp, err := ReadTimestamp(reader)
+			startTime = MeasureStart("UpdateTimestamp")
+			err = UpdateTimestamp(reader)
 			MeasureSince(startTime)
 
 			if err != nil {
 				return fmt.Errorf("failed to read line prefix from %s: %v", reader.File.Name(), err)
 			}
-			if newTimestamp == nil || *newTimestamp != noTimestamp {
-				timestamp = newTimestamp
-			}
 		}
 
-		if timestamp == nil || timestamp.After(MaxTimestamp) {
-			// File is done
-			continue
-		}
-
-		var effectiveMaxTimestamp time.Time
-		nextReader := h.Peek()
-		if nextReader != nil && nextReader.CurrentTimestamp.Before(MaxTimestamp) {
-			effectiveMaxTimestamp = nextReader.CurrentTimestamp
+		var effectiveMaxTimestamp MyTime
+		if nextReader != nil && nextReader.Timestamp.Before(MaxTimestamp) {
+			effectiveMaxTimestamp = nextReader.Timestamp
 		} else {
 			effectiveMaxTimestamp = MaxTimestamp
 		}
@@ -145,7 +137,7 @@ func MergeFileReaders(readers []*InputFile) error {
 		successiveLineCount := 0
 
 		// Write lines until reaching the known bigger timestamp or a skip-line or the end of the file
-		for timestamp != nil && !timestamp.After(effectiveMaxTimestamp) {
+		for reader.TimestampParsed && !reader.Timestamp.After(effectiveMaxTimestamp) {
 			if shouldWriteSourceName {
 				shouldWriteSourceName = false
 				startTime = MeasureStart("WriteSourceNamePerBlock")
@@ -157,11 +149,11 @@ func MergeFileReaders(readers []*InputFile) error {
 				}
 			}
 
-			var timestampToWrite *time.Time
+			var timestampToWrite MyTime
 			if successiveLineCount != 0 {
-				timestampToWrite = &noTimestamp
+				timestampToWrite = noTimestamp
 			} else {
-				timestampToWrite = timestamp
+				timestampToWrite = reader.Timestamp
 			}
 
 			startTime = MeasureStart("WriteLine")
@@ -174,17 +166,16 @@ func MergeFileReaders(readers []*InputFile) error {
 			}
 
 			// Aggregate lines until finding a timestamped line from the same source
-			startTime = MeasureStart("ReadTimestamp")
-			newTimestamp, err := ReadTimestamp(reader)
+			startTime = MeasureStart("UpdateTimestamp")
+			err = UpdateTimestamp(reader)
 			MeasureSince(startTime)
 
 			if err != nil {
 				return fmt.Errorf("failed to read line prefix from %s: %v", reader.File.Name(), err)
 			}
 
-			if newTimestamp == nil || *newTimestamp != noTimestamp {
-				// Timestamp changed
-				timestamp = newTimestamp
+			if !reader.TimestampParsed || reader.Timestamp != noTimestamp {
+				// Timestamp changed or file ended
 				processedLineCount += successiveLineCount
 				SuccessiveLineCounts.UpdateBucketCount(successiveLineCount)
 				successiveLineCount = 0
@@ -192,10 +183,9 @@ func MergeFileReaders(readers []*InputFile) error {
 		}
 		LinesRead += int64(processedLineCount)
 
-		if timestamp != nil && !timestamp.After(MaxTimestamp) {
+		if reader.TimestampParsed && !reader.Timestamp.After(MaxTimestamp) {
 			// Put the current line to the heap
 			startTime = MeasureStart("HeapPush")
-			reader.CurrentTimestamp = *timestamp
 			heap.Push(h, reader)
 			HeapPushMetric.MeasureSince(startTime)
 		}
@@ -203,36 +193,25 @@ func MergeFileReaders(readers []*InputFile) error {
 	return nil
 }
 
-func writeLine(writer *bufio.Writer, timestamp *time.Time, reader *InputFile) error {
+func writeLine(writer *bufio.Writer, timestamp MyTime, reader *InputFile) error {
 	if WriteTimestampPerLine {
 		startTime := MeasureStart("WriteTimestamp")
-		if *timestamp == noTimestamp {
-			n, err := writer.Write(space36)
-			BytesWrittenForTimestamps += int64(n)
-			if err != nil {
-				return fmt.Errorf("failed to write timestamp padding: %v", err)
-			}
+		var toWrite []byte
+		if timestamp == noTimestamp {
+			toWrite = space30
 		} else {
-			// TODO: Consider optimizing time formatting
-			startTime := MeasureStart("AppendFormat")
-			n, err := writer.WriteString(timestamp.Format(time.RFC3339Nano))
-			MeasureSince(startTime)
+			toWrite = []byte(timestamp.String())
+		}
 
-			BytesWrittenForTimestamps += int64(n)
-			if err != nil {
+		n, err := writer.Write(toWrite)
+		if err != nil {
+			if timestamp == noTimestamp {
+				return fmt.Errorf("failed to write timestamp padding: %v", err)
+			} else {
 				return fmt.Errorf("failed to write timestamp: %v", err)
 			}
-
-			if delta := 35 - n; delta > 0 {
-				startTime = MeasureStart("AppendFormatPadding")
-				n, err = writer.Write(space36[:delta])
-				if err != nil {
-					return fmt.Errorf("failed to write timestamp padding: %v", err)
-				}
-				MeasureSince(startTime)
-				BytesWrittenForTimestamps += int64(n)
-			}
 		}
+		BytesWrittenForTimestamps += int64(n)
 		WriteOutputMetric.MeasureSince(startTime)
 	}
 	if WriteSourceNamesPerLine {

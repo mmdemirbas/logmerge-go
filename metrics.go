@@ -20,7 +20,6 @@ var (
 	// Timing stats (nanoseconds)
 
 	TotalMainDuration int64
-	ListFilesDuration int64
 	ProcessDuration   int64
 
 	FillBufferMetric        CallMetric
@@ -109,7 +108,7 @@ var (
 
 func MeasureStart(name string) time.Time {
 	if DisableMetricsCollection {
-		return noTimestamp
+		return time.Time{}
 	}
 	enterContext(name)
 	return time.Now()
@@ -242,8 +241,8 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, inputPath stri
 	fmt.Fprintf(Stderr, "WriteSourceNamesPerLine : %v\n", WriteSourceNamesPerLine)
 	fmt.Fprintf(Stderr, "WriteTimestampPerLine   : %v\n", WriteTimestampPerLine)
 	fmt.Fprintf(Stderr, "\n")
-	fmt.Fprintf(Stderr, "MinTimestamp            : %12v\n", MinTimestamp.Format(time.RFC3339Nano))
-	fmt.Fprintf(Stderr, "MaxTimestamp            : %12v\n", MaxTimestamp.Format(time.RFC3339Nano))
+	fmt.Fprintf(Stderr, "MinTimestamp            : %12v\n", MinTimestamp.String())
+	fmt.Fprintf(Stderr, "MaxTimestamp            : %12v\n", MaxTimestamp.String())
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "ShortestTimestampLen    : %12v = %10s\n", ShortestTimestampLen, bytes(int64(ShortestTimestampLen)))
 	fmt.Fprintf(Stderr, "TimestampSearchEndIndex : %12v = %10s\n", TimestampSearchEndIndex, bytes(int64(TimestampSearchEndIndex)))
@@ -298,7 +297,6 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, inputPath stri
 	fmt.Fprintf(Stderr, "GCCPUFraction                        : %.2f / %s\n", MemStats.GCCPUFraction*1_000_000, "1_000_000")
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "===== METRICS SUMMARY ============================================================================================================================================================\n")
-	printTreeNode(0, "ListFiles", 1, ListFilesDuration, bytesSpeed(FilesScanned, ListFilesDuration))
 	FillBufferMetric.printTreeNode("FillBuffer", bytesSpeed(BytesRead, ProcessDuration))
 	BufferAsSliceMetric.printTreeNode("BufferAsSlice", countSpeed(LinesRead, ProcessDuration))
 	ParseTimestampMetric.printTreeNode("ParseTimestamp", countSpeed(LinesRead, ProcessDuration))
@@ -312,7 +310,7 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, inputPath stri
 	fmt.Fprintf(Stderr, "===== METRIC DETAILS =============================================================================================================================================================\n")
 	fmt.Fprintf(Stderr, "File count stats\n")
 	fmt.Fprintf(Stderr, "  dirs scanned          : %8s ~ %12d\n", "", DirsScanned)
-	fmt.Fprintf(Stderr, "  files scanned         : %8s ~ %12d ≈ %10s\n", percent(FilesScanned, FilesScanned), FilesScanned, countSpeed(FilesScanned, ListFilesDuration))
+	fmt.Fprintf(Stderr, "  files scanned         : %8s ~ %12d\n", percent(FilesScanned, FilesScanned), FilesScanned)
 	fmt.Fprintf(Stderr, "  files matched         : %8s ~ %12d\n", percent(FilesMatched, FilesScanned), FilesMatched)
 	fmt.Fprintf(Stderr, "Byte count stats\n")
 	fmt.Fprintf(Stderr, "  bytes read            : %8s ~ %12d = %10s ≈ %s\n", "", BytesRead, bytes(BytesRead), bytesSpeed(BytesRead, ProcessDuration))
