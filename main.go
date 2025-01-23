@@ -19,8 +19,9 @@ var (
 	WriteSourceNamesPerLine  = true
 	WriteTimestampPerLine    = true
 
-	MinTimestamp = noTimestamp
-	MaxTimestamp = MyTime(1<<63 - 1)
+	MinTimestamp       = noTimestamp
+	MaxTimestamp       = MyTime(1<<63 - 1)
+	IgnoreTimezoneInfo = false
 
 	ShortestTimestampLen    = 15
 	TimestampSearchEndIndex = 250

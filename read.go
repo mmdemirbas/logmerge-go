@@ -228,11 +228,11 @@ func ParseTimestamp(buffer []byte) MyTime {
 		ParseTimestamp_HasNotNanos++
 	}
 
-	//utc := time.UTC
 	tzSign := 0
 	tzHour := 0
 	tzMin := 0
-	if i < n {
+
+	if !IgnoreTimezoneInfo && i < n {
 		b = buffer[i]
 		switch b {
 		case 'Z':
