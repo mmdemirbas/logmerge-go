@@ -1,6 +1,6 @@
 InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/"
 OutputPath: "/Users/md/dev/mmdemirbas/logmerge/out/stdout.log"
-LogPath: "/Users/md/dev/mmdemirbas/logmerge/log/94-before-heap-pop.err"
+LogPath: "/Users/md/dev/mmdemirbas/logmerge/log/95-after-heap-pop.err"
 
 DisableMetricsCollection: false
 EnableProfiling: false

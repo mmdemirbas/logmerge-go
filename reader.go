@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-type InputFile struct {
+type FileReader struct {
 	File               *os.File
 	Buffer             *RingBuffer
 	TimestampParsed    bool
@@ -20,13 +20,13 @@ type InputFile struct {
 	Done               bool
 }
 
-func NewInputFile(file *os.File, sourceName string, bufferSize int) (*InputFile, error) {
+func NewInputFile(file *os.File, sourceName string, bufferSize int) (*FileReader, error) {
 	fileInfo, err := file.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file info for %s: %v", sourceName, err)
 	}
 	fileSize := int(fileInfo.Size())
-	return &InputFile{
+	return &FileReader{
 		File:       file,
 		Buffer:     NewRingBuffer(bufferSize),
 		SourceName: sourceName,
@@ -35,7 +35,7 @@ func NewInputFile(file *os.File, sourceName string, bufferSize int) (*InputFile,
 }
 
 // FillBuffer reads data from the file into the buffer to fill the empty slots.
-func (r *InputFile) FillBuffer() error {
+func (r *FileReader) FillBuffer() error {
 	n, err := r.Buffer.Fill(r.File)
 	if err == io.EOF {
 		return nil
@@ -45,7 +45,7 @@ func (r *InputFile) FillBuffer() error {
 	return err
 }
 
-func (r *InputFile) SkipLine() error {
+func (r *FileReader) SkipLine() error {
 	var (
 		lineLengthWithoutEol       = 0
 		n                          = 0
@@ -84,7 +84,7 @@ func (r *InputFile) SkipLine() error {
 	return nil
 }
 
-func (r *InputFile) WriteLine(writer *bufio.Writer) error {
+func (r *FileReader) WriteLine(writer *bufio.Writer) error {
 	var (
 		count           = 0
 		latestCharWasCR = false
@@ -153,6 +153,6 @@ func (r *InputFile) WriteLine(writer *bufio.Writer) error {
 }
 
 // Close closes the file.
-func (r *InputFile) Close() error {
+func (r *FileReader) Close() error {
 	return r.File.Close()
 }

@@ -4,6 +4,7 @@ import "fmt"
 
 const epochDaysUntil1970 = 719527
 
+// TODO: Consider optimizing monthDays by using a single array maybe. Research better methods.
 var nonLeapMonthDays = []int{0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365, 396}
 var leapMonthDays = []int{0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366, 397}
 
@@ -17,15 +18,8 @@ func NewMyTime(year int, month int, day int, hour int, minute int, second int, n
 	}
 
 	timeOffsetMinutes := tzSign * (tzHour*60 + tzMin)
+	// TODO: Consider optimizing this by distributing the multiplication
 	return MyTime((((epochDay*24+hour)*60+minute-timeOffsetMinutes)*60+second)*1_000_000_000 + nsec)
-}
-
-func (t MyTime) Before(other MyTime) bool {
-	return t < other
-}
-
-func (t MyTime) After(other MyTime) bool {
-	return t > other
 }
 
 func (t MyTime) String() string {

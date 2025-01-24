@@ -12,7 +12,7 @@ var (
 	timestampBuffer = make([]byte, 0, TimestampSearchEndIndex)
 )
 
-func UpdateTimestamp(reader *InputFile) error {
+func UpdateTimestamp(reader *FileReader) error {
 	bufLen := reader.Buffer.Len()
 	if bufLen < TimestampSearchEndIndex {
 		startTime := MeasureStart("FillBuffer")

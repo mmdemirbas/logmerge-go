@@ -9,9 +9,9 @@ import (
 func TestMinHeap(t *testing.T) {
 	h := &MinHeap{}
 	heap.Init(h)
-	heap.Push(h, &InputFile{Timestamp: newTime(0)})
-	heap.Push(h, &InputFile{Timestamp: newTime(-1)})
-	if (*h)[0].Timestamp.After((*h)[1].Timestamp) {
+	heap.Push(h, &FileReader{Timestamp: newTime(0)})
+	heap.Push(h, &FileReader{Timestamp: newTime(-1)})
+	if (*h)[0].Timestamp > (*h)[1].Timestamp {
 		t.Errorf("MinHeap does not maintain order")
 	}
 }

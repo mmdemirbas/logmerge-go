@@ -30,7 +30,7 @@ func MergeFiles(inputPath string) error {
 
 	perFileBufferSize := max(TimestampSearchEndIndex, BufferSizeForRead/len(files))
 
-	readers := make([]*InputFile, len(files))
+	readers := make([]*FileReader, len(files))
 	readers = readers[:0]
 
 	for _, file := range files {
@@ -63,6 +63,10 @@ func MergeFiles(inputPath string) error {
 		defer reader.Close()
 	}
 
+	if len(readers) == 0 {
+		return fmt.Errorf("no files to merge")
+	}
+
 	if WriteSourceNamesPerBlock {
 		for _, reader := range readers {
 			reader.SourceNamePerBlock = fmt.Sprintf("\n--- %s ---\n", reader.SourceName)
@@ -92,9 +96,10 @@ func MergeFiles(inputPath string) error {
 	heap.Init(h)
 
 	// Populate heap with the first entry from each file
+	remainingReaderCount := 0
 	for _, reader := range readers {
 		startTime := MeasureStart("UpdateTimestamp")
-		err := UpdateTimestamp(reader)
+		err = UpdateTimestamp(reader)
 		MeasureSince(startTime)
 
 		if err != nil {
@@ -103,66 +108,58 @@ func MergeFiles(inputPath string) error {
 		if reader.TimestampParsed {
 			startTime = MeasureStart("HeapPush")
 			heap.Push(h, reader)
+			remainingReaderCount++
 			HeapPushMetric.MeasureSince(startTime)
+		} else {
+			err = reader.Close()
+			if err != nil {
+				//goland:noinspection GoUnhandledErrorResult
+				fmt.Fprintf(Stderr, "failed to close file %s: %v\n", reader.File.Name(), err)
+			}
+			// Update metrics
+			BytesRead += int64(reader.BytesRead)
+			BytesNotRead += int64(reader.FileSize - reader.BytesRead)
+			reader.Done = true
 		}
 	}
 	MeasureSince(startTime)
 
 	// Print progress
 	go func() {
+		// TODO: Make printProgress params configurable (initial delay, interval, etc)
 		// Print progress only if it takes some time
 		time.Sleep(3 * time.Second)
-
-		totalCount := len(readers)
-		totalSize := 0
-
-		for _, reader := range readers {
-			totalSize += reader.FileSize
-		}
-
-		totalCount100 := float64(totalCount) / 100
-		totalSize100 := float64(totalSize) / 100
-		totalSizeString := bytes(int64(totalSize))
 
 		//goland:noinspection GoUnhandledErrorResult
 		fmt.Fprintf(Stderr, "\n")
 
 		ticker := time.NewTicker(1 * time.Second)
 		for range ticker.C {
-			completedCount := 0
-			completedSize := 0
-			for _, reader := range readers {
-				if reader.Done {
-					completedSize += reader.FileSize
-					completedCount++
-				} else {
-					completedSize += reader.BytesRead
-				}
-			}
-			//goland:noinspection GoUnhandledErrorResult
-			fmt.Fprintf(Stderr, "Progress: %5.2f %% of data (%12s / %12s) - %5.2f %% of files (%5d / %5d)\r",
-				float64(completedSize)/totalSize100, bytes(int64(completedSize)), totalSizeString,
-				float64(completedCount)/totalCount100, int64(completedCount), int64(totalCount),
-			)
+			printProgress(readers)
 		}
 	}()
 
 	lastPrintedSourceName := ""
 
-	// Merge logs
-	for h.Len() > 0 {
-		startTime := MeasureStart("HeapPop")
-		reader := heap.Pop(h).(*InputFile)
-		nextReader := h.Peek()
-		HeapPopMetric.MeasureSince(startTime)
+	startTime = MeasureStart("HeapPop")
+	reader := heap.Pop(h).(*FileReader)
+	var nextReader *FileReader = nil
+	if remainingReaderCount > 0 {
+		nextReader = h.Pop().(*FileReader)
+		remainingReaderCount--
+		HeapPopMetric.CallCount++
+	}
+	HeapPopMetric.MeasureSince(startTime)
 
+	// Merge logs
+	for reader != nil {
 		// TODO: Hand off writing to a separate goroutine responsible for writing to the output
 		skippedLineCount := 0
 
 		// Skip lines until finding an eligible line
-		for reader.TimestampParsed && reader.Timestamp.Before(MinTimestamp) {
+		for reader.TimestampParsed && reader.Timestamp < MinTimestamp {
 			skippedLineCount++
-			err := reader.SkipLine()
+			err = reader.SkipLine()
 			if err != nil {
 				return fmt.Errorf("failed to skip line from %s: %v", reader.File.Name(), err)
 			}
@@ -177,18 +174,18 @@ func MergeFiles(inputPath string) error {
 		}
 
 		var effectiveMaxTimestamp MyTime
-		if nextReader != nil && nextReader.Timestamp.Before(MaxTimestamp) {
+		if nextReader != nil && nextReader.Timestamp < MaxTimestamp {
 			effectiveMaxTimestamp = nextReader.Timestamp
 		} else {
 			effectiveMaxTimestamp = MaxTimestamp
 		}
 
-		shouldWriteSourceName := WriteSourceNamesPerBlock && lastPrintedSourceName != reader.SourceName
+		shouldWriteSourceName := WriteSourceNamesPerBlock && lastPrintedSourceName != reader.SourceName // TODO: Source name comparison could be optimized by using a pointer or number code?
 		successiveLineCount := 0
 		processedLineCount := 0
 
 		// Write lines until reaching the known bigger timestamp or a skip-line or the end of the file
-		for reader.TimestampParsed && !reader.Timestamp.After(effectiveMaxTimestamp) {
+		for reader.TimestampParsed && reader.Timestamp <= effectiveMaxTimestamp {
 			if shouldWriteSourceName {
 				shouldWriteSourceName = false
 				lastPrintedSourceName = reader.SourceName
@@ -209,7 +206,7 @@ func MergeFiles(inputPath string) error {
 			}
 
 			startTime = MeasureStart("WriteLine")
-			err := writeLine(writer, timestampToWrite, reader)
+			err = writeLine(writer, timestampToWrite, reader)
 			successiveLineCount++
 			MeasureSince(startTime)
 
@@ -237,14 +234,15 @@ func MergeFiles(inputPath string) error {
 		LinesRead += int64(processedLineCount + skippedLineCount)
 		LinesReadAndSkipped += int64(skippedLineCount)
 
-		if reader.TimestampParsed && !reader.Timestamp.After(MaxTimestamp) {
+		if reader.TimestampParsed && reader.Timestamp <= MaxTimestamp {
 			// Put the next entry to the heap
 			startTime = MeasureStart("HeapPush")
 			heap.Push(h, reader)
 			HeapPushMetric.MeasureSince(startTime)
 		} else {
 			// Close the file
-			err := reader.Close()
+			remainingReaderCount--
+			err = reader.Close()
 			if err != nil {
 				//goland:noinspection GoUnhandledErrorResult
 				fmt.Fprintf(Stderr, "failed to close file %s: %v\n", reader.File.Name(), err)
@@ -254,11 +252,21 @@ func MergeFiles(inputPath string) error {
 			BytesNotRead += int64(reader.FileSize - reader.BytesRead)
 			reader.Done = true
 		}
+
+		reader = nextReader
+		if remainingReaderCount > 0 {
+			startTime = MeasureStart("HeapPop")
+			nextReader = h.Pop().(*FileReader)
+			HeapPopMetric.MeasureSince(startTime)
+		} else {
+			nextReader = nil
+		}
 	}
+	printProgress(readers)
 	return nil
 }
 
-func writeLine(writer *bufio.Writer, timestamp MyTime, reader *InputFile) error {
+func writeLine(writer *bufio.Writer, timestamp MyTime, reader *FileReader) error {
 	if WriteTimestampPerLine {
 		startTime := MeasureStart("WriteTimestamp")
 		var toWrite []byte
@@ -291,4 +299,31 @@ func writeLine(writer *bufio.Writer, timestamp MyTime, reader *InputFile) error 
 
 	// Write rest of the line including the new line character
 	return reader.WriteLine(writer)
+}
+
+func printProgress(readers []*FileReader) {
+	completedSize := 0
+	completedCount := 0
+
+	totalSize := 0
+	totalCount := len(readers)
+
+	for _, reader := range readers {
+		if reader.Done {
+			completedSize += reader.FileSize
+			completedCount++
+		} else {
+			completedSize += reader.BytesRead
+		}
+		totalSize += reader.FileSize
+	}
+
+	totalSize = max(totalSize, 1)
+	totalCount = max(totalCount, 1)
+
+	//goland:noinspection GoUnhandledErrorResult
+	fmt.Fprintf(Stderr, "Progress: %6.2f %% of data (%12s / %12s) - %6.2f %% of files (%5d / %5d)\r",
+		float64(completedSize)/(float64(totalSize)/100), bytes(int64(completedSize)), bytes(int64(totalSize)),
+		float64(completedCount)/(float64(totalCount)/100), int64(completedCount), int64(totalCount),
+	)
 }
