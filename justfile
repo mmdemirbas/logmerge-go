@@ -6,13 +6,9 @@ BINARY_NAME := "logmerge"
 
 BIN_DIR := "bin"
 OUT_DIR := "out"
-LOG_DIR := "log"
 CPU_PROF_FILE := "cpu.prof"
 MEM_PROF_FILE := "mem.prof"
 TRACE_FILE := "trace.out"
-OUTPUT_FILE := "output.log"
-
-# Test params
 
 # Display this help message
 @help:
@@ -58,22 +54,17 @@ benchmark:
 
 # Run application
 [group("run")]
-run stderrName="stderr":
-    mkdir -p {{ LOG_DIR }} {{ BIN_DIR }} {{ OUT_DIR }}
+run conf_file="conf/default.yaml":
+    mkdir -p {{ BIN_DIR }}
     go build -ldflags="-s -w" -o {{ BIN_DIR }}/{{ BINARY_NAME }} *.go
-    {{ BIN_DIR }}/{{ BINARY_NAME }} "" "" {{ LOG_DIR }}/{{ stderrName }}.err
+    {{ BIN_DIR }}/{{ BINARY_NAME }} {{ conf_file }}
 
 #    go run $(ls *.go | grep -v _test.go)
 
-# Run application with profiling and capture CPU and memory profiles
-[group("run")]
-profile stderrName="stderr":
-    ENABLE_PPROF=true just run {{ stderrName }}
-
 # Run application with GC tracing and capture CPU and memory profiles
 [group("run")]
-trace stderrName="stderr":
-    GODEBUG=gctrace=1 just run {{ stderrName }}
+trace conf_file="conf/default.yaml":
+    GODEBUG=gctrace=1 just run {{ conf_file }}
 
 # Browse captured CPU profile in a web browser
 [group("inspect")]

@@ -7,60 +7,8 @@ import (
 	"time"
 )
 
-// TODO: These settings can be made configurable via command-line flags or env vars
-var (
-	// Default paths
-	InputPath  = "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1737096599066_0003-WORKING-WITH-PROTOBUF/console.log"
-	stdoutFile = "/Users/md/dev/mmdemirbas/logmerge/out/stdout.log"
-	stderrFile = "/Users/md/dev/mmdemirbas/logmerge/out/stderr.log"
-
-	Stdout *os.File
-	Stderr *os.File
-
-	DisableMetricsCollection = false
-	EnableProfiling          = os.Getenv("ENABLE_PPROF") == "true"
-
-	WriteSourceNamesPerBlock = true
-	WriteSourceNamesPerLine  = false
-	WriteTimestampPerLine    = false
-
-	// Default values: noTimestamp and MyTime(1<<63 - 1)
-	// 20250117 13:12:41.434816 to 2025-01-17 13:14:12,863
-	MinTimestamp       = NewMyTime(2025, 1, 17, 13, 12, 41, 434816000, 0, 0, 0)
-	MaxTimestamp       = NewMyTime(2025, 1, 17, 13, 14, 12, 863000000, 0, 0, 0)
-	IgnoreTimezoneInfo = true
-
-	ShortestTimestampLen    = 15
-	TimestampSearchEndIndex = 250
-
-	BufferSizeForRead  = 1024 * 1024 * 100
-	BufferSizeForWrite = 1024 * 1024 * 100
-
-	ExcludedStrictSuffixes  = []string{".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz"}
-	IncludedStrictSuffixes  = []string{}
-	ExcludedLenientSuffixes = []string{}
-	IncludedLenientSuffixes = []string{".log", ".err", ".error", ".warn", ".warning", ".info", ".out", ".debug", ".trace"}
-
-	SourceNameAliases = map[string]string{
-		"172.16.0.240/memartscc/cc-worker/ccworker.INFO.20250115-172150.3239354":         "cc-worker",
-		"172.16.0.240/memartscc/cc-worker/ccworker.INFO":                                 "cc-worker",
-		"172.16.0.240/memartscc/cc-worker/ccworker.WARNING.20250115-172623.3239354":      "cc-worker",
-		"172.16.0.240/memartscc/cc-worker/ccworker.WARNING":                              "cc-worker",
-		"172.16.0.240/memartscc/cc-worker/ccworker.ERROR.20250115-172623.3239354":        "cc-worker",
-		"172.16.0.240/memartscc/cc-worker/ccworker.ERROR":                                "cc-worker",
-		"172.16.0.240/memartscc/check-worker-instance.log":                               "cc-worker",
-		"172.16.0.240/memartscc/cc-sidecar/cc-sidecar.log":                               "cc-sidecar",
-		"172.16.0.240/memartscc/check-sidecar-instance.log":                              "cc-sidecar",
-		"172.16.0.240/memartscc/cc-sidecar/cc-sidecar-bg-task.log":                       "cc-sidecar",
-		"172.16.0.240/memartscc/checkServiceHealthCheck.log":                             "cc-health",
-		"172.16.0.240/yarn/nm/yarn-nodemanager-period-check.log":                         "yarn-nodemanager-period-check",
-		"172.16.0.240/yarn/nm/nodemanager-omm-20250107224846-pid340890-gc.log.0.current": "yarn-gc",
-	}
-)
-
 func main() {
 	programStartTime := time.Now() // measure program duration even if metrics disabled
-	var err error
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -89,39 +37,24 @@ func main() {
 		}
 	}
 
-	if len(os.Args) > 1 {
-		// TODO: Support multiple base paths
-		if os.Args[1] != "" {
-			InputPath = os.Args[1]
-		}
-		if len(os.Args) > 2 && os.Args[2] != "" {
-			stdoutFile = os.Args[2]
-		}
-		if len(os.Args) > 3 && os.Args[3] != "" {
-			stderrFile = os.Args[3]
-		}
-	} else if len(InputPath) == 0 {
-		//goland:noinspection GoUnhandledErrorResult
-		{
-			fmt.Fprintf(Stderr, "logmerge\n")
-			fmt.Fprintf(Stderr, "  Merge multiple log files into a single file while preserving the chronological order of log lines.\n")
-			fmt.Fprintf(Stderr, "\n")
-			fmt.Fprintf(Stderr, "Usage:\n")
-			fmt.Fprintf(Stderr, "  %s <inputPath> [outputPath] [logPath]\n", os.Args[0])
-			fmt.Fprintf(Stderr, "\n")
-			fmt.Fprintf(Stderr, "  <inputPath>   Path to the log file or a directory containing log files\n")
-			fmt.Fprintf(Stderr, "  [outputPath]  Optional output path. If not provided, output is written to stdout\n")
-			fmt.Fprintf(Stderr, "  [logPath]     Optional log path. If not provided, logs are written to stderr\n")
-			fmt.Fprintf(Stderr, "\n")
-		}
+	var err error
+	//goland:noinspection GoUnhandledErrorResult,
+	if len(os.Args) != 2 {
+		fmt.Fprintf(Stderr, "logmerge\n")
+		fmt.Fprintf(Stderr, "  Merge multiple log files into a single file while preserving the chronological order of log lines.\n")
+		fmt.Fprintf(Stderr, "\n")
+		fmt.Fprintf(Stderr, "Usage:\n")
+		fmt.Fprintf(Stderr, "  %s <confFile>\n", os.Args[0])
+		fmt.Fprintf(Stderr, "\n")
+		fmt.Fprintf(Stderr, "  <confFile>   Path to the configuration file in YAML format.\n")
+		fmt.Fprintf(Stderr, "\n")
 		os.Exit(1)
+	} else {
+		err = loadConfig(os.Args[1])
+		if err == nil {
+			err = MergeFiles(InputPath)
+		}
 	}
-
-	Stdout = createFile(stdoutFile, os.Stdout)
-	Stderr = createFile(stderrFile, os.Stderr)
-
-	err = MergeFiles(InputPath)
-	exitOnError(err)
 
 	// TODO: Catch interrupt signal during merge process and do the post-work anyway
 
@@ -152,21 +85,10 @@ func main() {
 
 	elapsedTime := time.Since(programStartTime)
 	PrintMetrics(programStartTime, elapsedTime, err)
-}
 
-func createFile(path string, fallback *os.File) *os.File {
-	if path == "" {
-		return fallback
-	}
-	f, err := os.Create(path)
-	exitOnError(err)
-	return f
-}
-
-func exitOnError(err error) {
 	if err != nil {
 		//goland:noinspection GoUnhandledErrorResult
-		fmt.Fprintf(os.Stderr, "failed to create file: %v", err)
+		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
 }

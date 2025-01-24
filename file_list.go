@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,10 +12,12 @@ func ListFiles(basePath string) (files []string, err error) {
 
 	switch {
 	case err != nil:
+		return nil, fmt.Errorf("could not stat %s: %v", basePath, err)
+
 	case stat.IsDir():
 		err = filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
-				return err
+				return fmt.Errorf("could not walk %s: %v", path, err)
 			}
 			if info.IsDir() {
 				DirsScanned++

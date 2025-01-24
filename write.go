@@ -25,7 +25,7 @@ func MergeFiles(inputPath string) error {
 
 	MatchedFiles = files
 	if err != nil {
-		return fmt.Errorf("failed to detect files: %v", err)
+		return fmt.Errorf("failed to list files: %v", err)
 	}
 
 	perFileBufferSize := max(TimestampSearchEndIndex, BufferSizeForRead/len(files))
