@@ -50,7 +50,8 @@ func MergeFiles(inputPath string) error {
 
 		f, err := os.Open(file)
 		if err != nil {
-			fmt.Fprintf(Stderr, "failed to open file %s: %v", file, err)
+			//goland:noinspection GoUnhandledErrorResult
+			fmt.Fprintf(Stderr, "failed to open file %s: %v\n", file, err)
 			continue
 		}
 
@@ -121,10 +122,9 @@ func MergeFiles(inputPath string) error {
 
 		totalCount100 := float64(totalCount) / 100
 		totalSize100 := float64(totalSize) / 100
-
-		totalCountString := count(int64(totalCount))
 		totalSizeString := bytes(int64(totalSize))
 
+		//goland:noinspection GoUnhandledErrorResult
 		fmt.Fprintf(Stderr, "\n")
 
 		ticker := time.NewTicker(1 * time.Second)
@@ -139,9 +139,10 @@ func MergeFiles(inputPath string) error {
 					completedSize += reader.BytesRead
 				}
 			}
-			fmt.Fprintf(Stderr, "Progress: %.2f %% of data (%12s / %12s) - %.2f of files (%12s / %12s)\r",
+			//goland:noinspection GoUnhandledErrorResult
+			fmt.Fprintf(Stderr, "Progress: %5.2f %% of data (%12s / %12s) - %5.2f %% of files (%5d / %5d)\r",
 				float64(completedSize)/totalSize100, bytes(int64(completedSize)), totalSizeString,
-				float64(completedCount)/totalCount100, count(int64(completedCount)), totalCountString,
+				float64(completedCount)/totalCount100, int64(completedCount), int64(totalCount),
 			)
 		}
 	}()
@@ -245,7 +246,8 @@ func MergeFiles(inputPath string) error {
 			// Close the file
 			err := reader.Close()
 			if err != nil {
-				fmt.Fprintf(Stderr, "failed to close file %s: %v", reader.File.Name(), err)
+				//goland:noinspection GoUnhandledErrorResult
+				fmt.Fprintf(Stderr, "failed to close file %s: %v\n", reader.File.Name(), err)
 			}
 			// Update metrics
 			BytesRead += int64(reader.BytesRead)

@@ -3,6 +3,7 @@
 - Usability
     - Ensure all common log formats are supported
     - Support: Included / excluded paths
+    - Support CLI flags for all customizations. CLI flags will be more prioritized than config file.
 - Code tidy up
     - Aggressively simplify the code so we can easily implement advanced algorithms and features in the future.
     - Add method comments
