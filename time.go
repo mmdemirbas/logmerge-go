@@ -11,6 +11,7 @@ var leapMonthDays = []int{0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335,
 type MyTime int64
 
 func NewMyTime(year int, month int, day int, hour int, minute int, second int, nsec int, tzSign int, tzHour int, tzMin int) MyTime {
+	startTime := MeasureStart("NewMyTime")
 	pastYear := year - 1
 	epochDay := year*365 + nonLeapMonthDays[month-1] + (day - 1) + pastYear/4 - pastYear/100 + pastYear/400 - epochDaysUntil1970
 	if month > 2 && (year%4 == 0 && (year%100 != 0 || year%400 == 0)) {
@@ -19,13 +20,18 @@ func NewMyTime(year int, month int, day int, hour int, minute int, second int, n
 
 	timeOffsetMinutes := tzSign * (tzHour*60 + tzMin)
 	// TODO: Consider optimizing this by distributing the multiplication
-	return MyTime((((epochDay*24+hour)*60+minute-timeOffsetMinutes)*60+second)*1_000_000_000 + nsec)
+	result := MyTime((((epochDay*24+hour)*60+minute-timeOffsetMinutes)*60+second)*1_000_000_000 + nsec)
+	NewMyTimeMetric.MeasureSince(startTime)
+	return result
 }
 
 func (t MyTime) String() string {
+	startTime := MeasureStart("MyTime.String")
 	v := int64(t)
 	if v == 0 {
-		return "1970-01-01 00:00:00.000000000 "
+		result := "1970-01-01 00:00:00.000000000 "
+		MyTimeStringMetric.MeasureSince(startTime)
+		return result
 	}
 
 	nsec := v % 1_000_000_000
@@ -72,5 +78,7 @@ func (t MyTime) String() string {
 	}
 
 	day := dayOfYear - monthDays[month]
-	return fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d.%09d ", year, month+1, day+1, hour, m, sec, nsec)
+	result := fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d.%09d ", year, month+1, day+1, hour, m, sec, nsec)
+	MyTimeStringMetric.MeasureSince(startTime)
+	return result
 }

@@ -57,8 +57,10 @@ var (
 	BlockLineCounts        = NewBucketMetric(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100)
 
 	// Merge debugging
-	HeapPopMetric  CallMetric
-	HeapPushMetric CallMetric
+	HeapPopMetric      CallMetric
+	HeapPushMetric     CallMetric
+	NewMyTimeMetric    CallMetric
+	MyTimeStringMetric CallMetric
 
 	// ParseTimestamp debugging
 	Timestamp_Lenghts                     = NewBucketMetric(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 500, 1000, 10000, 50000)
@@ -321,6 +323,8 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, err error) {
 	ParseTimestampMetric.printTreeNode("ParseTimestamp", countSpeed(LinesRead, ProcessDuration))
 	PeekNextLineSliceMetric.printTreeNode("PeekNextLineSlice", countSpeed(LinesRead, ProcessDuration))
 	WriteOutputMetric.printTreeNode("WriteOutput", bytesSpeed(outputBytes, ProcessDuration))
+	NewMyTimeMetric.printTreeNode("NewMyTime", "")
+	MyTimeStringMetric.printTreeNode("MyTime.String", "")
 	printTreeNode(0, "MetricsOverhead", MetricsCalls, MetricsOverheadAvg*MetricsCalls, "")
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "===== TIMING BREAKDOWN ===========================================================================================================================================================\n")
