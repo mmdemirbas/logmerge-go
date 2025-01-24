@@ -42,6 +42,10 @@ func MergeFiles(inputPath string) error {
 				return fmt.Errorf("failed to calculate relative path for file %s: %v", file, err)
 			}
 			sourceName = rel
+			alias, ok := SourceNameAliases[sourceName]
+			if ok {
+				sourceName = alias
+			}
 		}
 
 		f, err := os.Open(file)
@@ -103,7 +107,11 @@ func MergeFiles(inputPath string) error {
 	}
 	MeasureSince(startTime)
 
+	// Print progress
 	go func() {
+		// Print progress only if it takes some time
+		time.Sleep(3 * time.Second)
+
 		totalCount := len(readers)
 		totalSize := 0
 
@@ -137,6 +145,8 @@ func MergeFiles(inputPath string) error {
 			)
 		}
 	}()
+
+	lastPrintedSourceName := ""
 
 	// Merge logs
 	for h.Len() > 0 {
@@ -172,7 +182,7 @@ func MergeFiles(inputPath string) error {
 			effectiveMaxTimestamp = MaxTimestamp
 		}
 
-		shouldWriteSourceName := WriteSourceNamesPerBlock
+		shouldWriteSourceName := WriteSourceNamesPerBlock && lastPrintedSourceName != reader.SourceName
 		successiveLineCount := 0
 		processedLineCount := 0
 
@@ -180,6 +190,7 @@ func MergeFiles(inputPath string) error {
 		for reader.TimestampParsed && !reader.Timestamp.After(effectiveMaxTimestamp) {
 			if shouldWriteSourceName {
 				shouldWriteSourceName = false
+				lastPrintedSourceName = reader.SourceName
 				startTime = MeasureStart("WriteSourceNamePerBlock")
 				n, err := writer.WriteString(reader.SourceNamePerBlock)
 				BytesWrittenForSourceNamePerBlock += int64(n)

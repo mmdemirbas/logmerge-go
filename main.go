@@ -41,7 +41,21 @@ var (
 	ExcludedLenientSuffixes = []string{}
 	IncludedLenientSuffixes = []string{".log", ".err", ".error", ".warn", ".warning", ".info", ".out", ".debug", ".trace"}
 
-	// TODO: Support source name aliasing (e.g. "console.log" -> "driver")
+	SourceNameAliases = map[string]string{
+		"172.16.0.240/memartscc/cc-worker/ccworker.INFO.20250115-172150.3239354":         "cc-worker",
+		"172.16.0.240/memartscc/cc-worker/ccworker.INFO":                                 "cc-worker",
+		"172.16.0.240/memartscc/cc-worker/ccworker.WARNING.20250115-172623.3239354":      "cc-worker",
+		"172.16.0.240/memartscc/cc-worker/ccworker.WARNING":                              "cc-worker",
+		"172.16.0.240/memartscc/cc-worker/ccworker.ERROR.20250115-172623.3239354":        "cc-worker",
+		"172.16.0.240/memartscc/cc-worker/ccworker.ERROR":                                "cc-worker",
+		"172.16.0.240/memartscc/check-worker-instance.log":                               "cc-worker",
+		"172.16.0.240/memartscc/cc-sidecar/cc-sidecar.log":                               "cc-sidecar",
+		"172.16.0.240/memartscc/check-sidecar-instance.log":                              "cc-sidecar",
+		"172.16.0.240/memartscc/cc-sidecar/cc-sidecar-bg-task.log":                       "cc-sidecar",
+		"172.16.0.240/memartscc/checkServiceHealthCheck.log":                             "cc-health",
+		"172.16.0.240/yarn/nm/yarn-nodemanager-period-check.log":                         "yarn-nodemanager-period-check",
+		"172.16.0.240/yarn/nm/nodemanager-omm-20250107224846-pid340890-gc.log.0.current": "yarn-gc",
+	}
 )
 
 func main() {

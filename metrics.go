@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"runtime"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -262,6 +264,18 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, err error) {
 	fmt.Fprintf(Stderr, "ExcludedLenientSuffixes : %v\n", ExcludedLenientSuffixes)
 	fmt.Fprintf(Stderr, "IncludedLenientSuffixes : %v\n", IncludedLenientSuffixes)
 	fmt.Fprintf(Stderr, "\n")
+	aliasesToSourceNames := reverseMap()
+	aliasesSorted := getKeysSorted(aliasesToSourceNames)
+	fmt.Fprintf(Stderr, "SourceNameAliases       : %v mappings in %d aliases\n", len(SourceNameAliases), len(aliasesToSourceNames))
+	for _, alias := range aliasesSorted {
+		sourceNames := aliasesToSourceNames[alias]
+		sort.Strings(sourceNames)
+		fmt.Fprintf(Stderr, "  (%d) %s\n", len(sourceNames), alias)
+		for _, sourceName := range sourceNames {
+			fmt.Fprintf(Stderr, "      %s\n", sourceName)
+		}
+	}
+	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "===== STATISTICS =================================================================================================================================================================\n")
 	fmt.Fprintf(Stderr, "File count stats\n")
 	fmt.Fprintf(Stderr, "  dirs scanned          : %8s ~ %14d\n", "", DirsScanned)
@@ -333,12 +347,12 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, err error) {
 	fmt.Fprintf(Stderr, "Allocated GC metadata                : %12v = %10s\n", MemStats.GCSys, bytes(int64(MemStats.GCSys)))
 	fmt.Fprintf(Stderr, "Allocated other system allocations   : %12v = %10s\n", MemStats.OtherSys, bytes(int64(MemStats.OtherSys)))
 	fmt.Fprintf(Stderr, "\n")
+	fmt.Fprintf(Stderr, "Last GC finish time                 :    %s\n", strings.Replace(time.Unix(0, int64(MemStats.LastGC)).Format(time.RFC3339Nano), "T", "   ", 1))
 	fmt.Fprintf(Stderr, "Target heap size of the next GC cycle: %12v = %10s\n", MemStats.NextGC, bytes(int64(MemStats.NextGC)))
-	fmt.Fprintf(Stderr, "Last GC finish time                  : %s\n", time.Unix(0, int64(MemStats.LastGC)).Format(time.RFC3339Nano))
 	fmt.Fprintf(Stderr, "GC pause duration                    : %12v = %10s\n", MemStats.PauseTotalNs, duration(int64(MemStats.PauseTotalNs)))
 	fmt.Fprintf(Stderr, "Number of completed GC cycles        : %12v = %10s\n", MemStats.NumGC, count(int64(MemStats.NumGC)))
 	fmt.Fprintf(Stderr, "Number of forced GC cycles by app    : %12v = %10s\n", MemStats.NumForcedGC, count(int64(MemStats.NumForcedGC)))
-	fmt.Fprintf(Stderr, "GCCPUFraction                        : %.2f / %s\n", MemStats.GCCPUFraction*1_000_000, "1_000_000")
+	fmt.Fprintf(Stderr, "GCCPUFraction                        : %12.2f / %10s\n", MemStats.GCCPUFraction*1_000_000, "1_000_000")
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "===== DEBUG METRICS ==============================================================================================================================================================\n")
 	fmt.Fprintf(Stderr, "Line length stats\n")
@@ -397,10 +411,28 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, err error) {
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "===== FILE LIST ==================================================================================================================================================================\n")
 	fmt.Fprintf(Stderr, "File list (%d files):\n", len(MatchedFiles))
+	sort.Strings(MatchedFiles)
 	for i, file := range MatchedFiles {
 		fmt.Fprintf(Stderr, "%5d %s\n", i+1, file)
 	}
 	fmt.Fprintf(Stderr, "==================================================================================================================================================================================\n")
+}
+
+func reverseMap() map[string][]string {
+	aliasesToSourceNames := make(map[string][]string)
+	for sourceName, alias := range SourceNameAliases {
+		aliasesToSourceNames[alias] = append(aliasesToSourceNames[alias], sourceName)
+	}
+	return aliasesToSourceNames
+}
+
+func getKeysSorted(aliasesToSourceNames map[string][]string) []string {
+	aliasesSorted := make([]string, 0, len(aliasesToSourceNames))
+	for alias := range aliasesToSourceNames {
+		aliasesSorted = append(aliasesSorted, alias)
+	}
+	sort.Strings(aliasesSorted)
+	return aliasesSorted
 }
 
 func printTree(node *TreeNode, depth int) {
