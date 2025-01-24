@@ -199,10 +199,10 @@ func MergeFiles(inputPath string) error {
 			}
 
 			var timestampToWrite MyTime
-			if successiveLineCount != 0 {
-				timestampToWrite = noTimestamp
-			} else {
+			if successiveLineCount == 0 {
 				timestampToWrite = reader.Timestamp
+			} else {
+				timestampToWrite = noTimestamp
 			}
 
 			startTime = MeasureStart("WriteLine")
@@ -322,7 +322,7 @@ func printProgress(readers []*FileReader) {
 	totalCount = max(totalCount, 1)
 
 	//goland:noinspection GoUnhandledErrorResult
-	fmt.Fprintf(Stderr, "Progress: %6.2f %% of data (%12s / %12s) - %6.2f %% of files (%5d / %5d)\r",
+	fmt.Fprintf(os.Stderr, "Progress: %6.2f %% of data (%12s / %12s) - %6.2f %% of files (%5d / %5d)\r",
 		float64(completedSize)/(float64(totalSize)/100), bytes(int64(completedSize)), bytes(int64(totalSize)),
 		float64(completedCount)/(float64(totalCount)/100), int64(completedCount), int64(totalCount),
 	)
