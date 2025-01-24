@@ -1,6 +1,6 @@
 InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/"
-OutputPath: "/Users/md/dev/mmdemirbas/logmerge/out/remove-heap-peek.log"
-LogPath: "/Users/md/dev/mmdemirbas/logmerge/log/remove-heap-peek.err"
+OutputPath: "/Users/md/dev/mmdemirbas/logmerge/out/output.log"
+LogPath: "/Users/md/dev/mmdemirbas/logmerge/log/96-skip-and-block-metrics.err"
 
 DisableMetricsCollection: false
 EnableProfiling: false

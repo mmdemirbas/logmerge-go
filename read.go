@@ -61,7 +61,7 @@ func ParseTimestamp(buffer []byte) MyTime {
 
 	n := len(buffer)
 	if n < ShortestTimestampLen {
-		ParseTimestamp_LineTooShort++
+		Timestamp_LineTooShort++
 		return noTimestamp
 	}
 
@@ -72,7 +72,7 @@ func ParseTimestamp(buffer []byte) MyTime {
 			break
 		}
 		if b == '\r' || b == '\n' {
-			ParseTimestamp_NoFirstDigit++
+			Timestamp_NoFirstDigit++
 			return noTimestamp
 		}
 		i++
@@ -80,40 +80,40 @@ func ParseTimestamp(buffer []byte) MyTime {
 
 	firstDigitIndex := i
 	if i < n {
-		ParseTimestamp_MinFirstDigitIndex = min(ParseTimestamp_MinFirstDigitIndex, firstDigitIndex)
-		ParseTimestamp_MaxFirstDigitIndex = max(ParseTimestamp_MaxFirstDigitIndex, firstDigitIndex)
-		ParseTimestamp_FirstDigitIndexes.UpdateBucketCount(firstDigitIndex)
+		Timestamp_MinFirstDigitIndex = min(Timestamp_MinFirstDigitIndex, firstDigitIndex)
+		Timestamp_MaxFirstDigitIndex = max(Timestamp_MaxFirstDigitIndex, firstDigitIndex)
+		Timestamp_FirstDigitIndexes.UpdateBucketCount(firstDigitIndex)
 	} else {
-		ParseTimestamp_NoFirstDigit++
+		Timestamp_NoFirstDigit++
 		return noTimestamp
 	}
 	if n < i+ShortestTimestampLen {
-		ParseTimestamp_LineTooShortAfterFirstDigit++
+		Timestamp_LineTooShortAfterFirstDigit++
 		return noTimestamp
 	}
 
 	for j := i + ShortestTimestampLen - 1; j >= i; j-- {
 		b := buffer[j]
 		if b == '\n' || b == '\r' {
-			ParseTimestamp_LineTooShortAfterFirstDigit++
+			Timestamp_LineTooShortAfterFirstDigit++
 			return noTimestamp
 		}
 	}
 
 	year, count := parseDigits(buffer, n, &i, 4)
 	if count == 0 {
-		ParseTimestamp_NoYear++
+		Timestamp_NoYear++
 		return noTimestamp
 	} else if count == 2 {
 		if year < 69 {
-			ParseTimestamp_2DigitYear_2000++
+			Timestamp_2DigitYear_2000++
 			year += 2000
 		} else {
-			ParseTimestamp_2DigitYear_1900++
+			Timestamp_2DigitYear_1900++
 			year += 1900
 		}
 	} else if year > 2050 || year < 1969 {
-		ParseTimestamp_4DigitYear_OutOfRange++
+		Timestamp_4DigitYear_OutOfRange++
 		return noTimestamp
 	}
 
@@ -123,12 +123,12 @@ func ParseTimestamp(buffer []byte) MyTime {
 
 	month, mcount := parseDigits(buffer, n, &i, 2)
 	if mcount == 0 {
-		ParseTimestamp_NoMonth++
+		Timestamp_NoMonth++
 		return noTimestamp
 	}
 
 	if month > 12 || month < 1 {
-		ParseTimestamp_MonthOutOfRange++
+		Timestamp_MonthOutOfRange++
 		return noTimestamp
 	}
 
@@ -138,95 +138,105 @@ func ParseTimestamp(buffer []byte) MyTime {
 
 	day, dcount := parseDigits(buffer, n, &i, 2)
 	if dcount == 0 {
-		ParseTimestamp_NoDay++
+		Timestamp_NoDay++
 		return noTimestamp
 	}
 
 	if day > 31 || day < 1 {
-		ParseTimestamp_DayOutOfRange++
+		Timestamp_DayOutOfRange++
 		return noTimestamp
 	}
 
 	b := buffer[i]
 	if i >= n || (b != ' ' && b != 'T' && b != '_') {
-		ParseTimestamp_SpaceOperatorMismatch++
+		Timestamp_SpaceOperatorMismatch++
 		return noTimestamp
 	}
 	i++
 
 	hour, hcount := parseDigits(buffer, n, &i, 2)
 	if hcount == 0 {
-		ParseTimestamp_NoHour++
+		Timestamp_NoHour++
 		return noTimestamp
 	}
 
 	if hour > 23 {
-		ParseTimestamp_HourOutOfRange++
+		Timestamp_HourOutOfRange++
 		return noTimestamp
 	}
 
 	if i >= n {
-		ParseTimestamp_NoHourSeparator++
+		Timestamp_NoHourSeparator++
 		return noTimestamp
 	}
 
 	b = buffer[i]
 	if b != ':' && b != '.' && b != '-' {
-		ParseTimestamp_HourSeparatorMismatch++
-		ParseTimestamp_MismatchedHourSeparators = append(ParseTimestamp_MismatchedHourSeparators, b)
+		Timestamp_HourSeparatorMismatch++
+		v, ok := Timestamp_MismatchedHourSeparators[b]
+		if ok {
+			Timestamp_MismatchedHourSeparators[b] = v + 1
+		} else {
+			Timestamp_MismatchedHourSeparators[b] = 1
+		}
 		return noTimestamp
 	}
 	i++
 
 	minute, mincount := parseDigits(buffer, n, &i, 2)
 	if mincount == 0 {
-		ParseTimestamp_NoMinute++
+		Timestamp_NoMinute++
 		return noTimestamp
 	}
 
 	if minute > 59 {
-		ParseTimestamp_MinuteOutOfRange++
+		Timestamp_MinuteOutOfRange++
 		return noTimestamp
 	}
 
 	if i >= n {
-		ParseTimestamp_NoMinuteSeparator++
+		Timestamp_NoMinuteSeparator++
 		return noTimestamp
 	}
 
 	b = buffer[i]
 	if b != ':' && b != '.' && b != '-' {
-		ParseTimestamp_MinuteSeparatorMismatch++
-		ParseTimestamp_MismatchedMinuteSeparators = append(ParseTimestamp_MismatchedMinuteSeparators, b)
+		Timestamp_MinuteSeparatorMismatch++
+		v, ok := Timestamp_MismatchedMinuteSeparators[b]
+		if ok {
+			Timestamp_MismatchedMinuteSeparators[b] = v + 1
+		} else {
+			Timestamp_MismatchedMinuteSeparators[b] = 1
+		}
 		return noTimestamp
 	}
 	i++
 
 	second, scount := parseDigits(buffer, n, &i, 2)
 	if scount == 0 {
-		ParseTimestamp_NoSecond++
+		Timestamp_NoSecond++
 		return noTimestamp
 	}
 
 	if second > 59 {
-		ParseTimestamp_SecondOutOfRange++
+		Timestamp_SecondOutOfRange++
 		return noTimestamp
 	}
 
 	var nsec int
 	if i < n && (buffer[i] == '.' || buffer[i] == ',') {
-		ParseTimestamp_HasNanos++
+		Timestamp_HasNanos++
 		i++
 		var ncount int
 		nsec, ncount = parseDigits(buffer, n, &i, 9)
-		ParseTimestamp_NanosLengths.UpdateBucketCount(ncount)
+		Timestamp_NanosLengths.UpdateBucketCount(ncount)
 		// Normalize nanoseconds in one step
 		for ncount < 9 {
 			nsec *= 10
 			ncount++
 		}
 	} else {
-		ParseTimestamp_HasNotNanos++
+		Timestamp_HasNotNanos++
 	}
 
 	tzSign := 0
@@ -238,26 +248,26 @@ func ParseTimestamp(buffer []byte) MyTime {
 		switch b {
 		case 'Z':
 			// Already using UTC
-			ParseTimestamp_UtcTimezone++
+			Timestamp_UtcTimezone++
 			i++
 			break
 		case '+', '-':
-			ParseTimestamp_NonUtcTimezone++
+			Timestamp_NonUtcTimezone++
 			tzSign = int(',') - int(b)
 			i++
 
 			if i+2 > n {
-				ParseTimestamp_TimezoneEarlyReturn++
+				Timestamp_TimezoneEarlyReturn++
 				break
 			}
 
 			tzHour, hcount = parseDigits(buffer, n, &i, 2)
 			if hcount == 0 {
-				ParseTimestamp_NoTimezoneHour++
+				Timestamp_NoTimezoneHour++
 				break
 			}
 			if tzHour > 23 {
-				ParseTimestamp_TimezoneHourOutOfRange++
+				Timestamp_TimezoneHourOutOfRange++
 				break
 			}
 
@@ -270,22 +280,22 @@ func ParseTimestamp(buffer []byte) MyTime {
 			}
 
 		default:
-			ParseTimestamp_NoTimezone++
+			Timestamp_NoTimezone++
 		}
 	}
 
-	ParseTimestamp_MinTimestampEndIndex = min(ParseTimestamp_MinTimestampEndIndex, i)
-	ParseTimestamp_MaxTimestampEndIndex = max(ParseTimestamp_MaxTimestampEndIndex, i)
-	ParseTimestamp_LastDigitIndexes.UpdateBucketCount(i)
+	Timestamp_MinTimestampEndIndex = min(Timestamp_MinTimestampEndIndex, i)
+	Timestamp_MaxTimestampEndIndex = max(Timestamp_MaxTimestampEndIndex, i)
+	Timestamp_LastDigitIndexes.UpdateBucketCount(i)
 
-	ParseTimestamp_MinFirstDigitIndexActual = min(ParseTimestamp_MinFirstDigitIndexActual, firstDigitIndex)
-	ParseTimestamp_MaxFirstDigitIndexActual = max(ParseTimestamp_MaxFirstDigitIndexActual, firstDigitIndex)
-	ParseTimestamp_FirstDigitIndexesActual.UpdateBucketCount(firstDigitIndex)
+	Timestamp_MinFirstDigitIndexActual = min(Timestamp_MinFirstDigitIndexActual, firstDigitIndex)
+	Timestamp_MaxFirstDigitIndexActual = max(Timestamp_MaxFirstDigitIndexActual, firstDigitIndex)
+	Timestamp_FirstDigitIndexesActual.UpdateBucketCount(firstDigitIndex)
 
 	timestampLen := i - firstDigitIndex
-	ParseTimestamp_MinTimestampLength = min(ParseTimestamp_MinTimestampLength, timestampLen)
-	ParseTimestamp_MaxTimestampLength = max(ParseTimestamp_MaxTimestampLength, timestampLen)
-	ParseTimestamp_Lenghts.UpdateBucketCount(timestampLen)
+	Timestamp_MinTimestampLength = min(Timestamp_MinTimestampLength, timestampLen)
+	Timestamp_MaxTimestampLength = max(Timestamp_MaxTimestampLength, timestampLen)
+	Timestamp_Lenghts.UpdateBucketCount(timestampLen)
 
 	return NewMyTime(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin)
 }

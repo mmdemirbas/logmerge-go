@@ -126,12 +126,12 @@ func MergeFiles(inputPath string) error {
 	go func() {
 		// TODO: Make printProgress params configurable (initial delay, interval, etc)
 		// Print progress only if it takes some time
-		time.Sleep(3 * time.Second)
+		time.Sleep(1 * time.Second)
 
 		//goland:noinspection GoUnhandledErrorResult
 		fmt.Fprintf(Stderr, "\n")
 
-		ticker := time.NewTicker(1 * time.Second)
+		ticker := time.NewTicker(200 * time.Millisecond)
 		for range ticker.C {
 			printProgress(readers)
 		}
@@ -180,7 +180,7 @@ func MergeFiles(inputPath string) error {
 
 		shouldWriteSourceName := WriteSourceNamesPerBlock && lastPrintedSourceName != reader.SourceName // TODO: Source name comparison could be optimized by using a pointer or number code?
 		successiveLineCount := 0
-		processedLineCount := 0
+		blockLineCount := 0
 
 		// Write lines until reaching the known bigger timestamp or a skip-line or the end of the file
 		for reader.TimestampParsed && reader.Timestamp <= effectiveMaxTimestamp {
@@ -223,14 +223,16 @@ func MergeFiles(inputPath string) error {
 
 			if !reader.TimestampParsed || reader.Timestamp != noTimestamp {
 				// Timestamp changed or file ended
-				processedLineCount += successiveLineCount
+				blockLineCount += successiveLineCount
 				SuccessiveLineCounts.UpdateBucketCount(successiveLineCount)
 				successiveLineCount = 0
 			}
 		}
 
-		LinesRead += int64(processedLineCount + skippedLineCount)
+		LinesRead += int64(blockLineCount + skippedLineCount)
 		LinesReadAndSkipped += int64(skippedLineCount)
+		SkippedLineCounts.UpdateBucketCount(skippedLineCount)
+		BlockLineCounts.UpdateBucketCount(blockLineCount)
 
 		if reader.TimestampParsed && reader.Timestamp <= MaxTimestamp {
 			// Put the next entry to the heap
