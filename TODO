@@ -1,6 +1,27 @@
-- Ensure all common log formats are supported
-- Complete unit tests
+- Documentation
+    - Write README - Document exact behaviour (how timestamp-less lines combined together and sorted first etc)
+- Usability
+    - Ensure all common log formats are supported
+    - Support: Included / excluded paths
+- Code tidy up
+    - Aggressively simplify the code so we can easily implement advanced algorithms and features in the future.
+    - Add method comments
+    - Use named return values to document code better and enjoy better autocomplete.
+- Other
+    - Define install recipe in justfile to install the binary to the system (and uninstall maybe)
+    - Decide a standard naming for binaries across all projects - Research
+    - Complete unit tests
 
+- Customizations
+  - Support: Multiple input paths
+  - Support: Dry-run
+  - Support: Including / excluding symlinks
+  - Support: Opt in to add standardized log level to the output
+  - Support: Opt in to remove timestamp from raw line
+  - Support: Opt in to remove log level from raw line
+  - Support: Custom source name format
+  - Support: Custom timestamp format
+  - Support: Default local timezone if no timezone information in the timestamp
 - Performance
   - Consider adaptive sorting like Timsort just like 'sort' command in Unix.
     Depending on input size and distribution, tools dynamically choose between sorting algorithms
@@ -13,25 +34,3 @@
   - Create an alternative solution with sort and awk to compare performance.
   - Implement an alternative in Rust.
   - 'sort' and 'awk': Algorithms are optimized for CPU cache by working on small, contiguous chunks of data that fit in the L1/L2 cache.
-
-- UX
-  - Aggressively simplify the code so we can easily implement advanced algorithms and features in the future.
-  - Use named return values to document code better and enjoy better autocomplete.
-  - Decide a standard naming for binaries across all projects - Research
-  - Add method comments
-  - Write README - Document exact behaviour (how timestamp-less lines combined together and sorted first etc)
-  - Define install recipe in justfile to install the binary to the system (and uninstall maybe)
-
-- Customizations
-  - Add standard unix-style options (-h, -q, -v, etc.)
-  - Multiple input paths
-  - Dry-run
-  - Included / excluded paths
-  - Including / excluding symlinks
-  - Opt out from adding standardized timestamp to the output
-  - Opt in to add standardized log level to the output
-  - Opt in to remove timestamp from raw line
-  - Opt in to remove log level from raw line
-  - Custom source name format
-  - Custom timestamp format
-  - Default local timezone if no timezone information in the timestamp
