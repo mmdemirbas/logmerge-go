@@ -9,8 +9,13 @@ import (
 
 // TODO: These settings can be made configurable via command-line flags or env vars
 var (
-	Stdout = os.Stdout
-	Stderr = os.Stderr
+	InputPath = "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1737096599066_0003-WORKING-WITH-PROTOBUF/console.log"
+	Stdout    = createFile("/Users/md/dev/mmdemirbas/logmerge/out/stdout.log") // os.Stdout
+	Stderr    = createFile("/Users/md/dev/mmdemirbas/logmerge/out/stderr.log") // os.Stderr
+
+	//InputPath = ""
+	//Stdout    = os.Stdout
+	//Stderr    = os.Stderr
 
 	DisableMetricsCollection = false
 	EnableProfiling          = os.Getenv("ENABLE_PPROF") == "true"
@@ -48,6 +53,8 @@ func main() {
 			//goland:noinspection GoUnhandledErrorResult
 			fmt.Fprintf(Stderr, "main: Recovered from panic: %v\n", r)
 		}
+		Stdout.Close()
+		Stderr.Close()
 	}()
 
 	// Enable profiling only if configured
@@ -68,42 +75,36 @@ func main() {
 		}
 	}
 
-	//goland:noinspection GoUnhandledErrorResult
-	if len(os.Args) < 2 {
-		fmt.Fprintf(Stderr, "logmerge\n")
-		fmt.Fprintf(Stderr, "  Merge multiple log files into a single file while preserving the chronological order of log lines.\n")
-		fmt.Fprintf(Stderr, "\n")
-		fmt.Fprintf(Stderr, "Usage:\n")
-		fmt.Fprintf(Stderr, "  %s <inputPath> [outputPath] [logPath]\n", os.Args[0])
-		fmt.Fprintf(Stderr, "\n")
-		fmt.Fprintf(Stderr, "  <inputPath>   Path to the log file or a directory containing log files\n")
-		fmt.Fprintf(Stderr, "  [outputPath]  Optional output path. If not provided, output is written to stdout\n")
-		fmt.Fprintf(Stderr, "  [logPath]     Optional log path. If not provided, logs are written to stderr\n")
-		fmt.Fprintf(Stderr, "\n")
+	if len(os.Args) > 1 {
+		// TODO: Support multiple base paths
+		InputPath = os.Args[1]
+		if len(os.Args) > 2 {
+			Stdout = createFile(os.Args[2])
+		}
+		if len(os.Args) > 3 {
+			Stderr = createFile(os.Args[3])
+		}
+	} else if len(InputPath) == 0 {
+		//goland:noinspection GoUnhandledErrorResult
+		{
+			fmt.Fprintf(Stderr, "logmerge\n")
+			fmt.Fprintf(Stderr, "  Merge multiple log files into a single file while preserving the chronological order of log lines.\n")
+			fmt.Fprintf(Stderr, "\n")
+			fmt.Fprintf(Stderr, "Usage:\n")
+			fmt.Fprintf(Stderr, "  %s <inputPath> [outputPath] [logPath]\n", os.Args[0])
+			fmt.Fprintf(Stderr, "\n")
+			fmt.Fprintf(Stderr, "  <inputPath>   Path to the log file or a directory containing log files\n")
+			fmt.Fprintf(Stderr, "  [outputPath]  Optional output path. If not provided, output is written to stdout\n")
+			fmt.Fprintf(Stderr, "  [logPath]     Optional log path. If not provided, logs are written to stderr\n")
+			fmt.Fprintf(Stderr, "\n")
+		}
 		os.Exit(1)
 	}
-	// TODO: Support multiple base paths
-	inputPath := os.Args[1]
-	if len(os.Args) > 2 {
-		Stdout, err = os.Create(os.Args[2])
-		if err != nil {
-			err = fmt.Errorf("failed to create stdout file: %v", err)
-		} else {
-			defer Stdout.Close()
-		}
-	}
-	if len(os.Args) > 3 {
-		Stderr, err = os.Create(os.Args[3])
-		if err != nil {
-			err = fmt.Errorf("failed to create stderr file: %v", err)
-		} else {
-			defer Stderr.Close()
-		}
-	}
 
-	// TODO: Catch interrupt signal during merge process and print the metrics anyway
+	err = MergeFiles(InputPath)
+	exitOnError(err)
 
-	err = MergeFiles(inputPath)
+	// TODO: Catch interrupt signal during merge process and do the post-work anyway
 
 	if EnableProfiling {
 		// Capture memory profile
@@ -131,9 +132,19 @@ func main() {
 	}
 
 	elapsedTime := time.Since(programStartTime)
-	PrintMetrics(programStartTime, elapsedTime, inputPath, err)
+	PrintMetrics(programStartTime, elapsedTime, err)
+}
 
+func createFile(path string) *os.File {
+	f, err := os.Create(path)
+	exitOnError(err)
+	return f
+}
+
+func exitOnError(err error) {
 	if err != nil {
+		//goland:noinspection GoUnhandledErrorResult
+		fmt.Fprintf(os.Stderr, "failed to create file: %v", err)
 		os.Exit(1)
 	}
 }

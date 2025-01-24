@@ -14,9 +14,10 @@ OUTPUT_FILE := "output.log"
 
 # Test params
 
-RUN_ARGS := "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1737096599066_0003-WORKING-WITH-PROTOBUF"
-#RUN_ARGS := "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1734940586637_0046-short-success"
-#RUN_ARGS := "/Users/md/dev/mmdemirbas/logmerge/examples/small"
+INPUT_PATH := "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1737096599066_0003-WORKING-WITH-PROTOBUF"
+
+#INPUT_PATH := "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1734940586637_0046-short-success"
+#INPUT_PATH := "/Users/md/dev/mmdemirbas/logmerge/examples/small"
 
 # Display this help message
 @help:
@@ -62,24 +63,24 @@ benchmark:
 
 # Run application
 [group("run")]
-run run_name="default":
+run stderrName="stderr":
     mkdir -p {{ LOG_DIR }} {{ BIN_DIR }} {{ OUT_DIR }}
     go build -ldflags="-s -w" -o {{ BIN_DIR }}/{{ BINARY_NAME }} *.go
-    {{ BIN_DIR }}/{{ BINARY_NAME }} {{ RUN_ARGS }} \
-        > {{ OUT_DIR }}/stdout.log \
-        2> {{ LOG_DIR }}/{{ run_name }}.err
+    {{ BIN_DIR }}/{{ BINARY_NAME }} {{ INPUT_PATH }} \
+        {{ OUT_DIR }}/stdout.log \
+        {{ LOG_DIR }}/{{ stderrName }}.err
 
-#    go run $(ls *.go | grep -v _test.go) {{ RUN_ARGS }}
-
-# Run application with profiling and capture CPU and memory profiles
-[group("run")]
-profile run_name="default":
-    ENABLE_PPROF=true just run {{ run_name }}
+#    go run $(ls *.go | grep -v _test.go) {{ INPUT_PATH }}
 
 # Run application with profiling and capture CPU and memory profiles
 [group("run")]
-trace run_name="default":
-    GODEBUG=gctrace=1 just run {{ run_name }}
+profile stderrName="stderr":
+    ENABLE_PPROF=true just run {{ stderrName }}
+
+# Run application with GC tracing and capture CPU and memory profiles
+[group("run")]
+trace stderrName="stderr":
+    GODEBUG=gctrace=1 just run {{ stderrName }}
 
 # Browse captured CPU profile in a web browser
 [group("inspect")]
