@@ -9,13 +9,13 @@ import (
 
 // TODO: These settings can be made configurable via command-line flags or env vars
 var (
-	InputPath = "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1737096599066_0003-WORKING-WITH-PROTOBUF/console.log"
-	Stdout    = createFile("/Users/md/dev/mmdemirbas/logmerge/out/stdout.log") // os.Stdout
-	Stderr    = createFile("/Users/md/dev/mmdemirbas/logmerge/out/stderr.log") // os.Stderr
+	// Default paths
+	InputPath  = "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1737096599066_0003-WORKING-WITH-PROTOBUF/console.log"
+	stdoutFile = "/Users/md/dev/mmdemirbas/logmerge/out/stdout.log"
+	stderrFile = "/Users/md/dev/mmdemirbas/logmerge/out/stderr.log"
 
-	//InputPath = ""
-	//Stdout    = os.Stdout
-	//Stderr    = os.Stderr
+	Stdout *os.File
+	Stderr *os.File
 
 	DisableMetricsCollection = false
 	EnableProfiling          = os.Getenv("ENABLE_PPROF") == "true"
@@ -91,12 +91,14 @@ func main() {
 
 	if len(os.Args) > 1 {
 		// TODO: Support multiple base paths
-		InputPath = os.Args[1]
-		if len(os.Args) > 2 {
-			Stdout = createFile(os.Args[2])
+		if os.Args[1] != "" {
+			InputPath = os.Args[1]
 		}
-		if len(os.Args) > 3 {
-			Stderr = createFile(os.Args[3])
+		if len(os.Args) > 2 && os.Args[2] != "" {
+			stdoutFile = os.Args[2]
+		}
+		if len(os.Args) > 3 && os.Args[3] != "" {
+			stderrFile = os.Args[3]
 		}
 	} else if len(InputPath) == 0 {
 		//goland:noinspection GoUnhandledErrorResult
@@ -114,6 +116,9 @@ func main() {
 		}
 		os.Exit(1)
 	}
+
+	Stdout = createFile(stdoutFile, os.Stdout)
+	Stderr = createFile(stderrFile, os.Stderr)
 
 	err = MergeFiles(InputPath)
 	exitOnError(err)
@@ -149,7 +154,10 @@ func main() {
 	PrintMetrics(programStartTime, elapsedTime, err)
 }
 
-func createFile(path string) *os.File {
+func createFile(path string, fallback *os.File) *os.File {
+	if path == "" {
+		return fallback
+	}
 	f, err := os.Create(path)
 	exitOnError(err)
 	return f
