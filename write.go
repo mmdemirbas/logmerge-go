@@ -91,9 +91,8 @@ func MergeFiles(inputPath string) error {
 	defer writer.Flush()
 
 	startTime := MeasureStart("HeapInit")
-	// Initialize heap
-	h := &MinHeap{}
-	heap.Init(h)
+	h := MinHeap(make([]*FileReader, 0, len(readers))) // Pre-allocate heap with the number of files
+	h = h[:0]                                          // Reset the heap length to zero
 
 	// Populate heap with the first entry from each file
 	remainingReaderCount := 0
@@ -106,10 +105,8 @@ func MergeFiles(inputPath string) error {
 			return fmt.Errorf("failed to read line prefix from %s: %v", reader.File.Name(), err)
 		}
 		if reader.TimestampParsed {
-			startTime = MeasureStart("HeapPush")
-			heap.Push(h, reader)
+			h = append(h, reader)
 			remainingReaderCount++
-			HeapPushMetric.MeasureSince(startTime)
 		} else {
 			err = reader.Close()
 			if err != nil {
@@ -122,6 +119,7 @@ func MergeFiles(inputPath string) error {
 			reader.Done = true
 		}
 	}
+	heap.Init(&h)
 	MeasureSince(startTime)
 
 	// Print progress
@@ -142,10 +140,10 @@ func MergeFiles(inputPath string) error {
 	lastPrintedSourceName := ""
 
 	startTime = MeasureStart("HeapPop")
-	reader := heap.Pop(h).(*FileReader)
+	reader := heap.Pop(&h).(*FileReader)
 	var nextReader *FileReader = nil
 	if remainingReaderCount > 0 {
-		nextReader = h.Pop().(*FileReader)
+		nextReader = heap.Pop(&h).(*FileReader)
 		remainingReaderCount--
 		HeapPopMetric.CallCount++
 	}
@@ -237,7 +235,7 @@ func MergeFiles(inputPath string) error {
 		if reader.TimestampParsed && reader.Timestamp <= MaxTimestamp {
 			// Put the next entry to the heap
 			startTime = MeasureStart("HeapPush")
-			heap.Push(h, reader)
+			heap.Push(&h, reader)
 			HeapPushMetric.MeasureSince(startTime)
 		} else {
 			// Close the file
@@ -256,7 +254,7 @@ func MergeFiles(inputPath string) error {
 		reader = nextReader
 		if remainingReaderCount > 0 {
 			startTime = MeasureStart("HeapPop")
-			nextReader = h.Pop().(*FileReader)
+			nextReader = heap.Pop(&h).(*FileReader)
 			HeapPopMetric.MeasureSince(startTime)
 		} else {
 			nextReader = nil

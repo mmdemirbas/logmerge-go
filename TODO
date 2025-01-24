@@ -1,4 +1,5 @@
 - Add block count metrics
+- Fix heap bug
 
 - Documentation
     - Write README - Document exact behaviour (how timestamp-less lines combined together and sorted first etc)

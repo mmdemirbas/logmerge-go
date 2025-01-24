@@ -7,6 +7,10 @@ import (
 	"strings"
 )
 
+// TODO: Pass list-file related configs as a struct for better testability
+
+// TODO: Think about global metric access
+
 func ListFiles(basePath string) (files []string, err error) {
 	stat, err := os.Stat(basePath)
 
