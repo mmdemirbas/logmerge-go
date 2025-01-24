@@ -52,7 +52,7 @@ func main() {
 	} else {
 		err = loadConfig(os.Args[1])
 		if err == nil {
-			err = MergeFiles(InputPath)
+			err = MergeFiles(InputPath, programStartTime)
 		}
 	}
 

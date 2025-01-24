@@ -13,7 +13,7 @@ var (
 	space30 = []byte("                              ")
 )
 
-func MergeFiles(inputPath string) error {
+func MergeFiles(inputPath string, programStartTime time.Time) error {
 	defer func() {
 		if r := recover(); r != nil {
 			//goland:noinspection GoUnhandledErrorResult
@@ -131,9 +131,9 @@ func MergeFiles(inputPath string) error {
 		//goland:noinspection GoUnhandledErrorResult
 		fmt.Fprintf(Stderr, "\n")
 
-		ticker := time.NewTicker(200 * time.Millisecond)
+		ticker := time.NewTicker(1000 * time.Millisecond)
 		for range ticker.C {
-			printProgress(readers)
+			printProgress(readers, programStartTime)
 		}
 	}()
 
@@ -262,7 +262,7 @@ func MergeFiles(inputPath string) error {
 			nextReader = nil
 		}
 	}
-	printProgress(readers)
+	printProgress(readers, programStartTime)
 	return nil
 }
 
@@ -301,7 +301,7 @@ func writeLine(writer *bufio.Writer, timestamp MyTime, reader *FileReader) error
 	return reader.WriteLine(writer)
 }
 
-func printProgress(readers []*FileReader) {
+func printProgress(readers []*FileReader, programStartTime time.Time) {
 	completedSize := 0
 	completedCount := 0
 
@@ -321,9 +321,12 @@ func printProgress(readers []*FileReader) {
 	totalSize = max(totalSize, 1)
 	totalCount = max(totalCount, 1)
 
+	elapsedTime := time.Since(programStartTime)
+
 	//goland:noinspection GoUnhandledErrorResult
-	fmt.Fprintf(os.Stderr, "Progress: %6.2f %% of data (%12s / %12s) - %6.2f %% of files (%5d / %5d)\r",
+	fmt.Fprintf(os.Stderr, "Progress: %6.2f %% of data (%12s / %12s) - %6.2f %% of files (%5d / %5d) - Elapsed: %s\r",
 		float64(completedSize)/(float64(totalSize)/100), bytes(int64(completedSize)), bytes(int64(totalSize)),
 		float64(completedCount)/(float64(totalCount)/100), int64(completedCount), int64(totalCount),
+		elapsedTime.Round(time.Millisecond).String(),
 	)
 }

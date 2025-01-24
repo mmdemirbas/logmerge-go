@@ -117,7 +117,8 @@ func ParseTimestamp(buffer []byte) MyTime {
 		return noTimestamp
 	}
 
-	if buffer[i] == '-' {
+	b := buffer[i]
+	if b == '-' || b == '/' {
 		i++
 	}
 
@@ -132,7 +133,8 @@ func ParseTimestamp(buffer []byte) MyTime {
 		return noTimestamp
 	}
 
-	if buffer[i] == '-' {
+	b = buffer[i]
+	if b == '-' || b == '/' {
 		i++
 	}
 
@@ -147,7 +149,7 @@ func ParseTimestamp(buffer []byte) MyTime {
 		return noTimestamp
 	}
 
-	b := buffer[i]
+	b = buffer[i]
 	if i >= n || (b != ' ' && b != 'T' && b != '_') {
 		Timestamp_SpaceOperatorMismatch++
 		return noTimestamp
