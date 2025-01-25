@@ -10,11 +10,11 @@ var (
 	noTimestamp = Timestamp(0)
 )
 
-func ParseTimestamp(buffer []byte) Timestamp {
+func ParseTimestamp(c *AppConfig, buffer []byte) Timestamp {
 	defer func() {
 		if r := recover(); r != nil {
 			//goland:noinspection GoUnhandledErrorResult
-			fmt.Fprintf(Stderr, "ParseTimestamp: Recovered from panic: %v. Buffer: %s\n", r, buffer)
+			fmt.Fprintf(c.Stderr, "ParseTimestamp: Recovered from panic: %v. Buffer: %s\n", r, buffer)
 		}
 	}()
 
@@ -22,7 +22,7 @@ func ParseTimestamp(buffer []byte) Timestamp {
 	//   In this case, we should skip non-digits after the first digit and try parsing from there.
 
 	n := len(buffer)
-	if n < ShortestTimestampLen {
+	if n < c.ShortestTimestampLen {
 		Timestamp_LineTooShort++
 		return noTimestamp
 	}
@@ -49,12 +49,12 @@ func ParseTimestamp(buffer []byte) Timestamp {
 		Timestamp_NoFirstDigit++
 		return noTimestamp
 	}
-	if n < i+ShortestTimestampLen {
+	if n < i+c.ShortestTimestampLen {
 		Timestamp_LineTooShortAfterFirstDigit++
 		return noTimestamp
 	}
 
-	for j := i + ShortestTimestampLen - 1; j >= i; j-- {
+	for j := i + c.ShortestTimestampLen - 1; j >= i; j-- {
 		b := buffer[j]
 		if b == '\n' || b == '\r' {
 			Timestamp_LineTooShortAfterFirstDigit++
@@ -207,7 +207,7 @@ func ParseTimestamp(buffer []byte) Timestamp {
 	tzHour := 0
 	tzMin := 0
 
-	if !IgnoreTimezoneInfo && i < n {
+	if !c.IgnoreTimezoneInfo && i < n {
 		b = buffer[i]
 		switch b {
 		case 'Z':

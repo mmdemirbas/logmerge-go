@@ -2,6 +2,7 @@ package main_test
 
 import (
 	. "github.com/mmdemirbas/logmerge"
+	"os"
 	"strings"
 	"testing"
 )
@@ -28,9 +29,15 @@ func TestParseTimestamp(t *testing.T) {
 		{"2025-01-16 03:24:08.000000000 ", "2025-01-15 19:24:08-08:00 | INFO  | [139837877704256] shard_view_mgt.cpp:109 [SHARD_VIEW][INFO] Update view success, version is 117."},
 	}
 
+	c := &AppConfig{
+		ShortestTimestampLen: 15,
+		Stderr:               os.Stderr,
+		IgnoreTimezoneInfo:   false,
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			ts := ParseTimestamp([]byte(tt.input))
+			ts := ParseTimestamp(c, []byte(tt.input))
 			actual := ts.String()
 			if strings.Compare(tt.expected, actual) != 0 {
 				t.Errorf(expectedFormat, tt.expected, tt.expected, actual, actual)

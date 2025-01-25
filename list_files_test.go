@@ -13,11 +13,16 @@ func TestShouldIncludeFile(t *testing.T) {
 		{"some/path/usual.log", true},
 		{"some/path/usual.log.zip", false},
 	}
-	//goland:noinspection GoUnhandledErrorResult
-	LoadConfigValuesToVariables()
+
+	c := &AppConfig{
+		ExcludedStrictSuffixes:  []string{".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz"},
+		IncludedStrictSuffixes:  []string{},
+		ExcludedLenientSuffixes: []string{},
+		IncludedLenientSuffixes: []string{".log", ".err", ".error", ".warn", ".warning", ".info", ".out", ".debug", ".trace"},
+	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			actual := ShouldIncludeFile(tt.input)
+			actual := ShouldIncludeFile(c, tt.input)
 			if actual != tt.expected {
 				t.Errorf(expectedFormat, tt.expected, tt.expected, actual, actual)
 			}

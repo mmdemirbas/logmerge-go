@@ -7,81 +7,20 @@ import (
 	"path/filepath"
 )
 
-// TODO: Streamline config infra. Now it requires 6 changes to add a single field.
-
-// Effective configuration values after loading the config file.
-var (
-	InputPath string
-	Stdout    *os.File
-	Stderr    *os.File
-
-	EnableMetricsCollection bool
-	EnableProfiling         bool
-
-	WriteSourceNamesPerBlock bool
-	WriteSourceNamesPerLine  bool
-	WriteTimestampPerLine    bool
-
-	MinTimestamp       Timestamp
-	MaxTimestamp       Timestamp
-	IgnoreTimezoneInfo bool
-
-	ShortestTimestampLen    int
-	TimestampSearchEndIndex int
-
-	BufferSizeForRead  int
-	BufferSizeForWrite int
-
-	ExcludedStrictSuffixes  []string
-	IncludedStrictSuffixes  []string
-	ExcludedLenientSuffixes []string
-	IncludedLenientSuffixes []string
-
-	SourceNameAliases map[string]string
-)
-
-// defaultConfig Defaults set here. Overrides loaded from config file.
-var defaultConfig = AppConfig{
-	InputPath:  "",
-	OutputPath: "out/stdout.log",
-	LogPath:    "out/stderr.log",
-
-	EnableMetricsCollection: true,
-	EnableProfiling:         false,
-
-	WriteSourceNamesPerBlock: true,
-	WriteSourceNamesPerLine:  false,
-	WriteTimestampPerLine:    false,
-
-	IgnoreTimezoneInfo: false,
-	MinTimestamp:       noTimestamp,
-	MaxTimestamp:       Timestamp(1<<63 - 1),
-
-	ShortestTimestampLen:    15,
-	TimestampSearchEndIndex: 250,
-
-	BufferSizeForRead:  1024 * 1024 * 100,
-	BufferSizeForWrite: 1024 * 1024 * 100,
-
-	ExcludedStrictSuffixes:  []string{".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz"},
-	IncludedStrictSuffixes:  []string{},
-	ExcludedLenientSuffixes: []string{},
-	IncludedLenientSuffixes: []string{".log", ".err", ".error", ".warn", ".warning", ".info", ".out", ".debug", ".trace"},
-
-	SourceNameAliases: map[string]string{},
-}
-
 type AppConfig struct {
 	InputPath  string
 	OutputPath string
 	LogPath    string
 
+	Stdout *os.File
+	Stderr *os.File
+
 	EnableMetricsCollection bool
 	EnableProfiling         bool
 
-	WriteSourceNamesPerBlock bool
-	WriteSourceNamesPerLine  bool
-	WriteTimestampPerLine    bool
+	WriteAliasPerBlock    bool
+	WriteAliasPerLine     bool
+	WriteTimestampPerLine bool
 
 	MinTimestamp       Timestamp
 	MaxTimestamp       Timestamp
@@ -98,7 +37,7 @@ type AppConfig struct {
 	ExcludedLenientSuffixes []string
 	IncludedLenientSuffixes []string
 
-	SourceNameAliases map[string]string
+	FileAliases map[string]string
 }
 
 type YamlConfig struct {
@@ -109,9 +48,9 @@ type YamlConfig struct {
 	EnableMetricsCollection *bool `yaml:"EnableMetricsCollection"`
 	EnableProfiling         *bool `yaml:"EnableProfiling"`
 
-	WriteSourceNamesPerBlock *bool `yaml:"WriteSourceNamesPerBlock"`
-	WriteSourceNamesPerLine  *bool `yaml:"WriteSourceNamesPerLine"`
-	WriteTimestampPerLine    *bool `yaml:"WriteTimestampPerLine"`
+	WriteAliasPerBlock    *bool `yaml:"WriteAliasPerBlock"`
+	WriteAliasPerLine     *bool `yaml:"WriteAliasPerLine"`
+	WriteTimestampPerLine *bool `yaml:"WriteTimestampPerLine"`
 
 	MinTimestamp       *string `yaml:"MinTimestamp"`
 	MaxTimestamp       *string `yaml:"MaxTimestamp"`
@@ -128,144 +67,141 @@ type YamlConfig struct {
 	ExcludedLenientSuffixes *[]string `yaml:"ExcludedLenientSuffixes"`
 	IncludedLenientSuffixes *[]string `yaml:"IncludedLenientSuffixes"`
 
-	SourceNameAliases *map[string]string `yaml:"SourceNameAliases"`
+	FileAliases *map[string]string `yaml:"FileAliases"`
 }
 
-func loadConfigFromYaml(yamlPath string) error {
+func (c *YamlConfig) LoadYamlConfig(yamlPath string) error {
 	data, err := os.ReadFile(yamlPath)
 	if err != nil {
 		return fmt.Errorf("failed to read file %s: %w", yamlPath, err)
 	}
 
-	yamlConfig := &YamlConfig{}
-	err = yaml.Unmarshal(data, yamlConfig)
+	err = yaml.Unmarshal(data, &c)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal yaml file %s: %w", yamlPath, err)
 	}
 
-	if yamlConfig.InputPath != nil {
-		defaultConfig.InputPath = *yamlConfig.InputPath
-	}
-
-	if yamlConfig.OutputPath != nil {
-		defaultConfig.OutputPath = *yamlConfig.OutputPath
-	}
-
-	if yamlConfig.LogPath != nil {
-		defaultConfig.LogPath = *yamlConfig.LogPath
-	}
-
-	if yamlConfig.EnableMetricsCollection != nil {
-		defaultConfig.EnableMetricsCollection = *yamlConfig.EnableMetricsCollection
-	}
-
-	if yamlConfig.EnableProfiling != nil {
-		defaultConfig.EnableProfiling = *yamlConfig.EnableProfiling
-	}
-
-	if yamlConfig.WriteSourceNamesPerBlock != nil {
-		defaultConfig.WriteSourceNamesPerBlock = *yamlConfig.WriteSourceNamesPerBlock
-	}
-
-	if yamlConfig.WriteSourceNamesPerLine != nil {
-		defaultConfig.WriteSourceNamesPerLine = *yamlConfig.WriteSourceNamesPerLine
-	}
-
-	if yamlConfig.WriteTimestampPerLine != nil {
-		defaultConfig.WriteTimestampPerLine = *yamlConfig.WriteTimestampPerLine
-	}
-
-	if yamlConfig.MinTimestamp != nil {
-		ts, err := NewTimestampFromString(*yamlConfig.MinTimestamp)
-		if err != nil {
-			return fmt.Errorf("failed to parse MinTimestamp from file %s: %w", yamlPath, err)
-		}
-		defaultConfig.MinTimestamp = ts
-	}
-
-	if yamlConfig.MaxTimestamp != nil {
-		ts, err := NewTimestampFromString(*yamlConfig.MaxTimestamp)
-		if err != nil {
-			return fmt.Errorf("failed to parse MaxTimestamp: from file %s: %w", yamlPath, err)
-		}
-		defaultConfig.MaxTimestamp = ts
-	}
-
-	if yamlConfig.IgnoreTimezoneInfo != nil {
-		defaultConfig.IgnoreTimezoneInfo = *yamlConfig.IgnoreTimezoneInfo
-	}
-
-	if yamlConfig.ShortestTimestampLen != nil {
-		defaultConfig.ShortestTimestampLen = *yamlConfig.ShortestTimestampLen
-	}
-
-	if yamlConfig.TimestampSearchEndIndex != nil {
-		defaultConfig.TimestampSearchEndIndex = *yamlConfig.TimestampSearchEndIndex
-	}
-
-	if yamlConfig.BufferSizeForRead != nil {
-		defaultConfig.BufferSizeForRead = *yamlConfig.BufferSizeForRead
-	}
-
-	if yamlConfig.BufferSizeForWrite != nil {
-		defaultConfig.BufferSizeForWrite = *yamlConfig.BufferSizeForWrite
-	}
-
-	if yamlConfig.ExcludedStrictSuffixes != nil {
-		defaultConfig.ExcludedStrictSuffixes = *yamlConfig.ExcludedStrictSuffixes
-	}
-
-	if yamlConfig.IncludedStrictSuffixes != nil {
-		defaultConfig.IncludedStrictSuffixes = *yamlConfig.IncludedStrictSuffixes
-	}
-
-	if yamlConfig.ExcludedLenientSuffixes != nil {
-		defaultConfig.ExcludedLenientSuffixes = *yamlConfig.ExcludedLenientSuffixes
-	}
-
-	if yamlConfig.IncludedLenientSuffixes != nil {
-		defaultConfig.IncludedLenientSuffixes = *yamlConfig.IncludedLenientSuffixes
-	}
-
-	if yamlConfig.SourceNameAliases != nil {
-		defaultConfig.SourceNameAliases = *yamlConfig.SourceNameAliases
-	}
-
-	return LoadConfigValuesToVariables()
+	return nil
 }
 
-func LoadConfigValuesToVariables() error {
-	InputPath = defaultConfig.InputPath
+func (c *AppConfig) LoadAppConfig(yamlConfig *YamlConfig) error {
+	// InputPath
+	if yamlConfig.InputPath != nil {
+		c.InputPath = *yamlConfig.InputPath
+	}
 
-	f, err := createFile(defaultConfig.OutputPath, os.Stdout)
+	// OutputPath -> Stdout
+	if yamlConfig.OutputPath != nil {
+		c.OutputPath = *yamlConfig.OutputPath
+	}
+	f, err := createFile(c.OutputPath, os.Stdout)
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %w", err)
 	}
-	Stdout = f
+	c.Stdout = f
 
-	f, err = createFile(defaultConfig.LogPath, os.Stderr)
+	// LogPath -> Stderr
+	if yamlConfig.LogPath != nil {
+		c.LogPath = *yamlConfig.LogPath
+	}
+	f, err = createFile(c.LogPath, os.Stderr)
 	if err != nil {
 		return fmt.Errorf("failed to create log file: %w", err)
 	}
-	Stderr = f
+	c.Stderr = f
 
-	EnableMetricsCollection = defaultConfig.EnableMetricsCollection
-	EnableProfiling = defaultConfig.EnableProfiling
-	WriteSourceNamesPerBlock = defaultConfig.WriteSourceNamesPerBlock
-	WriteSourceNamesPerLine = defaultConfig.WriteSourceNamesPerLine
-	WriteTimestampPerLine = defaultConfig.WriteTimestampPerLine
-	MinTimestamp = defaultConfig.MinTimestamp
-	MaxTimestamp = defaultConfig.MaxTimestamp
-	IgnoreTimezoneInfo = defaultConfig.IgnoreTimezoneInfo
-	ShortestTimestampLen = defaultConfig.ShortestTimestampLen
-	TimestampSearchEndIndex = defaultConfig.TimestampSearchEndIndex
-	BufferSizeForRead = defaultConfig.BufferSizeForRead
-	BufferSizeForWrite = defaultConfig.BufferSizeForWrite
-	ExcludedStrictSuffixes = defaultConfig.ExcludedStrictSuffixes
-	IncludedStrictSuffixes = defaultConfig.IncludedStrictSuffixes
-	ExcludedLenientSuffixes = defaultConfig.ExcludedLenientSuffixes
-	IncludedLenientSuffixes = defaultConfig.IncludedLenientSuffixes
-	SourceNameAliases = defaultConfig.SourceNameAliases
+	// EnableMetricsCollection
+	if yamlConfig.EnableMetricsCollection != nil {
+		c.EnableMetricsCollection = *yamlConfig.EnableMetricsCollection
+	}
+
+	// EnableProfiling
+	if yamlConfig.EnableProfiling != nil {
+		c.EnableProfiling = *yamlConfig.EnableProfiling
+	}
+
+	// WriteAliasPerBlock
+	if yamlConfig.WriteAliasPerBlock != nil {
+		c.WriteAliasPerBlock = *yamlConfig.WriteAliasPerBlock
+	}
+
+	// WriteAliasPerLine
+	if yamlConfig.WriteAliasPerLine != nil {
+		c.WriteAliasPerLine = *yamlConfig.WriteAliasPerLine
+	}
+
+	// WriteTimestampPerLine
+	if yamlConfig.WriteTimestampPerLine != nil {
+		c.WriteTimestampPerLine = *yamlConfig.WriteTimestampPerLine
+	}
+
+	// MinTimestamp
+	if yamlConfig.MinTimestamp != nil {
+		ts, err := NewTimestampFromString(*yamlConfig.MinTimestamp)
+		if err != nil {
+			return fmt.Errorf("failed to parse MinTimestamp <%s>: %w", *yamlConfig.MinTimestamp, err)
+		}
+		c.MinTimestamp = ts
+	}
+
+	// MaxTimestamp
+	if yamlConfig.MaxTimestamp != nil {
+		ts, err := NewTimestampFromString(*yamlConfig.MaxTimestamp)
+		if err != nil {
+			return fmt.Errorf("failed to parse MaxTimestamp <%s>: %w", *yamlConfig.MaxTimestamp, err)
+		}
+		c.MaxTimestamp = ts
+	}
+
+	// IgnoreTimezoneInfo
+	if yamlConfig.IgnoreTimezoneInfo != nil {
+		c.IgnoreTimezoneInfo = *yamlConfig.IgnoreTimezoneInfo
+	}
+
+	// ShortestTimestampLen
+	if yamlConfig.ShortestTimestampLen != nil {
+		c.ShortestTimestampLen = *yamlConfig.ShortestTimestampLen
+	}
+
+	// TimestampSearchEndIndex
+	if yamlConfig.TimestampSearchEndIndex != nil {
+		c.TimestampSearchEndIndex = *yamlConfig.TimestampSearchEndIndex
+	}
+
+	// BufferSizeForRead
+	if yamlConfig.BufferSizeForRead != nil {
+		c.BufferSizeForRead = *yamlConfig.BufferSizeForRead
+	}
+
+	// BufferSizeForWrite
+	if yamlConfig.BufferSizeForWrite != nil {
+		c.BufferSizeForWrite = *yamlConfig.BufferSizeForWrite
+	}
+
+	// ExcludedStrictSuffixes
+	if yamlConfig.ExcludedStrictSuffixes != nil {
+		c.ExcludedStrictSuffixes = *yamlConfig.ExcludedStrictSuffixes
+	}
+
+	// IncludedStrictSuffixes
+	if yamlConfig.IncludedStrictSuffixes != nil {
+		c.IncludedStrictSuffixes = *yamlConfig.IncludedStrictSuffixes
+	}
+
+	// ExcludedLenientSuffixes
+	if yamlConfig.ExcludedLenientSuffixes != nil {
+		c.ExcludedLenientSuffixes = *yamlConfig.ExcludedLenientSuffixes
+	}
+
+	// IncludedLenientSuffixes
+	if yamlConfig.IncludedLenientSuffixes != nil {
+		c.IncludedLenientSuffixes = *yamlConfig.IncludedLenientSuffixes
+	}
+
+	// FileAliases
+	if yamlConfig.FileAliases != nil {
+		c.FileAliases = *yamlConfig.FileAliases
+	}
 
 	return nil
 }
