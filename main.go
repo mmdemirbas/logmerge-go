@@ -50,7 +50,7 @@ func main() {
 		fmt.Fprintf(Stderr, "\n")
 		os.Exit(1)
 	} else {
-		err = loadConfig(os.Args[1])
+		err = loadConfigFromYaml(os.Args[1])
 		if err == nil {
 			err = MergeFiles(InputPath, programStartTime)
 		}

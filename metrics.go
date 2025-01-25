@@ -473,7 +473,7 @@ func printTreeNode(depth int, name string, n int64, nanoseconds int64, extra str
 		name,
 		timePercent(nanoseconds),
 		duration(nanoseconds),
-		duration(nanoseconds/max(1, n)),
+		durationFloat(float64(nanoseconds)/float64(max(1, n))),
 		n,
 		count(n),
 		extra,
@@ -511,11 +511,23 @@ func (b *BucketMetric) printBuckets(name string) {
 }
 
 func duration(d int64) string {
-	t := time.Duration(d)
-	if t < time.Second {
-		return fmt.Sprintf("%v", t)
+	return durationFloat(float64(d))
+}
+
+func durationFloat(d float64) string {
+	if d < 1000 {
+		return fmt.Sprintf("%.3fns", d)
 	}
-	return fmt.Sprintf("%v", t.Round(time.Millisecond))
+
+	if d < 1000*1000 {
+		return fmt.Sprintf("%.3fµs", d/1000)
+	}
+
+	if d < 1000*1000*1000 {
+		return fmt.Sprintf("%.3fms", d/(1000*1000))
+	}
+
+	return fmt.Sprintf("%v", time.Duration(d).Round(time.Millisecond))
 }
 
 func bytes(bytes int64) string {

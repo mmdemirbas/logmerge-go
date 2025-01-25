@@ -56,7 +56,7 @@ var defaultConfig = AppConfig{
 
 	MinTimestamp:       noTimestamp,
 	MaxTimestamp:       MyTime(1<<63 - 1),
-	IgnoreTimezoneInfo: true,
+	IgnoreTimezoneInfo: false,
 
 	ShortestTimestampLen:    15,
 	TimestampSearchEndIndex: 250,
@@ -132,7 +132,7 @@ type YamlConfig struct {
 	SourceNameAliases *map[string]string `yaml:"SourceNameAliases"`
 }
 
-func loadConfig(yamlPath string) error {
+func loadConfigFromYaml(yamlPath string) error {
 	data, err := os.ReadFile(yamlPath)
 	if err != nil {
 		return fmt.Errorf("failed to read file %s: %w", yamlPath, err)
@@ -232,6 +232,10 @@ func loadConfig(yamlPath string) error {
 		defaultConfig.SourceNameAliases = *yamlConfig.SourceNameAliases
 	}
 
+	return LoadConfigValuesToVariables()
+}
+
+func LoadConfigValuesToVariables() error {
 	InputPath = defaultConfig.InputPath
 
 	f, err := createFile(defaultConfig.OutputPath, os.Stdout)

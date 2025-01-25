@@ -52,7 +52,7 @@ func TestNewMyTime(t *testing.T) {
 			actualEpochNanos := int64(actual)
 
 			if actualEpochNanos != tt.epochNanos {
-				t.Errorf("NewMyTime(%d, %d, %d, %d, %d, %d, %d, %d, %d, %d) = %d; want %d", tt.year, tt.month, tt.day, tt.hour, tt.minute, tt.second, tt.nsec, tt.tzSign, tt.tzHour, tt.tzMin, actual, tt.epochNanos)
+				t.Errorf("NewMyTime(%d, %d, %d, %d, %d, %d, %d, %d, %d, %d) = %d; want %d", tt.year, tt.month, tt.day, tt.hour, tt.minute, tt.second, tt.nsec, tt.tzSign, tt.tzHour, tt.tzMin, actualEpochNanos, tt.epochNanos)
 			}
 			actualString := actual.String()
 			if actualString != tt.timeString {

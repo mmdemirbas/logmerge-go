@@ -13,6 +13,8 @@ func TestShouldIncludeFile(t *testing.T) {
 		{"some/path/usual.log", true},
 		{"some/path/usual.log.zip", false},
 	}
+	//goland:noinspection GoUnhandledErrorResult
+	LoadConfigValuesToVariables()
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			actual := ShouldIncludeFile(tt.input)

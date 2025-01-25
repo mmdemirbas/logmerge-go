@@ -1,3 +1,6 @@
+- Global variables making testing harder. Find a good middle ground between global and local variables.
+- Try unsigned types for performance (uint)
+
 - Documentation
     - Write README - Document exact behaviour (how timestamp-less lines combined together and sorted first etc)
 - Usability
