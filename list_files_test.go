@@ -12,6 +12,7 @@ func TestShouldIncludeFile(t *testing.T) {
 	}{
 		{"some/path/usual.log", true},
 		{"some/path/usual.log.zip", false},
+		// TODO: Add more tests to cover all cases
 	}
 
 	c := &AppConfig{

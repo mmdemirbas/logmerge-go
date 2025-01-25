@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestNewRingBuffer(t *testing.T) {
+func TestRingBuffer(t *testing.T) {
 	t.Run("NewRingBuffer", func(t *testing.T) {
 		t.Run("-1-cap", func(t *testing.T) {
 			r := NewRingBuffer(-1)
@@ -481,4 +481,8 @@ func TestNewRingBuffer(t *testing.T) {
 			})
 		})
 	})
+
+	// TODO: Add tests for SkipNextLineSlice
+	// TODO: Add tests for PeekNextLineSlice
+	// TODO: Add tests for AsSlice
 }

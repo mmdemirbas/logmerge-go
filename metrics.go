@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+// TODO: Move away from using global variables
+
 // TODO: Consider sampling metrics (e.g. measure per 1000 lines instead of every single line)
 // TODO: Consider batching metrics (e.g. accumulate data locally per 1000 lines, then merge to the global metrics)
 
