@@ -5,7 +5,6 @@ import (
 	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
-	"time"
 )
 
 // TODO: Streamline config infra. Now it requires 6 changes to add a single field.
@@ -16,15 +15,15 @@ var (
 	Stdout    *os.File
 	Stderr    *os.File
 
-	DisableMetricsCollection bool
-	EnableProfiling          bool
+	EnableMetricsCollection bool
+	EnableProfiling         bool
 
 	WriteSourceNamesPerBlock bool
 	WriteSourceNamesPerLine  bool
 	WriteTimestampPerLine    bool
 
-	MinTimestamp       MyTime
-	MaxTimestamp       MyTime
+	MinTimestamp       Timestamp
+	MaxTimestamp       Timestamp
 	IgnoreTimezoneInfo bool
 
 	ShortestTimestampLen    int
@@ -47,16 +46,16 @@ var defaultConfig = AppConfig{
 	OutputPath: "out/stdout.log",
 	LogPath:    "out/stderr.log",
 
-	DisableMetricsCollection: false,
-	EnableProfiling:          false,
+	EnableMetricsCollection: true,
+	EnableProfiling:         false,
 
 	WriteSourceNamesPerBlock: true,
 	WriteSourceNamesPerLine:  false,
 	WriteTimestampPerLine:    false,
 
-	MinTimestamp:       noTimestamp,
-	MaxTimestamp:       MyTime(1<<63 - 1),
 	IgnoreTimezoneInfo: false,
+	MinTimestamp:       noTimestamp,
+	MaxTimestamp:       Timestamp(1<<63 - 1),
 
 	ShortestTimestampLen:    15,
 	TimestampSearchEndIndex: 250,
@@ -77,15 +76,15 @@ type AppConfig struct {
 	OutputPath string
 	LogPath    string
 
-	DisableMetricsCollection bool
-	EnableProfiling          bool
+	EnableMetricsCollection bool
+	EnableProfiling         bool
 
 	WriteSourceNamesPerBlock bool
 	WriteSourceNamesPerLine  bool
 	WriteTimestampPerLine    bool
 
-	MinTimestamp       MyTime
-	MaxTimestamp       MyTime
+	MinTimestamp       Timestamp
+	MaxTimestamp       Timestamp
 	IgnoreTimezoneInfo bool
 
 	ShortestTimestampLen    int
@@ -107,8 +106,8 @@ type YamlConfig struct {
 	OutputPath *string `yaml:"OutputPath"`
 	LogPath    *string `yaml:"LogPath"`
 
-	DisableMetricsCollection *bool `yaml:"DisableMetricsCollection"`
-	EnableProfiling          *bool `yaml:"EnableProfiling"`
+	EnableMetricsCollection *bool `yaml:"EnableMetricsCollection"`
+	EnableProfiling         *bool `yaml:"EnableProfiling"`
 
 	WriteSourceNamesPerBlock *bool `yaml:"WriteSourceNamesPerBlock"`
 	WriteSourceNamesPerLine  *bool `yaml:"WriteSourceNamesPerLine"`
@@ -156,8 +155,8 @@ func loadConfigFromYaml(yamlPath string) error {
 		defaultConfig.LogPath = *yamlConfig.LogPath
 	}
 
-	if yamlConfig.DisableMetricsCollection != nil {
-		defaultConfig.DisableMetricsCollection = *yamlConfig.DisableMetricsCollection
+	if yamlConfig.EnableMetricsCollection != nil {
+		defaultConfig.EnableMetricsCollection = *yamlConfig.EnableMetricsCollection
 	}
 
 	if yamlConfig.EnableProfiling != nil {
@@ -177,7 +176,7 @@ func loadConfigFromYaml(yamlPath string) error {
 	}
 
 	if yamlConfig.MinTimestamp != nil {
-		ts, err := NewMyTimeFromString(*yamlConfig.MinTimestamp)
+		ts, err := NewTimestampFromString(*yamlConfig.MinTimestamp)
 		if err != nil {
 			return fmt.Errorf("failed to parse MinTimestamp from file %s: %w", yamlPath, err)
 		}
@@ -185,7 +184,7 @@ func loadConfigFromYaml(yamlPath string) error {
 	}
 
 	if yamlConfig.MaxTimestamp != nil {
-		ts, err := NewMyTimeFromString(*yamlConfig.MaxTimestamp)
+		ts, err := NewTimestampFromString(*yamlConfig.MaxTimestamp)
 		if err != nil {
 			return fmt.Errorf("failed to parse MaxTimestamp: from file %s: %w", yamlPath, err)
 		}
@@ -250,7 +249,7 @@ func LoadConfigValuesToVariables() error {
 	}
 	Stderr = f
 
-	DisableMetricsCollection = defaultConfig.DisableMetricsCollection
+	EnableMetricsCollection = defaultConfig.EnableMetricsCollection
 	EnableProfiling = defaultConfig.EnableProfiling
 	WriteSourceNamesPerBlock = defaultConfig.WriteSourceNamesPerBlock
 	WriteSourceNamesPerLine = defaultConfig.WriteSourceNamesPerLine
@@ -269,14 +268,6 @@ func LoadConfigValuesToVariables() error {
 	SourceNameAliases = defaultConfig.SourceNameAliases
 
 	return nil
-}
-
-func NewMyTimeFromString(s string) (MyTime, error) {
-	ts, err := time.Parse(time.RFC3339Nano, s)
-	if err != nil {
-		return MyTime(0), fmt.Errorf("failed to parse time string <%s>: %w", s, err)
-	}
-	return MyTime(ts.UnixNano()), nil
 }
 
 func createFile(path string, fallback *os.File) (*os.File, error) {

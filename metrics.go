@@ -21,18 +21,13 @@ var (
 
 	// Timing stats (nanoseconds)
 
-	TotalMainDuration int64
-	ProcessDuration   int64
-
+	TotalMainDuration       int64
+	ProcessDuration         int64
 	FillBufferMetric        CallMetric
 	BufferAsSliceMetric     CallMetric
 	ParseTimestampMetric    CallMetric
 	PeekNextLineSliceMetric CallMetric
 	WriteOutputMetric       CallMetric
-
-	// Metric collection overhead metrics
-	MetricsCalls       int64
-	MetricsOverheadAvg int64
 
 	// Byte count stats
 
@@ -109,29 +104,25 @@ var (
 )
 
 func MeasureStart(name string) time.Time {
-	if DisableMetricsCollection {
+	if !EnableMetricsCollection {
 		return time.Time{}
 	}
 	enterContext(name)
 	return time.Now()
 }
 
+func MeasureSince(startNanos time.Time) int64 {
+	if !EnableMetricsCollection {
+		return 0
+	}
+	elapsed := time.Since(startNanos).Nanoseconds()
+	exitContext(elapsed)
+	return elapsed
+}
+
 func (m *CallMetric) MeasureSince(startNanos time.Time) {
 	m.Duration += MeasureSince(startNanos)
 	m.CallCount++
-}
-
-func MeasureSince(startNanos time.Time) int64 {
-	if DisableMetricsCollection {
-		return 0
-	}
-
-	elapsed := time.Since(startNanos).Nanoseconds()
-
-	exitContext(elapsed)
-	MetricsCalls++
-
-	return elapsed
 }
 
 type BucketMetric struct {
@@ -155,9 +146,6 @@ func NewBucketMetric(levels ...int) *BucketMetric {
 }
 
 func (b *BucketMetric) UpdateBucketCount(n int) {
-	if DisableMetricsCollection {
-		return
-	}
 	for i, level := range b.levels {
 		if n <= level {
 			b.values[i]++
@@ -250,16 +238,16 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, err error) {
 	fmt.Fprintf(Stderr, "Stdout path              : %s\n", Stdout.Name())
 	fmt.Fprintf(Stderr, "Stderr path              : %s\n", Stderr.Name())
 	fmt.Fprintf(Stderr, "\n")
-	fmt.Fprintf(Stderr, "DisableMetricsCollection : %v\n", DisableMetricsCollection)
+	fmt.Fprintf(Stderr, "EnableMetricsCollection  : %v\n", EnableMetricsCollection)
 	fmt.Fprintf(Stderr, "EnableProfiling          : %v\n", EnableProfiling)
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "WriteSourceNamesPerBlock : %v\n", WriteSourceNamesPerBlock)
 	fmt.Fprintf(Stderr, "WriteSourceNamesPerLine  : %v\n", WriteSourceNamesPerLine)
 	fmt.Fprintf(Stderr, "WriteTimestampPerLine    : %v\n", WriteTimestampPerLine)
 	fmt.Fprintf(Stderr, "\n")
+	fmt.Fprintf(Stderr, "IgnoreTimezoneInfo       : %v\n", IgnoreTimezoneInfo)
 	fmt.Fprintf(Stderr, "MinTimestamp             : %v\n", MinTimestamp.String())
 	fmt.Fprintf(Stderr, "MaxTimestamp             : %v\n", MaxTimestamp.String())
-	fmt.Fprintf(Stderr, "IgnoreTimezoneInfo       : %v\n", IgnoreTimezoneInfo)
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "ShortestTimestampLen     : %12v = %10s\n", ShortestTimestampLen, bytes(int64(ShortestTimestampLen)))
 	fmt.Fprintf(Stderr, "TimestampSearchEndIndex  : %12v = %10s\n", TimestampSearchEndIndex, bytes(int64(TimestampSearchEndIndex)))
@@ -321,11 +309,49 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, err error) {
 	ParseTimestampMetric.printTreeNode("ParseTimestamp", countSpeed(LinesRead, ProcessDuration))
 	PeekNextLineSliceMetric.printTreeNode("PeekNextLineSlice", countSpeed(LinesRead, ProcessDuration))
 	WriteOutputMetric.printTreeNode("WriteOutput", bytesSpeed(outputBytes, ProcessDuration))
-	printTreeNode(0, "MetricsOverhead", MetricsCalls, MetricsOverheadAvg*MetricsCalls, "")
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "===== TIMING BREAKDOWN ===========================================================================================================================================================\n")
 	fmt.Fprintf(Stderr, "\n")
 	printTree(metricsTree, 0)
+	fmt.Fprintf(Stderr, "\n")
+	fmt.Fprintf(Stderr, "===== RUNTIME METRICS ============================================================================================================================================================\n")
+	fmt.Fprintf(Stderr, "NumCPU							     : %12v\n", runtime.NumCPU())
+	fmt.Fprintf(Stderr, "NumGoroutine					     : %12v\n", runtime.NumGoroutine())
+	fmt.Fprintf(Stderr, "NumCgoCall						     : %12v\n", runtime.NumCgoCall())
+	fmt.Fprintf(Stderr, "\n")
+	fmt.Fprintf(Stderr, "MemStats                             : %+v\n", MemStats)
+	fmt.Fprintf(Stderr, "\n")
+	fmt.Fprintf(Stderr, "Allocated heap objects               : %12v = %10s\n", MemStats.Alloc, bytes(int64(MemStats.Alloc)))
+	fmt.Fprintf(Stderr, "Allocated heap objects (cumulative)  : %12v = %10s\n", MemStats.TotalAlloc, bytes(int64(MemStats.TotalAlloc)))
+	fmt.Fprintf(Stderr, "Memory obtained from the OS          : %12v = %10s\n", MemStats.Sys, bytes(int64(MemStats.Sys)))
+	fmt.Fprintf(Stderr, "Number of pointer lookups            : %12v = %10s\n", MemStats.Lookups, count(int64(MemStats.Lookups)))
+	fmt.Fprintf(Stderr, "Number of mallocs                    : %12v = %10s\n", MemStats.Mallocs, count(int64(MemStats.Mallocs)))
+	fmt.Fprintf(Stderr, "Number of frees                      : %12v = %10s\n", MemStats.Frees, count(int64(MemStats.Frees)))
+	fmt.Fprintf(Stderr, "\n")
+	fmt.Fprintf(Stderr, "Allocated heap objects               : %12v = %10s\n", MemStats.HeapAlloc, bytes(int64(MemStats.HeapAlloc)))
+	fmt.Fprintf(Stderr, "Allocated heap objects (cumulative)  : %12v = %10s\n", MemStats.HeapSys, bytes(int64(MemStats.HeapSys)))
+	fmt.Fprintf(Stderr, "Heap idle memory                     : %12v = %10s\n", MemStats.HeapIdle, bytes(int64(MemStats.HeapIdle)))
+	fmt.Fprintf(Stderr, "Heap in-use memory                   : %12v = %10s\n", MemStats.HeapInuse, bytes(int64(MemStats.HeapInuse)))
+	fmt.Fprintf(Stderr, "Heap released memory                 : %12v = %10s\n", MemStats.HeapReleased, bytes(int64(MemStats.HeapReleased)))
+	fmt.Fprintf(Stderr, "Heap objects waiting to be freed     : %12v = %10s\n", MemStats.HeapObjects, count(int64(MemStats.HeapObjects)))
+	fmt.Fprintf(Stderr, "\n")
+	fmt.Fprintf(Stderr, "Stack memory in use                  : %12v = %10s\n", MemStats.StackInuse, bytes(int64(MemStats.StackInuse)))
+	fmt.Fprintf(Stderr, "Stack memory obtained from the OS    : %12v = %10s\n", MemStats.StackSys, bytes(int64(MemStats.StackSys)))
+	fmt.Fprintf(Stderr, "\n")
+	fmt.Fprintf(Stderr, "Allocated mspan structures           : %12v = %10s\n", MemStats.MSpanInuse, bytes(int64(MemStats.MSpanInuse)))
+	fmt.Fprintf(Stderr, "mspan memory obtained from the OS    : %12v = %10s\n", MemStats.MSpanSys, bytes(int64(MemStats.MSpanSys)))
+	fmt.Fprintf(Stderr, "Allocated mcache structures          : %12v = %10s\n", MemStats.MCacheInuse, bytes(int64(MemStats.MCacheInuse)))
+	fmt.Fprintf(Stderr, "mcache memory obtained from the OS   : %12v = %10s\n", MemStats.MCacheSys, bytes(int64(MemStats.MCacheSys)))
+	fmt.Fprintf(Stderr, "Allocated buckhash tables            : %12v = %10s\n", MemStats.BuckHashSys, bytes(int64(MemStats.BuckHashSys)))
+	fmt.Fprintf(Stderr, "Allocated GC metadata                : %12v = %10s\n", MemStats.GCSys, bytes(int64(MemStats.GCSys)))
+	fmt.Fprintf(Stderr, "Allocated other system allocations   : %12v = %10s\n", MemStats.OtherSys, bytes(int64(MemStats.OtherSys)))
+	fmt.Fprintf(Stderr, "\n")
+	fmt.Fprintf(Stderr, "Last GC finish time                  :   %s\n", strings.Replace(time.Unix(0, int64(MemStats.LastGC)).Format(time.RFC3339Nano), "T", "   ", 1))
+	fmt.Fprintf(Stderr, "Target heap size of the next GC cycle: %12v = %10s\n", MemStats.NextGC, bytes(int64(MemStats.NextGC)))
+	fmt.Fprintf(Stderr, "GC pause duration                    : %12v = %10s\n", MemStats.PauseTotalNs, duration(int64(MemStats.PauseTotalNs)))
+	fmt.Fprintf(Stderr, "Number of completed GC cycles        : %12v = %10s\n", MemStats.NumGC, count(int64(MemStats.NumGC)))
+	fmt.Fprintf(Stderr, "Number of forced GC cycles by app    : %12v = %10s\n", MemStats.NumForcedGC, count(int64(MemStats.NumForcedGC)))
+	fmt.Fprintf(Stderr, "GCCPUFraction                        : %12.2f / %10s\n", MemStats.GCCPUFraction*1_000_000, "1_000_000")
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "===== DEBUG METRICS ==============================================================================================================================================================\n")
 	LineLengths.printBuckets("Line lengths")
@@ -369,45 +395,6 @@ func PrintMetrics(startTime time.Time, elapsedTime time.Duration, err error) {
 	fmt.Fprintf(Stderr, "  timezone early return : %8s ~ %15d\n", "", Timestamp_TimezoneEarlyReturn)
 	fmt.Fprintf(Stderr, "  no timezone hour      : %8s ~ %15d\n", "", Timestamp_NoTimezoneHour)
 	fmt.Fprintf(Stderr, "  tz hour out-range     : %8s ~ %15d\n", "", Timestamp_TimezoneHourOutOfRange)
-	fmt.Fprintf(Stderr, "\n")
-	fmt.Fprintf(Stderr, "===== RUNTIME METRICS ============================================================================================================================================================\n")
-	fmt.Fprintf(Stderr, "NumCPU							     : %12v\n", runtime.NumCPU())
-	fmt.Fprintf(Stderr, "NumGoroutine					     : %12v\n", runtime.NumGoroutine())
-	fmt.Fprintf(Stderr, "NumCgoCall						     : %12v\n", runtime.NumCgoCall())
-	fmt.Fprintf(Stderr, "\n")
-	fmt.Fprintf(Stderr, "MemStats                             : %+v\n", MemStats)
-	fmt.Fprintf(Stderr, "\n")
-	fmt.Fprintf(Stderr, "Allocated heap objects               : %12v = %10s\n", MemStats.Alloc, bytes(int64(MemStats.Alloc)))
-	fmt.Fprintf(Stderr, "Allocated heap objects (cumulative)  : %12v = %10s\n", MemStats.TotalAlloc, bytes(int64(MemStats.TotalAlloc)))
-	fmt.Fprintf(Stderr, "Memory obtained from the OS          : %12v = %10s\n", MemStats.Sys, bytes(int64(MemStats.Sys)))
-	fmt.Fprintf(Stderr, "Number of pointer lookups            : %12v = %10s\n", MemStats.Lookups, count(int64(MemStats.Lookups)))
-	fmt.Fprintf(Stderr, "Number of mallocs                    : %12v = %10s\n", MemStats.Mallocs, count(int64(MemStats.Mallocs)))
-	fmt.Fprintf(Stderr, "Number of frees                      : %12v = %10s\n", MemStats.Frees, count(int64(MemStats.Frees)))
-	fmt.Fprintf(Stderr, "\n")
-	fmt.Fprintf(Stderr, "Allocated heap objects               : %12v = %10s\n", MemStats.HeapAlloc, bytes(int64(MemStats.HeapAlloc)))
-	fmt.Fprintf(Stderr, "Allocated heap objects (cumulative)  : %12v = %10s\n", MemStats.HeapSys, bytes(int64(MemStats.HeapSys)))
-	fmt.Fprintf(Stderr, "Heap idle memory                     : %12v = %10s\n", MemStats.HeapIdle, bytes(int64(MemStats.HeapIdle)))
-	fmt.Fprintf(Stderr, "Heap in-use memory                   : %12v = %10s\n", MemStats.HeapInuse, bytes(int64(MemStats.HeapInuse)))
-	fmt.Fprintf(Stderr, "Heap released memory                 : %12v = %10s\n", MemStats.HeapReleased, bytes(int64(MemStats.HeapReleased)))
-	fmt.Fprintf(Stderr, "Heap objects waiting to be freed     : %12v = %10s\n", MemStats.HeapObjects, count(int64(MemStats.HeapObjects)))
-	fmt.Fprintf(Stderr, "\n")
-	fmt.Fprintf(Stderr, "Stack memory in use                  : %12v = %10s\n", MemStats.StackInuse, bytes(int64(MemStats.StackInuse)))
-	fmt.Fprintf(Stderr, "Stack memory obtained from the OS    : %12v = %10s\n", MemStats.StackSys, bytes(int64(MemStats.StackSys)))
-	fmt.Fprintf(Stderr, "\n")
-	fmt.Fprintf(Stderr, "Allocated mspan structures           : %12v = %10s\n", MemStats.MSpanInuse, bytes(int64(MemStats.MSpanInuse)))
-	fmt.Fprintf(Stderr, "mspan memory obtained from the OS    : %12v = %10s\n", MemStats.MSpanSys, bytes(int64(MemStats.MSpanSys)))
-	fmt.Fprintf(Stderr, "Allocated mcache structures          : %12v = %10s\n", MemStats.MCacheInuse, bytes(int64(MemStats.MCacheInuse)))
-	fmt.Fprintf(Stderr, "mcache memory obtained from the OS   : %12v = %10s\n", MemStats.MCacheSys, bytes(int64(MemStats.MCacheSys)))
-	fmt.Fprintf(Stderr, "Allocated buckhash tables            : %12v = %10s\n", MemStats.BuckHashSys, bytes(int64(MemStats.BuckHashSys)))
-	fmt.Fprintf(Stderr, "Allocated GC metadata                : %12v = %10s\n", MemStats.GCSys, bytes(int64(MemStats.GCSys)))
-	fmt.Fprintf(Stderr, "Allocated other system allocations   : %12v = %10s\n", MemStats.OtherSys, bytes(int64(MemStats.OtherSys)))
-	fmt.Fprintf(Stderr, "\n")
-	fmt.Fprintf(Stderr, "Last GC finish time                  :   %s\n", strings.Replace(time.Unix(0, int64(MemStats.LastGC)).Format(time.RFC3339Nano), "T", "   ", 1))
-	fmt.Fprintf(Stderr, "Target heap size of the next GC cycle: %12v = %10s\n", MemStats.NextGC, bytes(int64(MemStats.NextGC)))
-	fmt.Fprintf(Stderr, "GC pause duration                    : %12v = %10s\n", MemStats.PauseTotalNs, duration(int64(MemStats.PauseTotalNs)))
-	fmt.Fprintf(Stderr, "Number of completed GC cycles        : %12v = %10s\n", MemStats.NumGC, count(int64(MemStats.NumGC)))
-	fmt.Fprintf(Stderr, "Number of forced GC cycles by app    : %12v = %10s\n", MemStats.NumForcedGC, count(int64(MemStats.NumForcedGC)))
-	fmt.Fprintf(Stderr, "GCCPUFraction                        : %12.2f / %10s\n", MemStats.GCCPUFraction*1_000_000, "1_000_000")
 	fmt.Fprintf(Stderr, "\n")
 	fmt.Fprintf(Stderr, "===== FILE LIST ==================================================================================================================================================================\n")
 	fmt.Fprintf(Stderr, "File list (%d files):\n", len(MatchedFiles))

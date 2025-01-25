@@ -1,17 +1,17 @@
-InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/" # application_1736999506338_0001-ANALYSIS
+InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1736999506338_0001-ANALYSIS"
 OutputPath: "/Users/md/dev/mmdemirbas/logmerge/out/output.log"
-LogPath: "/Users/md/dev/mmdemirbas/logmerge/log/100-remote-time-metrics.err"
+LogPath: "/Users/md/dev/mmdemirbas/logmerge/log/102-refactor-without-metrics.err"
 
-DisableMetricsCollection: false
+EnableMetricsCollection: false
 EnableProfiling: false
 
-WriteSourceNamesPerBlock: true
+WriteSourceNamesPerBlock: false
 WriteSourceNamesPerLine: false
 WriteTimestampPerLine: false
 
+IgnoreTimezoneInfo: true
 #MinTimestamp: "2025-01-17T13:12:41.434816Z"
 #MaxTimestamp: "2025-01-17T13:14:12.863Z"
-IgnoreTimezoneInfo: true
 
 ShortestTimestampLen: 15
 TimestampSearchEndIndex: 250

@@ -52,7 +52,7 @@ func main() {
 	} else {
 		err = loadConfigFromYaml(os.Args[1])
 		if err == nil {
-			err = MergeFiles(InputPath, programStartTime)
+			err = ProcessFiles(InputPath, programStartTime)
 		}
 	}
 
@@ -71,16 +71,6 @@ func main() {
 				fmt.Fprintf(Stderr, "could not write memory profile: %v\n", err)
 			}
 		}
-	}
-
-	if !DisableMetricsCollection {
-		startTime := MeasureStart("CalcMetricsOverhead")
-		testCount := 1_000_000
-		for i := 0; i < testCount; i++ {
-			startTime := MeasureStart("CalcMetricsOverhead")
-			MeasureSince(startTime)
-		}
-		MetricsOverheadAvg = MeasureSince(startTime) / int64(testCount-1)
 	}
 
 	elapsedTime := time.Since(programStartTime)

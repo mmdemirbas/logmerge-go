@@ -41,6 +41,7 @@ func ListFiles(basePath string) (files []string, err error) {
 			files = append(files, basePath)
 		}
 	}
+	MatchedFiles = append(MatchedFiles, files...)
 	return files, err
 }
 

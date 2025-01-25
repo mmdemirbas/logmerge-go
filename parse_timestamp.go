@@ -7,48 +7,10 @@ import (
 var (
 	// Return the minimum time for the lines with no timestamp, so that those lines are listed first.
 	// Otherwise, we could miss the correct order for the upcoming lines with timestamps.
-	noTimestamp = MyTime(0)
-
-	timestampBuffer = make([]byte, 0, TimestampSearchEndIndex)
+	noTimestamp = Timestamp(0)
 )
 
-func UpdateTimestamp(reader *FileReader) error {
-	bufLen := reader.Buffer.Len()
-	if bufLen < TimestampSearchEndIndex {
-		startTime := MeasureStart("FillBuffer")
-		err := reader.FillBuffer()
-		if err != nil {
-			reader.TimestampParsed = false
-			return fmt.Errorf("failed to fill buffer: %v", err)
-		}
-		FillBufferMetric.MeasureSince(startTime)
-
-		if bufLen == 0 && reader.Buffer.IsEmpty() {
-			reader.TimestampParsed = false
-			return nil
-		}
-	}
-
-	startTime := MeasureStart("BufferAsSlice")
-	buf := reader.Buffer.AsSlice(timestampBuffer)
-	BufferAsSliceMetric.MeasureSince(startTime)
-
-	startTime = MeasureStart("ParseTimestamp")
-	timestamp := ParseTimestamp(buf)
-	ParseTimestampMetric.MeasureSince(startTime)
-
-	if timestamp == noTimestamp {
-		LinesWithoutTimestamps++
-	} else {
-		LinesWithTimestamps++
-	}
-
-	reader.TimestampParsed = true
-	reader.Timestamp = timestamp
-	return nil
-}
-
-func ParseTimestamp(buffer []byte) MyTime {
+func ParseTimestamp(buffer []byte) Timestamp {
 	defer func() {
 		if r := recover(); r != nil {
 			//goland:noinspection GoUnhandledErrorResult
@@ -299,7 +261,7 @@ func ParseTimestamp(buffer []byte) MyTime {
 	Timestamp_MaxTimestampLength = max(Timestamp_MaxTimestampLength, timestampLen)
 	Timestamp_Lenghts.UpdateBucketCount(timestampLen)
 
-	return NewMyTime(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin)
+	return NewTimestamp(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin)
 }
 
 // TODO consider inlining or improving parseDigits performance

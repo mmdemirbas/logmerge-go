@@ -7,35 +7,38 @@ import (
 	"os"
 )
 
-type FileReader struct {
+var (
+	timestampBuffer = make([]byte, 0, TimestampSearchEndIndex)
+)
+
+type FileHandle struct {
 	File               *os.File
 	Buffer             *RingBuffer
 	TimestampParsed    bool
-	Timestamp          MyTime
+	Timestamp          Timestamp
 	SourceName         string
 	SourceNamePerBlock string
 	SourceNamePerLine  string
-	FileSize           int
+	Size               int
 	BytesRead          int
 	Done               bool
 }
 
-func NewInputFile(file *os.File, sourceName string, bufferSize int) (*FileReader, error) {
+func NewFileHandle(file *os.File, sourceName string, bufferSize int) (*FileHandle, error) {
 	fileInfo, err := file.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file info for %s: %v", sourceName, err)
 	}
 	fileSize := int(fileInfo.Size())
-	return &FileReader{
+	return &FileHandle{
 		File:       file,
 		Buffer:     NewRingBuffer(bufferSize),
 		SourceName: sourceName,
-		FileSize:   fileSize,
+		Size:       fileSize,
 	}, nil
 }
 
-// FillBuffer reads data from the file into the buffer to fill the empty slots.
-func (r *FileReader) FillBuffer() error {
+func (r *FileHandle) FillBuffer() error {
 	n, err := r.Buffer.Fill(r.File)
 	if err == io.EOF {
 		return nil
@@ -45,7 +48,7 @@ func (r *FileReader) FillBuffer() error {
 	return err
 }
 
-func (r *FileReader) SkipLine() error {
+func (r *FileHandle) SkipLine() error {
 	var (
 		lineLengthWithoutEol       = 0
 		n                          = 0
@@ -84,7 +87,7 @@ func (r *FileReader) SkipLine() error {
 	return nil
 }
 
-func (r *FileReader) WriteLine(writer *bufio.Writer) error {
+func (r *FileHandle) WriteLine(writer *bufio.Writer) error {
 	var (
 		count           = 0
 		latestCharWasCR = false
@@ -152,7 +155,42 @@ func (r *FileReader) WriteLine(writer *bufio.Writer) error {
 	return nil
 }
 
-// Close closes the file.
-func (r *FileReader) Close() error {
+func (r *FileHandle) Close() error {
 	return r.File.Close()
+}
+
+func (r *FileHandle) UpdateTimestamp() error {
+	bufLen := r.Buffer.Len()
+	if bufLen < TimestampSearchEndIndex {
+		startTime := MeasureStart("FillBuffer")
+		err := r.FillBuffer()
+		if err != nil {
+			r.TimestampParsed = false
+			return fmt.Errorf("failed to fill buffer: %v", err)
+		}
+		FillBufferMetric.MeasureSince(startTime)
+
+		if bufLen == 0 && r.Buffer.IsEmpty() {
+			r.TimestampParsed = false
+			return nil
+		}
+	}
+
+	startTime := MeasureStart("BufferAsSlice")
+	buf := r.Buffer.AsSlice(timestampBuffer)
+	BufferAsSliceMetric.MeasureSince(startTime)
+
+	startTime = MeasureStart("ParseTimestamp")
+	timestamp := ParseTimestamp(buf)
+	ParseTimestampMetric.MeasureSince(startTime)
+
+	if timestamp == noTimestamp {
+		LinesWithoutTimestamps++
+	} else {
+		LinesWithTimestamps++
+	}
+
+	r.TimestampParsed = true
+	r.Timestamp = timestamp
+	return nil
 }

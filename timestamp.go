@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 )
 
 // TODO: Consider caching epoch days for each year and if the year is leap year
@@ -31,16 +32,24 @@ var daysAfter = [13]int{
 	daysFrom1970 + 1 + 31,
 }
 
-type MyTime uint64
+type Timestamp uint64
 
-func NewMyTime(y, M, d, H, m, s, S, tzSgn, tzH, tzM int) MyTime {
+func NewTimestamp(y, M, d, H, m, s, S, tzSgn, tzH, tzM int) Timestamp {
 	y4 := y >> 2
 	ed := y*365 + y4 - y4/25 + (y4>>2)/25 - daysAfter[M] + d
 	if y&0x03 == 0 && M <= 2 && (y4&0x03 == 0 || y4%25 != 0) {
 		ed--
 	}
 
-	return MyTime(uint64(ed*secondsPerDay+(H-tzSgn*tzH)*secondsPerHour+(m-tzSgn*tzM)*secondsPerMinute+s)*1e9 + uint64(S))
+	return Timestamp(uint64(ed*secondsPerDay+(H-tzSgn*tzH)*secondsPerHour+(m-tzSgn*tzM)*secondsPerMinute+s)*1e9 + uint64(S))
+}
+
+func NewTimestampFromString(s string) (Timestamp, error) {
+	ts, err := time.Parse(time.RFC3339Nano, s)
+	if err != nil {
+		return Timestamp(0), fmt.Errorf("failed to parse time string <%s>: %w", s, err)
+	}
+	return Timestamp(ts.UnixNano()), nil
 }
 
 // TODO: Remove need to these arrays and simplify the String method
@@ -48,7 +57,7 @@ var nonLeapMonthDays = []int{0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 3
 var leapMonthDays = []int{0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366, 397}
 
 // TODO: This method might need to be optimized when timestamps printed
-func (t MyTime) String() string {
+func (t Timestamp) String() string {
 	if t == 0 {
 		return "1970-01-01 00:00:00.000000000 "
 	}

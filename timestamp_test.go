@@ -47,16 +47,16 @@ func TestNewMyTime(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.timeString, func(t *testing.T) {
-			// Create a new MyTime
-			actual := NewMyTime(tt.year, tt.month, tt.day, tt.hour, tt.minute, tt.second, tt.nsec, tt.tzSign, tt.tzHour, tt.tzMin)
+			// Create a new Timestamp
+			actual := NewTimestamp(tt.year, tt.month, tt.day, tt.hour, tt.minute, tt.second, tt.nsec, tt.tzSign, tt.tzHour, tt.tzMin)
 			actualEpochNanos := int64(actual)
 
 			if actualEpochNanos != tt.epochNanos {
-				t.Errorf("NewMyTime(%d, %d, %d, %d, %d, %d, %d, %d, %d, %d) = %d; want %d", tt.year, tt.month, tt.day, tt.hour, tt.minute, tt.second, tt.nsec, tt.tzSign, tt.tzHour, tt.tzMin, actualEpochNanos, tt.epochNanos)
+				t.Errorf("NewTimestamp(%d, %d, %d, %d, %d, %d, %d, %d, %d, %d) = %d; want %d", tt.year, tt.month, tt.day, tt.hour, tt.minute, tt.second, tt.nsec, tt.tzSign, tt.tzHour, tt.tzMin, actualEpochNanos, tt.epochNanos)
 			}
 			actualString := actual.String()
 			if actualString != tt.timeString {
-				t.Errorf("NewMyTime(%d, %d, %d, %d, %d, %d, %d, %d, %d, %d).String() = %s; want %s", tt.year, tt.month, tt.day, tt.hour, tt.minute, tt.second, tt.nsec, tt.tzSign, tt.tzHour, tt.tzMin, actualString, tt.timeString)
+				t.Errorf("NewTimestamp(%d, %d, %d, %d, %d, %d, %d, %d, %d, %d).String() = %s; want %s", tt.year, tt.month, tt.day, tt.hour, tt.minute, tt.second, tt.nsec, tt.tzSign, tt.tzHour, tt.tzMin, actualString, tt.timeString)
 			}
 		})
 	}
