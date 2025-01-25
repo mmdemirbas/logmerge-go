@@ -5,13 +5,9 @@ import (
 	"os"
 )
 
-// TODO: Try inlining the constants and arrays
+// TODO: Consider caching epoch days for each year and if the year is leap year
 
-// TODO: Consider caching
-
-// TODO: Use uint64
-
-// TODO: Consider calculating backwards instead of forwards (calculate end of year then subtract days)
+// TODO: Consider bitwise operation to multiply with 1e9 = 2^9 * 5^9 => *5 = x << 2 + x
 
 const (
 	secondsPerMinute = 60
@@ -20,58 +16,42 @@ const (
 	daysFrom1970     = 1969*365 + 1969/4 - 1969/100 + 1969/400
 )
 
-var daysBefore = [...]int{
-	-daysFrom1970 - 1 + 0,
-	-daysFrom1970 - 1 + 31,
-	-daysFrom1970 - 1 + 31 + 28,
-	-daysFrom1970 - 1 + 31 + 28 + 31,
-	-daysFrom1970 - 1 + 31 + 28 + 31 + 30,
-	-daysFrom1970 - 1 + 31 + 28 + 31 + 30 + 31,
-	-daysFrom1970 - 1 + 31 + 28 + 31 + 30 + 31 + 30,
-	-daysFrom1970 - 1 + 31 + 28 + 31 + 30 + 31 + 30 + 31,
-	-daysFrom1970 - 1 + 31 + 28 + 31 + 30 + 31 + 30 + 31 + 31,
-	-daysFrom1970 - 1 + 31 + 28 + 31 + 30 + 31 + 30 + 31 + 31 + 30,
-	-daysFrom1970 - 1 + 31 + 28 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31,
-	-daysFrom1970 - 1 + 31 + 28 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30,
-	-daysFrom1970 - 1 + 31 + 28 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30 + 31,
+var daysAfter = [13]int{
+	0,
+	daysFrom1970 + 1 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30 + 31 + 28 + 31,
+	daysFrom1970 + 1 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30 + 31 + 28,
+	daysFrom1970 + 1 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30 + 31,
+	daysFrom1970 + 1 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30,
+	daysFrom1970 + 1 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31,
+	daysFrom1970 + 1 + 31 + 30 + 31 + 30 + 31 + 31 + 30,
+	daysFrom1970 + 1 + 31 + 30 + 31 + 30 + 31 + 31,
+	daysFrom1970 + 1 + 31 + 30 + 31 + 30 + 31,
+	daysFrom1970 + 1 + 31 + 30 + 31 + 30,
+	daysFrom1970 + 1 + 31 + 30 + 31,
+	daysFrom1970 + 1 + 31 + 30,
+	daysFrom1970 + 1 + 31,
 }
-
-var nonLeapMonthDays = []int{0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365, 396}
-var leapMonthDays = []int{0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366, 397}
 
 type MyTime uint64
 
-func NewMyTime(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin int) MyTime {
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Fprintf(os.Stderr, "NewMyTime: Recovered from panic: %v. year=%d, month=%d, day=%d, hour=%d, minute=%d, second=%d, nsec=%d, tzSign=%d, tzHour=%d, tzMin=%d\n", r, year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin)
-		}
-	}()
-
+func NewMyTime(y, M, d, H, m, s, S, tzSgn, tzH, tzM int) MyTime {
 	startTime := MeasureStart("NewMyTime")
 
-	epochNSec := method1(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin)
-
-	NewMyTimeMetric.MeasureSince(startTime)
-	return epochNSec
-}
-
-func method1(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin int) MyTime {
-	y := year - 1
 	y4 := y >> 2
-
-	m := month - 1
-	d := y*365 + y4 - y4/25 + (y4>>2)/25 + daysBefore[m] + day
-
-	if year&0x03 == 0 && m > 1 {
-		yy4 := year >> 2
-		if yy4%25 != 0 || yy4&0x03 == 0 {
-			d++
-		}
+	ed := y*365 + y4 - y4/25 + (y4>>2)/25 - daysAfter[M] + d
+	if y&0x03 == 0 && M <= 2 && (y4&0x03 == 0 || y4%25 != 0) {
+		ed--
 	}
 
-	return MyTime(uint64(d*secondsPerDay+(hour-tzSign*tzHour)*secondsPerHour+(minute-tzSign*tzMin)*secondsPerMinute+second)*1e9 + uint64(nsec))
+	tm := MyTime(uint64(ed*secondsPerDay+(H-tzSgn*tzH)*secondsPerHour+(m-tzSgn*tzM)*secondsPerMinute+s)*1e9 + uint64(S))
+
+	NewMyTimeMetric.MeasureSince(startTime)
+	return tm
 }
+
+// TODO: Remove need to these arrays and simplify the String method
+var nonLeapMonthDays = []int{0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365, 396}
+var leapMonthDays = []int{0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366, 397}
 
 func (t MyTime) String() string {
 	defer func() {

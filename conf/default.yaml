@@ -1,6 +1,6 @@
-InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1736999506338_0001-ANALYSIS"
+InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/" # application_1736999506338_0001-ANALYSIS
 OutputPath: "/Users/md/dev/mmdemirbas/logmerge/out/output.log"
-LogPath: "/Users/md/dev/mmdemirbas/logmerge/log/99-add-MyTime-metrics-optimized.err"
+LogPath: "/Users/md/dev/mmdemirbas/logmerge/log/99-add-MyTime-metrics-optimized-3.err"
 
 DisableMetricsCollection: false
 EnableProfiling: false
