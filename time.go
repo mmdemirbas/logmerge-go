@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 )
 
 // TODO: Consider caching epoch days for each year and if the year is leap year
@@ -35,39 +34,26 @@ var daysAfter = [13]int{
 type MyTime uint64
 
 func NewMyTime(y, M, d, H, m, s, S, tzSgn, tzH, tzM int) MyTime {
-	startTime := MeasureStart("NewMyTime")
-
 	y4 := y >> 2
 	ed := y*365 + y4 - y4/25 + (y4>>2)/25 - daysAfter[M] + d
 	if y&0x03 == 0 && M <= 2 && (y4&0x03 == 0 || y4%25 != 0) {
 		ed--
 	}
 
-	tm := MyTime(uint64(ed*secondsPerDay+(H-tzSgn*tzH)*secondsPerHour+(m-tzSgn*tzM)*secondsPerMinute+s)*1e9 + uint64(S))
-
-	NewMyTimeMetric.MeasureSince(startTime)
-	return tm
+	return MyTime(uint64(ed*secondsPerDay+(H-tzSgn*tzH)*secondsPerHour+(m-tzSgn*tzM)*secondsPerMinute+s)*1e9 + uint64(S))
 }
 
 // TODO: Remove need to these arrays and simplify the String method
 var nonLeapMonthDays = []int{0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365, 396}
 var leapMonthDays = []int{0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366, 397}
 
+// TODO: This method might need to be optimized when timestamps printed
 func (t MyTime) String() string {
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Fprintf(os.Stderr, "MyTime.String: Recovered from panic: %v. t=%d\n", r, uint64(t))
-		}
-	}()
-
-	startTime := MeasureStart("MyTime.String")
-	v := uint64(t)
-	if v == 0 {
-		result := "1970-01-01 00:00:00.000000000 "
-		MyTimeStringMetric.MeasureSince(startTime)
-		return result
+	if t == 0 {
+		return "1970-01-01 00:00:00.000000000 "
 	}
 
+	v := uint64(t)
 	nsec := v % 1_000_000_000
 	v /= 1_000_000_000
 
@@ -112,8 +98,5 @@ func (t MyTime) String() string {
 	}
 
 	day := dayOfYear - monthDays[month]
-	result := fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d.%09d ", year, month+1, day+1, hour, m, sec, nsec)
-
-	MyTimeStringMetric.MeasureSince(startTime)
-	return result
+	return fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d.%09d ", year, month+1, day+1, hour, m, sec, nsec)
 }

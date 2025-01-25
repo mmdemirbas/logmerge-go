@@ -1,5 +1,4 @@
 - Global variables making testing harder. Find a good middle ground between global and local variables.
-- Try unsigned types for performance (uint)
 
 - Documentation
     - Write README - Document exact behaviour (how timestamp-less lines combined together and sorted first etc)
@@ -15,6 +14,8 @@
     - Define install recipe in justfile to install the binary to the system (and uninstall maybe)
     - Decide a standard naming for binaries across all projects - Research
     - Complete unit tests
+    - Allow breaking strict line ordering in favor of keeping logs from same source together, like up to a certain threshold (not exceeding 1sec for example)
+    - Add unified log level support to format output logs in IDE better (print log level just like timestamp)
 
 - Customizations
   - Support: Multiple input paths
