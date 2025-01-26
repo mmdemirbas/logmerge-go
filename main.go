@@ -7,11 +7,10 @@ import (
 	"time"
 )
 
-// config defines the configuration of the application.
-// It is initialized with default values and then updated with the values from the configuration file.
-var config = &AppConfig{
-	OutputFile: os.Stdout, // overridden by OutputPath if provided
-	LogFile:    os.Stderr, // overridden by LogPath if provided
+// config defines the default configuration which will be overwritten by the configuration file
+var config = &MainConfig{
+	OutputFile: (*WritableFile)(os.Stdout),
+	LogFile:    (*WritableFile)(os.Stderr),
 
 	ProfilingEnabled: false,
 
@@ -67,17 +66,11 @@ func main() {
 	// Measure program duration even if metrics disabled
 	programStartTime := time.Now()
 
-	yml, err := NewYamlConfig(os.Args[1])
+	ymlFile := os.Args[1]
+	err := config.LoadYAML(ymlFile)
 	if err != nil {
 		//goland:noinspection GoUnhandledErrorResult
-		fmt.Fprintf(os.Stderr, "failed to load configuration from YAML file: %s: %v\n", os.Args[1], err)
-		os.Exit(1)
-	}
-
-	err = config.LoadAppConfig(yml)
-	if err != nil {
-		//goland:noinspection GoUnhandledErrorResult
-		fmt.Fprintf(os.Stderr, "failed to load configuration: %v", err)
+		fmt.Fprintf(os.Stderr, "failed to load configuration from file %s: %v\n", ymlFile, err)
 		os.Exit(1)
 	}
 

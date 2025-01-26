@@ -44,19 +44,16 @@ func (r *FileHandle) FillBuffer() error {
 	return err
 }
 
-func (r *FileHandle) SkipLine(m *MergeMetrics) error {
+func (r *FileHandle) SkipLine(m *MergeMetrics) (bytesCount int, eolLength int, err error) {
 	var (
-		lineLengthWithoutEol       = 0
-		n                          = 0
-		latestCharWasCR            = false
-		eol                        = None
-		err                  error = nil
+		n               = 0
+		latestCharWasCR = false
+		eol             = None
 	)
 
 	for !r.Buffer.IsEmpty() {
 		n, eol = r.Buffer.SkipNextLineSlice(&latestCharWasCR)
-		lineLengthWithoutEol += n
-		m.BytesReadAndSkipped += int64(n)
+		bytesCount += n
 		if eol != None {
 			break
 		}
@@ -65,7 +62,8 @@ func (r *FileHandle) SkipLine(m *MergeMetrics) error {
 			startTime := m.MetricsTree.MeasureStart("FillBuffer")
 			err = r.FillBuffer()
 			if err != nil {
-				return fmt.Errorf("failed to fill buffer: %v", err)
+				err = fmt.Errorf("failed to fill buffer: %v", err)
+				return
 			}
 			m.FillBufferMetric.MeasureSince(startTime)
 		}
@@ -74,13 +72,11 @@ func (r *FileHandle) SkipLine(m *MergeMetrics) error {
 	switch eol {
 	case None:
 	case CR, LF:
-		lineLengthWithoutEol -= 1
+		eolLength = 1
 	case CRLF:
-		lineLengthWithoutEol -= 2
+		eolLength = 2
 	}
-
-	m.LineLengths.UpdateBucketCount(lineLengthWithoutEol)
-	return nil
+	return
 }
 
 func (r *FileHandle) WriteLine(m *MergeMetrics, writer *bufio.Writer) error {
@@ -157,7 +153,8 @@ func (r *FileHandle) Close() error {
 
 var parseTimestampBuffer []byte
 
-func (r *FileHandle) UpdateTimestamp(c *MergeConfig, m *MergeMetrics, pc *ParseTimestampConfig, pm *ParseTimestampMetrics) error {
+// TODO: Isolate MergeMetrics, ParseTimestampConfig, ParseTimestampMetrics
+func (r *FileHandle) UpdateTimestamp(m *MergeMetrics, pc *ParseTimestampConfig, pm *ParseTimestampMetrics) error {
 	bufLen := r.Buffer.Len()
 	if bufLen < pc.TimestampSearchEndIndex {
 		startTime := m.MetricsTree.MeasureStart("FillBuffer")

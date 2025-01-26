@@ -4,21 +4,20 @@ import (
 	"bufio"
 	"container/heap"
 	"fmt"
-	"os"
 )
 
 type MergeConfig struct {
-	MetricsTreeEnabled bool
+	MetricsTreeEnabled bool `yaml:"MetricsTreeEnabled"`
 
-	WriteAliasPerBlock    bool
-	WriteAliasPerLine     bool
-	WriteTimestampPerLine bool
+	WriteAliasPerBlock    bool `yaml:"WriteAliasPerBlock"`
+	WriteAliasPerLine     bool `yaml:"WriteAliasPerLine"`
+	WriteTimestampPerLine bool `yaml:"WriteTimestampPerLine"`
 
-	MinTimestamp Timestamp
-	MaxTimestamp Timestamp
+	MinTimestamp Timestamp `yaml:"MinTimestamp"`
+	MaxTimestamp Timestamp `yaml:"MaxTimestamp"`
 
-	BufferSizeForRead  int
-	BufferSizeForWrite int
+	BufferSizeForRead  int `yaml:"BufferSizeForRead"`
+	BufferSizeForWrite int `yaml:"BufferSizeForWrite"`
 }
 
 type MergeMetrics struct {
@@ -47,7 +46,6 @@ type MergeMetrics struct {
 	BlockLineCounts        *BucketMetric
 
 	// Timing stats (nanoseconds)
-	ProcessDuration         int64
 	FillBufferMetric        *CallMetric
 	BufferAsSliceMetric     *CallMetric
 	ParseTimestampMetric    *CallMetric
@@ -81,14 +79,15 @@ func NewMergeMetrics(metricsTreeEnabled bool) *MergeMetrics {
 	return mm
 }
 
+// TODO: Isolate ParseTimestampConfig, ParseTimestampMetrics
 func ProcessFiles(
 	c *MergeConfig,
 	m *MergeMetrics,
 	pc *ParseTimestampConfig,
 	pm *ParseTimestampMetrics,
 	files []*FileHandle,
-	outputFile *os.File,
-	logFile *os.File,
+	outputFile *WritableFile,
+	logFile *WritableFile,
 ) error {
 	writer := bufio.NewWriterSize(outputFile, c.BufferSizeForWrite)
 	defer writer.Flush()
@@ -97,7 +96,7 @@ func ProcessFiles(
 	h = h[:0]                                        // Reset the heap length to zero
 	remainingFileCount := 0
 	for _, file := range files {
-		err := file.UpdateTimestamp(c, m, pc, pm)
+		err := file.UpdateTimestamp(m, pc, pm)
 		if err != nil {
 			return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
 		}
@@ -137,12 +136,14 @@ func ProcessFiles(
 		// Skip lines until finding an eligible line
 		for file.TimestampParsed && file.Timestamp < c.MinTimestamp {
 			skippedLineCount++
-			err := file.SkipLine(m)
+			bytesCount, eolLength, err := file.SkipLine(m)
+			m.BytesReadAndSkipped += int64(bytesCount)
+			m.LineLengths.UpdateBucketCount(bytesCount - eolLength)
 			if err != nil {
 				return fmt.Errorf("failed to skip line from %s: %v", file.File.Name(), err)
 			}
 
-			err = file.UpdateTimestamp(c, m, pc, pm)
+			err = file.UpdateTimestamp(m, pc, pm)
 			if err != nil {
 				return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
 			}
@@ -187,7 +188,7 @@ func ProcessFiles(
 				return fmt.Errorf("failed to write line: %v", err)
 			}
 
-			err = file.UpdateTimestamp(c, m, pc, pm)
+			err = file.UpdateTimestamp(m, pc, pm)
 			if err != nil {
 				return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
 			}

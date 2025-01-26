@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"time"
 )
 
@@ -46,12 +47,24 @@ func NewTimestamp(y, M, d, H, m, s, S, tzSgn, tzH, tzM int) Timestamp {
 	return Timestamp(uint64(ed*secondsPerDay+(H-tzSgn*tzH)*secondsPerHour+(m-tzSgn*tzM)*secondsPerMinute+s)*1e9 + uint64(S))
 }
 
-func NewTimestampFromString(s string) (Timestamp, error) {
-	ts, err := time.Parse(time.RFC3339Nano, s)
+func (t Timestamp) MarshalYAML() (interface{}, error) {
+	return time.Unix(0, int64(t)).UTC().Format(time.RFC3339Nano), nil
+}
+
+func (t *Timestamp) UnmarshalYAML(value *yaml.Node) error {
+	var timeString string
+	err := value.Decode(&timeString)
 	if err != nil {
-		return Timestamp(0), fmt.Errorf("failed to parse time string <%s>: %w", s, err)
+		return fmt.Errorf("failed to decode Timestamp: %w", err)
 	}
-	return Timestamp(ts.UnixNano()), nil
+
+	ts, err := time.Parse(time.RFC3339Nano, timeString)
+	if err != nil {
+		return fmt.Errorf("failed to parse time string <%s>: %w", timeString, err)
+	}
+
+	*t = Timestamp(ts.UnixNano())
+	return nil
 }
 
 // TODO: Remove need to these arrays and simplify the String method

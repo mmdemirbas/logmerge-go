@@ -8,12 +8,12 @@ import (
 )
 
 type ListFilesConfig struct {
-	InputPath               string
-	ExcludedStrictSuffixes  []string
-	IncludedStrictSuffixes  []string
-	ExcludedLenientSuffixes []string
-	IncludedLenientSuffixes []string
-	FileAliases             map[string]string
+	InputPath               string            `yaml:"InputPath"`
+	ExcludedStrictSuffixes  []string          `yaml:"ExcludedStrictSuffixes"`
+	IncludedStrictSuffixes  []string          `yaml:"IncludedStrictSuffixes"`
+	ExcludedLenientSuffixes []string          `yaml:"ExcludedLenientSuffixes"`
+	IncludedLenientSuffixes []string          `yaml:"IncludedLenientSuffixes"`
+	FileAliases             map[string]string `yaml:"FileAliases"`
 }
 
 type ListFilesMetrics struct {
@@ -32,7 +32,7 @@ func NewListFilesMetrics() *ListFilesMetrics {
 	}
 }
 
-func ListFiles(c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, minBufferSizePerFile int, logFile *os.File) (files []*FileHandle, err error) {
+func ListFiles(c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, minBufferSizePerFile int, logFile *WritableFile) (files []*FileHandle, err error) {
 	fileList, err := listFilePaths(c, m)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list files: %v", err)
@@ -129,7 +129,7 @@ func getAlias(c *ListFilesConfig, file string) (string, error) {
 		return "", fmt.Errorf("failed to calculate relative path for file %s: %v", file, err)
 	}
 
-	mappedAlias, ok := c.FileAliases[relative]
+	mappedAlias, ok := (c.FileAliases)[relative]
 	if ok {
 		return mappedAlias, nil
 	} else {

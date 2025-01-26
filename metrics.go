@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"runtime"
 	"sort"
 	"strings"
@@ -151,7 +150,7 @@ func (b *BucketMetric) UpdateBucketCount(n int) {
 }
 
 //goland:noinspection GoUnhandledErrorResult
-func (m *Metrics) PrintMetrics(c *AppConfig, startTime time.Time, elapsedTime time.Duration, err error) {
+func (m *Metrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTime time.Duration, err error) {
 	inputBytes := m.MergeMetrics.BytesRead + m.MergeMetrics.BytesNotRead
 	bytesReadAndProcessed := m.MergeMetrics.BytesRead - m.MergeMetrics.BytesReadAndSkipped
 	linesReadAndProcessed := m.MergeMetrics.LinesRead - m.MergeMetrics.LinesReadAndSkipped
@@ -161,6 +160,10 @@ func (m *Metrics) PrintMetrics(c *AppConfig, startTime time.Time, elapsedTime ti
 
 	MemStats := runtime.MemStats{}
 	runtime.ReadMemStats(&MemStats)
+
+	elapsedNanoseconds := elapsedTime.Nanoseconds()
+	m.MergeMetrics.MetricsTree.Root.Metric.Duration = elapsedNanoseconds
+	m.MergeMetrics.MetricsTree.Root.Metric.CallCount = 1
 
 	logFile := c.LogFile
 
@@ -174,42 +177,11 @@ func (m *Metrics) PrintMetrics(c *AppConfig, startTime time.Time, elapsedTime ti
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== CONFIGURATION ==============================================================================================================================================================\n")
 	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "Input path               : %s\n", c.ListFilesConfig.InputPath)
-	fmt.Fprintf(c.LogFile, "OutputFile path          : %s\n", c.OutputFile.Name())
-	fmt.Fprintf(c.LogFile, "LogFile path             : %s\n", c.LogFile.Name())
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "MetricsTreeEnabled       : %v\n", c.MergeConfig.MetricsTreeEnabled)
-	fmt.Fprintf(c.LogFile, "ProfilingEnabled         : %v\n", c.ProfilingEnabled)
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "WriteAliasPerBlock       : %v\n", c.MergeConfig.WriteAliasPerBlock)
-	fmt.Fprintf(c.LogFile, "WriteAliasPerLine        : %v\n", c.MergeConfig.WriteAliasPerLine)
-	fmt.Fprintf(c.LogFile, "WriteTimestampPerLine    : %v\n", c.MergeConfig.WriteTimestampPerLine)
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "IgnoreTimezoneInfo       : %v\n", c.ParseTimestampConfig.IgnoreTimezoneInfo)
-	fmt.Fprintf(c.LogFile, "MinTimestamp             : %v\n", c.MergeConfig.MinTimestamp.String())
-	fmt.Fprintf(c.LogFile, "MaxTimestamp             : %v\n", c.MergeConfig.MaxTimestamp.String())
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "ShortestTimestampLen     : %12v = %10s\n", c.ParseTimestampConfig.ShortestTimestampLen, bytes(int64(c.ParseTimestampConfig.ShortestTimestampLen)))
-	fmt.Fprintf(c.LogFile, "TimestampSearchEndIndex  : %12v = %10s\n", c.ParseTimestampConfig.TimestampSearchEndIndex, bytes(int64(c.ParseTimestampConfig.TimestampSearchEndIndex)))
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "BufferSizeForRead        : %12v = %10s\n", c.MergeConfig.BufferSizeForRead, bytes(int64(c.MergeConfig.BufferSizeForRead)))
-	fmt.Fprintf(c.LogFile, "BufferSizeForWrite       : %12v = %10s\n", c.MergeConfig.BufferSizeForWrite, bytes(int64(c.MergeConfig.BufferSizeForWrite)))
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "ExcludedStrictSuffixes   : %v\n", c.ListFilesConfig.ExcludedStrictSuffixes)
-	fmt.Fprintf(c.LogFile, "IncludedStrictSuffixes   : %v\n", c.ListFilesConfig.IncludedStrictSuffixes)
-	fmt.Fprintf(c.LogFile, "ExcludedLenientSuffixes  : %v\n", c.ListFilesConfig.ExcludedLenientSuffixes)
-	fmt.Fprintf(c.LogFile, "IncludedLenientSuffixes  : %v\n", c.ListFilesConfig.IncludedLenientSuffixes)
-	fmt.Fprintf(c.LogFile, "\n")
-	aliasesToFiles := reverseMap(c.ListFilesConfig.FileAliases)
-	aliasesSorted := getKeysSorted(aliasesToFiles)
-	fmt.Fprintf(c.LogFile, "FileAliases              : %v mappings in %d aliases\n", len(c.ListFilesConfig.FileAliases), len(aliasesToFiles))
-	for _, alias := range aliasesSorted {
-		fileNames := aliasesToFiles[alias]
-		sort.Strings(fileNames)
-		fmt.Fprintf(c.LogFile, "  (%d) %s\n", len(fileNames), alias)
-		for _, fileName := range fileNames {
-			fmt.Fprintf(c.LogFile, "      %s\n", fileName)
-		}
+	yaml, err := c.ToYAML()
+	if err != nil {
+		fmt.Fprintf(c.LogFile, "Failed to convert configuration to YAML: %v\n", err)
+	} else {
+		fmt.Fprintf(c.LogFile, "%s\n", yaml)
 	}
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== STATISTICS =================================================================================================================================================================\n")
@@ -219,12 +191,12 @@ func (m *Metrics) PrintMetrics(c *AppConfig, startTime time.Time, elapsedTime ti
 	fmt.Fprintf(c.LogFile, "  files scanned          : %8s ~ %15d\n", percent(m.ListFilesMetrics.FilesScanned, m.ListFilesMetrics.FilesScanned), m.ListFilesMetrics.FilesScanned)
 	fmt.Fprintf(c.LogFile, "  files matched          : %8s ~ %15d\n", percent(m.ListFilesMetrics.FilesMatched, m.ListFilesMetrics.FilesScanned), m.ListFilesMetrics.FilesMatched)
 	fmt.Fprintf(c.LogFile, "Byte count stats\n")
-	fmt.Fprintf(c.LogFile, "  input bytes            : %8s ~ %15d = %10s ≈ %s\n", percent(inputBytes, inputBytes), inputBytes, bytes(inputBytes), bytesSpeed(inputBytes, m.MergeMetrics.ProcessDuration))
-	fmt.Fprintf(c.LogFile, "    read                 : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.BytesRead, inputBytes), m.MergeMetrics.BytesRead, bytes(m.MergeMetrics.BytesRead), bytesSpeed(m.MergeMetrics.BytesRead, m.MergeMetrics.ProcessDuration))
-	fmt.Fprintf(c.LogFile, "      read and skipped   : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.BytesReadAndSkipped, inputBytes), m.MergeMetrics.BytesReadAndSkipped, bytes(m.MergeMetrics.BytesReadAndSkipped), bytesSpeed(m.MergeMetrics.BytesReadAndSkipped, m.MergeMetrics.ProcessDuration))
-	fmt.Fprintf(c.LogFile, "      read and processed : %8s ~ %15d = %10s ≈ %s\n", percent(bytesReadAndProcessed, inputBytes), bytesReadAndProcessed, bytes(bytesReadAndProcessed), bytesSpeed(bytesReadAndProcessed, m.MergeMetrics.ProcessDuration))
-	fmt.Fprintf(c.LogFile, "    not read             : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.BytesNotRead, inputBytes), m.MergeMetrics.BytesNotRead, bytes(m.MergeMetrics.BytesNotRead), bytesSpeed(m.MergeMetrics.BytesNotRead, m.MergeMetrics.ProcessDuration))
-	fmt.Fprintf(c.LogFile, "  output bytes           : %8s ~ %15d = %10s ≈ %s\n", percent(outputBytes, outputBytes), outputBytes, bytes(outputBytes), bytesSpeed(outputBytes, m.MergeMetrics.ProcessDuration))
+	fmt.Fprintf(c.LogFile, "  input bytes            : %8s ~ %15d = %10s ≈ %s\n", percent(inputBytes, inputBytes), inputBytes, bytes(inputBytes), bytesSpeed(inputBytes, elapsedNanoseconds))
+	fmt.Fprintf(c.LogFile, "    read                 : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.BytesRead, inputBytes), m.MergeMetrics.BytesRead, bytes(m.MergeMetrics.BytesRead), bytesSpeed(m.MergeMetrics.BytesRead, elapsedNanoseconds))
+	fmt.Fprintf(c.LogFile, "      read and skipped   : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.BytesReadAndSkipped, inputBytes), m.MergeMetrics.BytesReadAndSkipped, bytes(m.MergeMetrics.BytesReadAndSkipped), bytesSpeed(m.MergeMetrics.BytesReadAndSkipped, elapsedNanoseconds))
+	fmt.Fprintf(c.LogFile, "      read and processed : %8s ~ %15d = %10s ≈ %s\n", percent(bytesReadAndProcessed, inputBytes), bytesReadAndProcessed, bytes(bytesReadAndProcessed), bytesSpeed(bytesReadAndProcessed, elapsedNanoseconds))
+	fmt.Fprintf(c.LogFile, "    not read             : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.BytesNotRead, inputBytes), m.MergeMetrics.BytesNotRead, bytes(m.MergeMetrics.BytesNotRead), bytesSpeed(m.MergeMetrics.BytesNotRead, elapsedNanoseconds))
+	fmt.Fprintf(c.LogFile, "  output bytes           : %8s ~ %15d = %10s ≈ %s\n", percent(outputBytes, outputBytes), outputBytes, bytes(outputBytes), bytesSpeed(outputBytes, elapsedNanoseconds))
 	fmt.Fprintf(c.LogFile, "    raw data             : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.BytesWrittenForRawData, outputBytes), m.MergeMetrics.BytesWrittenForRawData, bytes(m.MergeMetrics.BytesWrittenForRawData))
 	fmt.Fprintf(c.LogFile, "    overhead             : %8s ~ %15v = %10s\n", percent(writtenBytesOverhead, outputBytes), writtenBytesOverhead, bytes(writtenBytesOverhead))
 	fmt.Fprintf(c.LogFile, "      source name @block : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.BytesWrittenForAliasPerBlock, outputBytes), m.MergeMetrics.BytesWrittenForAliasPerBlock, bytes(m.MergeMetrics.BytesWrittenForAliasPerBlock))
@@ -232,10 +204,10 @@ func (m *Metrics) PrintMetrics(c *AppConfig, startTime time.Time, elapsedTime ti
 	fmt.Fprintf(c.LogFile, "      timestamps  @line  : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.BytesWrittenForTimestamps, outputBytes), m.MergeMetrics.BytesWrittenForTimestamps, bytes(m.MergeMetrics.BytesWrittenForTimestamps))
 	fmt.Fprintf(c.LogFile, "      missing newlines   : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.BytesWrittenForMissingNewlines, outputBytes), m.MergeMetrics.BytesWrittenForMissingNewlines, bytes(m.MergeMetrics.BytesWrittenForMissingNewlines))
 	fmt.Fprintf(c.LogFile, "Line count stats\n")
-	fmt.Fprintf(c.LogFile, "  lines read             : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.LinesRead, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesRead, count(m.MergeMetrics.LinesRead), countSpeed(m.MergeMetrics.LinesRead, m.MergeMetrics.ProcessDuration))
+	fmt.Fprintf(c.LogFile, "  lines read             : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.LinesRead, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesRead, count(m.MergeMetrics.LinesRead), countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
 	fmt.Fprintf(c.LogFile, "    with timestamp       : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.LinesWithTimestamps, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesWithTimestamps, count(m.MergeMetrics.LinesWithTimestamps))
 	fmt.Fprintf(c.LogFile, "    without timestamp    : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.LinesWithoutTimestamps, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesWithoutTimestamps, count(m.MergeMetrics.LinesWithoutTimestamps))
-	fmt.Fprintf(c.LogFile, "  lines read             : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.LinesRead, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesRead, count(m.MergeMetrics.LinesRead), countSpeed(m.MergeMetrics.LinesRead, m.MergeMetrics.ProcessDuration))
+	fmt.Fprintf(c.LogFile, "  lines read             : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.LinesRead, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesRead, count(m.MergeMetrics.LinesRead), countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
 	fmt.Fprintf(c.LogFile, "    skipped              : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.LinesReadAndSkipped, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesReadAndSkipped, count(m.MergeMetrics.LinesReadAndSkipped))
 	fmt.Fprintf(c.LogFile, "    processed            : %8s ~ %15v = %10s\n", percent(linesReadAndProcessed, m.MergeMetrics.LinesRead), linesReadAndProcessed, count(linesReadAndProcessed))
 	fmt.Fprintf(c.LogFile, "Heap metrics\n")
@@ -244,16 +216,14 @@ func (m *Metrics) PrintMetrics(c *AppConfig, startTime time.Time, elapsedTime ti
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== TIMING SUMMARY =============================================================================================================================================================\n")
 	fmt.Fprintf(c.LogFile, "\n")
-	m.MergeMetrics.FillBufferMetric.printCallMetric(logFile, "FillBuffer", bytesSpeed(m.MergeMetrics.BytesRead, m.MergeMetrics.ProcessDuration))
-	m.MergeMetrics.BufferAsSliceMetric.printCallMetric(logFile, "BufferAsSlice", countSpeed(m.MergeMetrics.LinesRead, m.MergeMetrics.ProcessDuration))
-	m.MergeMetrics.ParseTimestampMetric.printCallMetric(logFile, "ParseTimestamp", countSpeed(m.MergeMetrics.LinesRead, m.MergeMetrics.ProcessDuration))
-	m.MergeMetrics.PeekNextLineSliceMetric.printCallMetric(logFile, "PeekNextLineSlice", countSpeed(m.MergeMetrics.LinesRead, m.MergeMetrics.ProcessDuration))
-	m.MergeMetrics.WriteOutputMetric.printCallMetric(logFile, "WriteOutput", bytesSpeed(outputBytes, m.MergeMetrics.ProcessDuration))
+	m.MergeMetrics.FillBufferMetric.printCallMetric(logFile, "FillBuffer", bytesSpeed(m.MergeMetrics.BytesRead, elapsedNanoseconds))
+	m.MergeMetrics.BufferAsSliceMetric.printCallMetric(logFile, "BufferAsSlice", countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
+	m.MergeMetrics.ParseTimestampMetric.printCallMetric(logFile, "ParseTimestamp", countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
+	m.MergeMetrics.PeekNextLineSliceMetric.printCallMetric(logFile, "PeekNextLineSlice", countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
+	m.MergeMetrics.WriteOutputMetric.printCallMetric(logFile, "WriteOutput", bytesSpeed(outputBytes, elapsedNanoseconds))
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== TIMING BREAKDOWN ===========================================================================================================================================================\n")
 	fmt.Fprintf(c.LogFile, "\n")
-	m.MergeMetrics.MetricsTree.Root.Metric.Duration = elapsedTime.Nanoseconds()
-	m.MergeMetrics.MetricsTree.Root.Metric.CallCount = 1
 	m.MergeMetrics.MetricsTree.Root.printTree(logFile, 0)
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== RUNTIME METRICS ============================================================================================================================================================\n")
@@ -364,7 +334,7 @@ func getKeysSorted(m map[string][]string) []string {
 	return keysSorted
 }
 
-func (t *MetricsTreeNode) printTree(logFile *os.File, depth int) {
+func (t *MetricsTreeNode) printTree(logFile *WritableFile, depth int) {
 	nanoseconds := t.Metric.Duration
 	ownerMetrics := t.Metric.MetricsTree
 
@@ -384,7 +354,7 @@ func (t *MetricsTreeNode) printTree(logFile *os.File, depth int) {
 	}
 }
 
-func (m *MetricsTree) printDurationLog(logFile *os.File, depth int, name string, n int64, nanoseconds int64, extra string) {
+func (m *MetricsTree) printDurationLog(logFile *WritableFile, depth int, name string, n int64, nanoseconds int64, extra string) {
 	padLen := 35
 	//goland:noinspection GoUnhandledErrorResult
 	fmt.Fprintf(
@@ -403,12 +373,12 @@ func (m *MetricsTree) printDurationLog(logFile *os.File, depth int, name string,
 	)
 }
 
-func (c *CallMetric) printCallMetric(logFile *os.File, name string, extra string) {
+func (c *CallMetric) printCallMetric(logFile *WritableFile, name string, extra string) {
 	c.MetricsTree.printDurationLog(logFile, 0, name, c.CallCount, c.Duration, extra)
 }
 
 //goland:noinspection GoUnhandledErrorResult
-func (b *BucketMetric) printBuckets(logFile *os.File, name string) {
+func (b *BucketMetric) printBuckets(logFile *WritableFile, name string) {
 	minValue := b.min
 	maxValue := b.max
 	total := b.count

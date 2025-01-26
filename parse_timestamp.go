@@ -8,9 +8,9 @@ import (
 // TODO: Consider supporting other time formats like 1 Jan 2006; Jan 1, 2006; 01/02/2006 etc.
 
 type ParseTimestampConfig struct {
-	ShortestTimestampLen    int
-	IgnoreTimezoneInfo      bool
-	TimestampSearchEndIndex int
+	IgnoreTimezoneInfo      bool `yaml:"IgnoreTimezoneInfo"`
+	ShortestTimestampLen    int  `yaml:"ShortestTimestampLen"`
+	TimestampSearchEndIndex int  `yaml:"TimestampSearchEndIndex"`
 }
 
 type ParseTimestampMetrics struct {
