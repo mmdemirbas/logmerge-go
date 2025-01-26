@@ -9,8 +9,8 @@ import (
 
 // config defines the default configuration which will be overwritten by the configuration file
 var config = &MainConfig{
-	OutputFile: (*WritableFile)(os.Stdout),
-	LogFile:    (*WritableFile)(os.Stderr),
+	OutputFile: &WritableFile{os.Stdout},
+	LogFile:    &WritableFile{os.Stderr},
 
 	ProfilingEnabled: false,
 
@@ -135,7 +135,7 @@ func main() {
 			return file.UpdateTimestamp(config.ParseTimestampConfig, metrics.ParseTimestampMetrics)
 		},
 	)
-	if err != nil {
+	if err == nil {
 		// Print progress one last time (for 100% mostly)
 		printProgress(files, programStartTime)
 	}

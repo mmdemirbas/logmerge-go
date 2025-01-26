@@ -38,24 +38,28 @@ func (c *MainConfig) ToYAML() (string, error) {
 	return string(data), nil
 }
 
-type WritableFile os.File
+type WritableFile struct {
+	File *os.File
+}
 
 func (f WritableFile) Write(p []byte) (n int, err error) {
-	return (*os.File)(&f).Write(p)
+	return f.File.Write(p)
 }
 
 func (f WritableFile) Close() error {
-	return (*os.File)(&f).Close()
+	return f.File.Close()
 }
 
 func (f WritableFile) MarshalYAML() (interface{}, error) {
-	return (*os.File)(&f).Name(), nil
+	if f.File == nil {
+		return "", nil
+	}
+	return f.File.Name(), nil
 }
 
 func (f *WritableFile) UnmarshalYAML(value *yaml.Node) error {
 	var path string
-	err := value.Decode(&path)
-	if err != nil {
+	if err := value.Decode(&path); err != nil {
 		return fmt.Errorf("failed to decode file path: %w", err)
 	}
 
@@ -64,9 +68,8 @@ func (f *WritableFile) UnmarshalYAML(value *yaml.Node) error {
 		return nil
 	}
 
-	err = os.MkdirAll(filepath.Dir(path), os.ModePerm)
-	if err != nil {
-		return fmt.Errorf("could not create directory for file %s: %v", path, err)
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		return fmt.Errorf("could not create directory for %s: %v", path, err)
 	}
 
 	file, err := os.Create(path)
@@ -74,6 +77,6 @@ func (f *WritableFile) UnmarshalYAML(value *yaml.Node) error {
 		return fmt.Errorf("could not create file %s: %v", path, err)
 	}
 
-	*f = WritableFile(*file)
+	f.File = file
 	return nil
 }

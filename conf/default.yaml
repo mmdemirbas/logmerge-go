@@ -1,10 +1,10 @@
 OutputFile: "/Users/md/dev/mmdemirbas/logmerge/out/output.log"
-LogFile: "/Users/md/dev/mmdemirbas/logmerge/log/105-refactor.err"
+LogFile: "/Users/md/dev/mmdemirbas/logmerge/log/106-big-logs.err"
 
 ProfilingEnabled: false
 
 ListFilesConfig:
-  InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1736999506338_0001-ANALYSIS"
+  InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/" # application_1736999506338_0001-ANALYSIS
 
   ExcludedStrictSuffixes: [ ".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz" ]
   IncludedStrictSuffixes: [ ]
@@ -41,7 +41,7 @@ MergeConfig:
 
   WriteAliasPerBlock: true
   WriteAliasPerLine: false
-  WriteTimestampPerLine: false
+  WriteTimestampPerLine: true
 
   #MinTimestamp: "2025-01-17T13:12:41.434816Z"
   #MaxTimestamp: "2025-01-17T13:14:12.863Z"
