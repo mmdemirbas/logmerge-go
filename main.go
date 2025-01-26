@@ -124,12 +124,14 @@ func main() {
 		}
 	}()
 
+	writer := NewBufferedWriter(outputFile, config.MergeConfig.BufferSizeForWrite)
+
 	// Process files
 	err = ProcessFiles(
 		config.MergeConfig,
 		metrics.MergeMetrics,
 		files,
-		outputFile,
+		writer,
 		logFile,
 		func(file *FileHandle) error {
 			return file.UpdateTimestamp(config.ParseTimestampConfig, metrics.ParseTimestampMetrics)

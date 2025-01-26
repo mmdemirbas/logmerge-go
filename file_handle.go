@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -79,7 +78,7 @@ func (r *FileHandle) SkipLine() (bytesCount int, eolLength int, err error) {
 	return
 }
 
-func (r *FileHandle) WriteLine(m *MergeMetrics, writer *bufio.Writer) error {
+func (r *FileHandle) WriteLine(m *MergeMetrics, writer *BufferedWriter) error {
 	var (
 		count           = 0
 		latestCharWasCR = false
@@ -124,7 +123,7 @@ func (r *FileHandle) WriteLine(m *MergeMetrics, writer *bufio.Writer) error {
 	// Ensure \n is written at the end of the line
 	if eol != LF && eol != CRLF {
 		startTime := GlobalMetricsTree.MeasureStart("WriteMissingNewline")
-		err = writer.WriteByte('\n')
+		_, err = writer.Write(newline)
 		m.BytesWrittenForMissingNewlines++
 		if err != nil {
 			return fmt.Errorf("failed to write newline: %v", err)

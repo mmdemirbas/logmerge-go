@@ -1,5 +1,5 @@
 OutputFile: "/Users/md/dev/mmdemirbas/logmerge/out/output.log"
-LogFile: "/Users/md/dev/mmdemirbas/logmerge/log/106-big-logs.err"
+LogFile: "/Users/md/dev/mmdemirbas/logmerge/log/108-manual-out-buffer-2.err"
 
 ProfilingEnabled: false
 

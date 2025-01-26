@@ -29,8 +29,6 @@ type MetricsTree struct {
 	ParseTimestampMetric    *CallMetric
 	PeekNextLineSliceMetric *CallMetric
 	WriteOutputMetric       *CallMetric
-	HeapPopMetric           *CallMetric
-	HeapPushMetric          *CallMetric
 }
 
 type MetricsTreeNode struct {
@@ -79,8 +77,6 @@ func NewMetricsTree(metricsTreeEnabled bool) *MetricsTree {
 	tree.ParseTimestampMetric = NewCallMetric(tree)
 	tree.PeekNextLineSliceMetric = NewCallMetric(tree)
 	tree.WriteOutputMetric = NewCallMetric(tree)
-	tree.HeapPopMetric = NewCallMetric(tree)
-	tree.HeapPushMetric = NewCallMetric(tree)
 
 	return tree
 }
@@ -230,9 +226,6 @@ func (m *MainMetrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTi
 	fmt.Fprintf(c.LogFile, "  lines read             : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.LinesRead, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesRead, count(m.MergeMetrics.LinesRead), countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
 	fmt.Fprintf(c.LogFile, "    skipped              : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.LinesReadAndSkipped, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesReadAndSkipped, count(m.MergeMetrics.LinesReadAndSkipped))
 	fmt.Fprintf(c.LogFile, "    processed            : %8s ~ %15v = %10s\n", percent(linesReadAndProcessed, m.MergeMetrics.LinesRead), linesReadAndProcessed, count(linesReadAndProcessed))
-	fmt.Fprintf(c.LogFile, "Heap metrics\n")
-	fmt.Fprintf(c.LogFile, "  heap pop count         : %8s ~ %15d ≈ %s\n", "", GlobalMetricsTree.HeapPopMetric.CallCount, count(GlobalMetricsTree.HeapPopMetric.CallCount))
-	fmt.Fprintf(c.LogFile, "  heap push count        : %8s ~ %15d ≈ %s\n", "", GlobalMetricsTree.HeapPushMetric.CallCount, count(GlobalMetricsTree.HeapPushMetric.CallCount))
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== TIMING SUMMARY =============================================================================================================================================================\n")
 	fmt.Fprintf(c.LogFile, "\n")

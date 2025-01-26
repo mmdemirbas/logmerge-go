@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"container/heap"
 	"fmt"
 )
@@ -54,18 +53,14 @@ func NewMergeMetrics() *MergeMetrics {
 	}
 }
 
-// TODO: Isolate ParseTimestampConfig, ParseTimestampMetrics
 func ProcessFiles(
 	c *MergeConfig,
 	m *MergeMetrics,
 	files []*FileHandle,
-	outputFile *WritableFile,
+	writer *BufferedWriter,
 	logFile *WritableFile,
 	updateTimestamp func(file *FileHandle) error,
 ) error {
-	writer := bufio.NewWriterSize(outputFile, c.BufferSizeForWrite)
-	defer writer.Flush()
-
 	h := MinHeap(make([]*FileHandle, 0, len(files))) // Pre-allocate heap with the number of fileList
 	h = h[:0]                                        // Reset the heap length to zero
 	remainingFileCount := 0
@@ -100,7 +95,6 @@ func ProcessFiles(
 	if remainingFileCount > 0 {
 		nextFile = heap.Pop(&h).(*FileHandle)
 		remainingFileCount--
-		GlobalMetricsTree.HeapPopMetric.CallCount++
 	}
 
 	// Merge logs
@@ -141,7 +135,7 @@ func ProcessFiles(
 				shouldWriteAlias = false
 				lastPrintedAlias = file.Alias
 				startTime := GlobalMetricsTree.MeasureStart("WriteAliasPerBlock")
-				n, err := writer.WriteString(file.AliasForBlock)
+				n, err := writer.Write([]byte(file.AliasForBlock))
 				m.BytesWrittenForAliasPerBlock += int64(n)
 				GlobalMetricsTree.MeasureSince(startTime)
 				if err != nil {
@@ -221,7 +215,7 @@ func doUpdateTimestamp(file *FileHandle, m *MergeMetrics, updateTimestamp func(f
 
 var space30 = []byte("                              ")
 
-func writeLine(c *MergeConfig, m *MergeMetrics, writer *bufio.Writer, timestamp Timestamp, file *FileHandle) error {
+func writeLine(c *MergeConfig, m *MergeMetrics, writer *BufferedWriter, timestamp Timestamp, file *FileHandle) error {
 	if c.WriteTimestampPerLine {
 		startTime := GlobalMetricsTree.MeasureStart("WriteTimestamp")
 		var toWrite []byte
@@ -244,7 +238,7 @@ func writeLine(c *MergeConfig, m *MergeMetrics, writer *bufio.Writer, timestamp 
 	}
 	if c.WriteAliasPerLine {
 		startTime := GlobalMetricsTree.MeasureStart("WriteAliasPerLine")
-		n, err := writer.WriteString(file.AliasForLine)
+		n, err := writer.Write([]byte(file.AliasForLine))
 		m.BytesWrittenForAliasPerLine += int64(n)
 		if err != nil {
 			return fmt.Errorf("failed to write alias: %v", err)
