@@ -35,16 +35,37 @@ var daysAfter = [13]int{
 	daysFrom1970 + 1 + 31,
 }
 
+var extraDaysToMonthDay = make([]int, 1+365+366)
+
+func init() {
+	monthDayCounts := []int{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+	i := 1
+	j := 366
+	for m := 12; m > 0; m-- {
+		monthDayCount := monthDayCounts[m-1]
+		if m == 2 {
+			extraDaysToMonthDay[j] = m<<5 | 29
+			j++
+		}
+		for d := monthDayCount; d > 0; d-- {
+			extraDaysToMonthDay[i] = m<<5 | d
+			extraDaysToMonthDay[j] = m<<5 | d
+			i++
+			j++
+		}
+	}
+}
+
 type Timestamp uint64
 
-func NewTimestamp(y, M, d, H, m, s, S, tzSgn, tzH, tzM int) Timestamp {
+func NewTimestamp(y, M, d, H, m, s, ns, tzSgn, tzH, tzM int) Timestamp {
 	y4 := y >> 2
 	ed := y*365 + y4 - y4/25 + (y4>>2)/25 - daysAfter[M] + d
 	if y&0x03 == 0 && M <= 2 && (y4&0x03 == 0 || y4%25 != 0) {
 		ed--
 	}
 
-	return Timestamp(uint64(ed*secondsPerDay+(H-tzSgn*tzH)*secondsPerHour+(m-tzSgn*tzM)*secondsPerMinute+s)*1e9 + uint64(S))
+	return Timestamp(uint64(ed*secondsPerDay+(H-tzSgn*tzH)*secondsPerHour+(m-tzSgn*tzM)*secondsPerMinute+s)*1e9 + uint64(ns))
 }
 
 func (t Timestamp) MarshalYAML() (interface{}, error) {
@@ -67,12 +88,8 @@ func (t *Timestamp) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
-// TODO: Remove need to these arrays and simplify the String method
-var nonLeapMonthDays = []int{0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365, 396}
-var leapMonthDays = []int{0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366, 397}
-
 var zeroString = []byte("1970-01-01 00:00:00.000000000 ")
-var timestampStringBuffer = make([]byte, 30)
+var timestampStringBuffer = []byte("1970-01-01 00:00:00.000000000 ")
 
 func (t Timestamp) FormatAsString() string {
 	return string(t.FormatAsBytes())
@@ -83,49 +100,20 @@ func (t Timestamp) FormatAsBytes() []byte {
 		return zeroString
 	}
 
-	v := uint64(t)
+	nano := uint64(t)
 
-	// Performance-optimized way of formatting time as yyyy-MM-dd HH:mm:ss.SSSSSSSSS
-	timestampStringBuffer[29] = ' '
-	timestampStringBuffer[28] = byte('0' + v%10)
-	v /= 10
-	timestampStringBuffer[27] = byte('0' + v%10)
-	v /= 10
-	timestampStringBuffer[26] = byte('0' + v%10)
-	v /= 10
-	timestampStringBuffer[25] = byte('0' + v%10)
-	v /= 10
-	timestampStringBuffer[24] = byte('0' + v%10)
-	v /= 10
-	timestampStringBuffer[23] = byte('0' + v%10)
-	v /= 10
-	timestampStringBuffer[22] = byte('0' + v%10)
-	v /= 10
-	timestampStringBuffer[21] = byte('0' + v%10)
-	v /= 10
-	timestampStringBuffer[20] = byte('0' + v%10)
-	v /= 10
-	sec := v % 60
-	v /= 60
-	timestampStringBuffer[19] = '.'
-	timestampStringBuffer[18] = byte('0' + sec%10)
-	timestampStringBuffer[17] = byte('0' + sec/10)
-	m := v % 60
-	v /= 60
-	timestampStringBuffer[16] = ':'
-	timestampStringBuffer[15] = byte('0' + m%10)
-	timestampStringBuffer[14] = byte('0' + m/10)
-	hour := v % 24
-	v /= 24
-	timestampStringBuffer[13] = ':'
-	timestampStringBuffer[12] = byte('0' + hour%10)
-	timestampStringBuffer[11] = byte('0' + hour/10)
-	timestampStringBuffer[10] = ' '
+	sec := nano / 1_000_000_000
+	ns := nano % 1_000_000_000
 
-	year := (v / 366) + 1970
-	pastYear := year - 1
-	epochDays := (pastYear*365 + pastYear/4 - pastYear/100 + pastYear/400) - daysFrom1970
-	leapYear := year%4 == 0 && (year%100 != 0 || year%400 == 0)
+	s := sec % 60
+	m := (sec / 60) % 60
+	h := (sec / 3600) % 24
+	days := sec / 86400
+
+	year := (days / 365) + 1970
+	y4 := year >> 2
+	epochDays := (year*365 + y4 - y4/25 + (y4>>2)/25) - daysFrom1970
+	leapYear := year&0x03 == 0 && (y4&0x03 == 0 || y4%25 != 0)
 
 	var daysInYear int
 	if leapYear {
@@ -134,39 +122,48 @@ func (t Timestamp) FormatAsBytes() []byte {
 		daysInYear = 365
 	}
 
-	dayOfYear := int(v - epochDays)
-	if dayOfYear >= daysInYear {
-		dayOfYear -= daysInYear
-		year++
-		leapYear = year%4 == 0 && (year%100 != 0 || year%400 == 0)
+	extraDays := int(epochDays - days)
+	if extraDays > daysInYear {
+		extraDays -= daysInYear
+		year--
+		y4 = year >> 2
+		leapYear = !leapYear && year&0x03 == 0 && (y4&0x03 == 0 || y4%25 != 0)
 	}
 
-	var monthDays []int
 	if leapYear {
-		monthDays = leapMonthDays
-	} else {
-		monthDays = nonLeapMonthDays
+		extraDays += 365
 	}
+	monthDay := extraDaysToMonthDay[extraDays]
+	month := monthDay >> 5
+	day := monthDay & 0x1F
 
-	month := dayOfYear / 31
-	if monthDays[month+1] <= dayOfYear {
-		month++
+	b := timestampStringBuffer
+
+	// Year (4 digits)
+	b[0] = byte('0' + (year/1000)%10)
+	b[1] = byte('0' + (year/100)%10)
+	b[2] = byte('0' + (year/10)%10)
+	b[3] = byte('0' + (year)%10)
+
+	b[5] = byte('0' + (month/10)%10)
+	b[6] = byte('0' + (month)%10)
+
+	b[8] = byte('0' + (day/10)%10)
+	b[9] = byte('0' + (day)%10)
+
+	b[11] = byte('0' + (h/10)%10)
+	b[12] = byte('0' + (h)%10)
+
+	b[14] = byte('0' + (m/10)%10)
+	b[15] = byte('0' + (m)%10)
+
+	b[17] = byte('0' + (s/10)%10)
+	b[18] = byte('0' + (s)%10)
+
+	tmp := ns
+	for i := 28; i >= 20; i-- {
+		b[i] = byte('0' + (tmp % 10))
+		tmp /= 10
 	}
-
-	day := dayOfYear - monthDays[month] + 1
-	month++
-	timestampStringBuffer[9] = byte('0' + day%10)
-	timestampStringBuffer[8] = byte('0' + day/10)
-	timestampStringBuffer[7] = '-'
-	timestampStringBuffer[6] = byte('0' + month%10)
-	timestampStringBuffer[5] = byte('0' + month/10)
-	timestampStringBuffer[4] = '-'
-	timestampStringBuffer[3] = byte('0' + year%10)
-	year /= 10
-	timestampStringBuffer[2] = byte('0' + year%10)
-	year /= 10
-	timestampStringBuffer[1] = byte('0' + year%10)
-	timestampStringBuffer[0] = byte('0' + year/10)
-
-	return timestampStringBuffer
+	return b
 }
