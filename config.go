@@ -8,10 +8,9 @@ import (
 )
 
 type MainConfig struct {
-	OutputFile       *WritableFile `yaml:"OutputFile"`
-	LogFile          *WritableFile `yaml:"LogFile"`
-	ProfilingEnabled bool          `yaml:"ProfilingEnabled"`
-
+	OutputFile           *WritableFile         `yaml:"OutputFile"`
+	LogFile              *WritableFile         `yaml:"LogFile"`
+	ProfilingEnabled     bool                  `yaml:"ProfilingEnabled"`
 	ListFilesConfig      *ListFilesConfig      `yaml:"ListFilesConfig"`
 	ParseTimestampConfig *ParseTimestampConfig `yaml:"ParseTimestampConfig"`
 	MergeConfig          *MergeConfig          `yaml:"MergeConfig"`

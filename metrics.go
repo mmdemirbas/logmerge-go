@@ -21,6 +21,16 @@ type MetricsTree struct {
 	Enabled bool
 	Root    *MetricsTreeNode
 	Current *MetricsTreeNode
+
+	// Aggregated metrics
+
+	FillBufferMetric        *CallMetric
+	BufferAsSliceMetric     *CallMetric
+	ParseTimestampMetric    *CallMetric
+	PeekNextLineSliceMetric *CallMetric
+	WriteOutputMetric       *CallMetric
+	HeapPopMetric           *CallMetric
+	HeapPushMetric          *CallMetric
 }
 
 type MetricsTreeNode struct {
@@ -47,11 +57,11 @@ type BucketMetric struct {
 	count  int64
 }
 
-func NewMetrics(metricsTreeEnabled bool) *Metrics {
+func NewMetrics() *Metrics {
 	return &Metrics{
 		ListFilesMetrics:      NewListFilesMetrics(),
 		ParseTimestampMetrics: NewParseTimestampMetrics(),
-		MergeMetrics:          NewMergeMetrics(metricsTreeEnabled),
+		MergeMetrics:          NewMergeMetrics(),
 	}
 }
 
@@ -60,8 +70,18 @@ func NewMetricsTree(metricsTreeEnabled bool) *MetricsTree {
 		Enabled: metricsTreeEnabled,
 	}
 	root := NewMetricsTreeNode(tree, nil, "MetricsTree")
+
 	tree.Root = root
 	tree.Current = root
+
+	tree.FillBufferMetric = NewCallMetric(tree)
+	tree.BufferAsSliceMetric = NewCallMetric(tree)
+	tree.ParseTimestampMetric = NewCallMetric(tree)
+	tree.PeekNextLineSliceMetric = NewCallMetric(tree)
+	tree.WriteOutputMetric = NewCallMetric(tree)
+	tree.HeapPopMetric = NewCallMetric(tree)
+	tree.HeapPushMetric = NewCallMetric(tree)
+
 	return tree
 }
 
@@ -162,8 +182,8 @@ func (m *Metrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTime t
 	runtime.ReadMemStats(&MemStats)
 
 	elapsedNanoseconds := elapsedTime.Nanoseconds()
-	m.MergeMetrics.MetricsTree.Root.Metric.Duration = elapsedNanoseconds
-	m.MergeMetrics.MetricsTree.Root.Metric.CallCount = 1
+	GlobalMetricsTree.Root.Metric.Duration = elapsedNanoseconds
+	GlobalMetricsTree.Root.Metric.CallCount = 1
 
 	logFile := c.LogFile
 
@@ -211,20 +231,20 @@ func (m *Metrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTime t
 	fmt.Fprintf(c.LogFile, "    skipped              : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.LinesReadAndSkipped, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesReadAndSkipped, count(m.MergeMetrics.LinesReadAndSkipped))
 	fmt.Fprintf(c.LogFile, "    processed            : %8s ~ %15v = %10s\n", percent(linesReadAndProcessed, m.MergeMetrics.LinesRead), linesReadAndProcessed, count(linesReadAndProcessed))
 	fmt.Fprintf(c.LogFile, "Heap metrics\n")
-	fmt.Fprintf(c.LogFile, "  heap pop count         : %8s ~ %15d ≈ %s\n", "", m.MergeMetrics.HeapPopMetric.CallCount, count(m.MergeMetrics.HeapPopMetric.CallCount))
-	fmt.Fprintf(c.LogFile, "  heap push count        : %8s ~ %15d ≈ %s\n", "", m.MergeMetrics.HeapPushMetric.CallCount, count(m.MergeMetrics.HeapPushMetric.CallCount))
+	fmt.Fprintf(c.LogFile, "  heap pop count         : %8s ~ %15d ≈ %s\n", "", GlobalMetricsTree.HeapPopMetric.CallCount, count(GlobalMetricsTree.HeapPopMetric.CallCount))
+	fmt.Fprintf(c.LogFile, "  heap push count        : %8s ~ %15d ≈ %s\n", "", GlobalMetricsTree.HeapPushMetric.CallCount, count(GlobalMetricsTree.HeapPushMetric.CallCount))
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== TIMING SUMMARY =============================================================================================================================================================\n")
 	fmt.Fprintf(c.LogFile, "\n")
-	m.MergeMetrics.FillBufferMetric.printCallMetric(logFile, "FillBuffer", bytesSpeed(m.MergeMetrics.BytesRead, elapsedNanoseconds))
-	m.MergeMetrics.BufferAsSliceMetric.printCallMetric(logFile, "BufferAsSlice", countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
-	m.MergeMetrics.ParseTimestampMetric.printCallMetric(logFile, "ParseTimestamp", countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
-	m.MergeMetrics.PeekNextLineSliceMetric.printCallMetric(logFile, "PeekNextLineSlice", countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
-	m.MergeMetrics.WriteOutputMetric.printCallMetric(logFile, "WriteOutput", bytesSpeed(outputBytes, elapsedNanoseconds))
+	GlobalMetricsTree.FillBufferMetric.printCallMetric(logFile, "FillBuffer", bytesSpeed(m.MergeMetrics.BytesRead, elapsedNanoseconds))
+	GlobalMetricsTree.BufferAsSliceMetric.printCallMetric(logFile, "BufferAsSlice", countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
+	GlobalMetricsTree.ParseTimestampMetric.printCallMetric(logFile, "ParseTimestamp", countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
+	GlobalMetricsTree.PeekNextLineSliceMetric.printCallMetric(logFile, "PeekNextLineSlice", countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
+	GlobalMetricsTree.WriteOutputMetric.printCallMetric(logFile, "WriteOutput", bytesSpeed(outputBytes, elapsedNanoseconds))
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== TIMING BREAKDOWN ===========================================================================================================================================================\n")
 	fmt.Fprintf(c.LogFile, "\n")
-	m.MergeMetrics.MetricsTree.Root.printTree(logFile, 0)
+	GlobalMetricsTree.Root.printTree(logFile, 0)
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== RUNTIME METRICS ============================================================================================================================================================\n")
 	fmt.Fprintf(c.LogFile, "NumCPU                               : %12v\n", runtime.NumCPU())
@@ -315,23 +335,6 @@ func (m *Metrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTime t
 		fmt.Fprintf(c.LogFile, "%5d %s\n", i+1, file)
 	}
 	fmt.Fprintf(c.LogFile, "==================================================================================================================================================================================\n")
-}
-
-func reverseMap(m map[string]string) map[string][]string {
-	reversed := make(map[string][]string)
-	for k, v := range m {
-		reversed[v] = append(reversed[v], k)
-	}
-	return reversed
-}
-
-func getKeysSorted(m map[string][]string) []string {
-	keysSorted := make([]string, 0, len(m))
-	for k := range m {
-		keysSorted = append(keysSorted, k)
-	}
-	sort.Strings(keysSorted)
-	return keysSorted
 }
 
 func (t *MetricsTreeNode) printTree(logFile *WritableFile, depth int) {
