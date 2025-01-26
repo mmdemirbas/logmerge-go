@@ -121,6 +121,41 @@ func (t Timestamp) String() string {
 		month++
 	}
 
-	day := dayOfYear - monthDays[month]
-	return fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d.%09d ", year, month+1, day+1, hour, m, sec, nsec)
+	day := dayOfYear - monthDays[month] + 1
+	month++
+
+	// Performance-optimized way of formatting time as yyyy-MM-dd HH:mm:ss.SSSSSSSSS
+	s := make([]byte, 30)
+	s[0] = byte('0' + year/1000)
+	s[1] = byte('0' + year/100%10)
+	s[2] = byte('0' + year/10%10)
+	s[3] = byte('0' + year%10)
+	s[4] = '-'
+	s[5] = byte('0' + month/10)
+	s[6] = byte('0' + month%10)
+	s[7] = '-'
+	s[8] = byte('0' + day/10)
+	s[9] = byte('0' + day%10)
+	s[10] = ' '
+	s[11] = byte('0' + hour/10)
+	s[12] = byte('0' + hour%10)
+	s[13] = ':'
+	s[14] = byte('0' + m/10)
+	s[15] = byte('0' + m%10)
+	s[16] = ':'
+	s[17] = byte('0' + sec/10)
+	s[18] = byte('0' + sec%10)
+	s[19] = '.'
+	s[20] = byte('0' + nsec/100_000_000%10)
+	s[21] = byte('0' + nsec/10_000_000%10)
+	s[22] = byte('0' + nsec/1_000_000%10)
+	s[23] = byte('0' + nsec/100_000%10)
+	s[24] = byte('0' + nsec/10_000%10)
+	s[25] = byte('0' + nsec/1_000%10)
+	s[26] = byte('0' + nsec/100%10)
+	s[27] = byte('0' + nsec/10%10)
+	s[28] = byte('0' + nsec%10)
+	s[29] = ' '
+
+	return string(s)
 }
