@@ -1,5 +1,5 @@
 OutputFile: "/Users/md/dev/mmdemirbas/logmerge/out/output.log"
-LogFile: "/Users/md/dev/mmdemirbas/logmerge/log/109-manual-timestamp-string.err"
+LogFile: "/Users/md/dev/mmdemirbas/logmerge/log/111-manual-timestamp-string-with-fixed-buffer.err"
 
 ProfilingEnabled: false
 

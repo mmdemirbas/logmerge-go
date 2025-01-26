@@ -222,7 +222,7 @@ func writeLine(c *MergeConfig, m *MergeMetrics, writer *BufferedWriter, timestam
 		if timestamp == ZeroTimestamp {
 			toWrite = space30
 		} else {
-			toWrite = []byte(timestamp.String())
+			toWrite = timestamp.FormatAsBytes()
 		}
 
 		n, err := writer.Write(toWrite)

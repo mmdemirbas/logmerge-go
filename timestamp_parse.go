@@ -311,6 +311,8 @@ func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []
 }
 
 // TODO consider inlining or improving parseDigits performance
+//
+//go:noline
 func parseDigits(buffer []byte, n int, i *int, maxCount int) (val, count int) {
 	end := *i + maxCount
 	if end > n {

@@ -71,24 +71,56 @@ func (t *Timestamp) UnmarshalYAML(value *yaml.Node) error {
 var nonLeapMonthDays = []int{0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365, 396}
 var leapMonthDays = []int{0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366, 397}
 
-// TODO: This method might need to be optimized when timestamps printed
-func (t Timestamp) String() string {
+var zeroString = []byte("1970-01-01 00:00:00.000000000 ")
+var timestampStringBuffer = make([]byte, 30)
+
+func (t Timestamp) FormatAsString() string {
+	return string(t.FormatAsBytes())
+}
+
+func (t Timestamp) FormatAsBytes() []byte {
 	if t == 0 {
-		return "1970-01-01 00:00:00.000000000 "
+		return zeroString
 	}
 
 	v := uint64(t)
-	nsec := v % 1_000_000_000
-	v /= 1_000_000_000
 
+	// Performance-optimized way of formatting time as yyyy-MM-dd HH:mm:ss.SSSSSSSSS
+	timestampStringBuffer[29] = ' '
+	timestampStringBuffer[28] = byte('0' + v%10)
+	v /= 10
+	timestampStringBuffer[27] = byte('0' + v%10)
+	v /= 10
+	timestampStringBuffer[26] = byte('0' + v%10)
+	v /= 10
+	timestampStringBuffer[25] = byte('0' + v%10)
+	v /= 10
+	timestampStringBuffer[24] = byte('0' + v%10)
+	v /= 10
+	timestampStringBuffer[23] = byte('0' + v%10)
+	v /= 10
+	timestampStringBuffer[22] = byte('0' + v%10)
+	v /= 10
+	timestampStringBuffer[21] = byte('0' + v%10)
+	v /= 10
+	timestampStringBuffer[20] = byte('0' + v%10)
+	v /= 10
 	sec := v % 60
 	v /= 60
-
+	timestampStringBuffer[19] = '.'
+	timestampStringBuffer[18] = byte('0' + sec%10)
+	timestampStringBuffer[17] = byte('0' + sec/10)
 	m := v % 60
 	v /= 60
-
+	timestampStringBuffer[16] = ':'
+	timestampStringBuffer[15] = byte('0' + m%10)
+	timestampStringBuffer[14] = byte('0' + m/10)
 	hour := v % 24
 	v /= 24
+	timestampStringBuffer[13] = ':'
+	timestampStringBuffer[12] = byte('0' + hour%10)
+	timestampStringBuffer[11] = byte('0' + hour/10)
+	timestampStringBuffer[10] = ' '
 
 	year := (v / 366) + 1970
 	pastYear := year - 1
@@ -123,39 +155,18 @@ func (t Timestamp) String() string {
 
 	day := dayOfYear - monthDays[month] + 1
 	month++
+	timestampStringBuffer[9] = byte('0' + day%10)
+	timestampStringBuffer[8] = byte('0' + day/10)
+	timestampStringBuffer[7] = '-'
+	timestampStringBuffer[6] = byte('0' + month%10)
+	timestampStringBuffer[5] = byte('0' + month/10)
+	timestampStringBuffer[4] = '-'
+	timestampStringBuffer[3] = byte('0' + year%10)
+	year /= 10
+	timestampStringBuffer[2] = byte('0' + year%10)
+	year /= 10
+	timestampStringBuffer[1] = byte('0' + year%10)
+	timestampStringBuffer[0] = byte('0' + year/10)
 
-	// Performance-optimized way of formatting time as yyyy-MM-dd HH:mm:ss.SSSSSSSSS
-	s := make([]byte, 30)
-	s[0] = byte('0' + year/1000)
-	s[1] = byte('0' + year/100%10)
-	s[2] = byte('0' + year/10%10)
-	s[3] = byte('0' + year%10)
-	s[4] = '-'
-	s[5] = byte('0' + month/10)
-	s[6] = byte('0' + month%10)
-	s[7] = '-'
-	s[8] = byte('0' + day/10)
-	s[9] = byte('0' + day%10)
-	s[10] = ' '
-	s[11] = byte('0' + hour/10)
-	s[12] = byte('0' + hour%10)
-	s[13] = ':'
-	s[14] = byte('0' + m/10)
-	s[15] = byte('0' + m%10)
-	s[16] = ':'
-	s[17] = byte('0' + sec/10)
-	s[18] = byte('0' + sec%10)
-	s[19] = '.'
-	s[20] = byte('0' + nsec/100_000_000%10)
-	s[21] = byte('0' + nsec/10_000_000%10)
-	s[22] = byte('0' + nsec/1_000_000%10)
-	s[23] = byte('0' + nsec/100_000%10)
-	s[24] = byte('0' + nsec/10_000%10)
-	s[25] = byte('0' + nsec/1_000%10)
-	s[26] = byte('0' + nsec/100%10)
-	s[27] = byte('0' + nsec/10%10)
-	s[28] = byte('0' + nsec%10)
-	s[29] = ' '
-
-	return string(s)
+	return timestampStringBuffer
 }
