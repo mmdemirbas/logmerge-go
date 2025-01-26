@@ -4,23 +4,100 @@ import (
 	"bufio"
 	"container/heap"
 	"fmt"
+	"os"
 )
 
-var (
-	space30 = []byte("                              ")
-)
+type MergeConfig struct {
+	MetricsTreeEnabled bool
 
-func ProcessFiles(c *AppConfig, files []*FileHandle) error {
-	writer := bufio.NewWriterSize(c.Stdout, c.BufferSizeForWrite)
+	WriteAliasPerBlock    bool
+	WriteAliasPerLine     bool
+	WriteTimestampPerLine bool
+
+	MinTimestamp Timestamp
+	MaxTimestamp Timestamp
+
+	BufferSizeForRead  int
+	BufferSizeForWrite int
+}
+
+type MergeMetrics struct {
+	MetricsTree *MetricsTree
+
+	// Byte count stats
+
+	BytesRead                      int64
+	BytesReadAndSkipped            int64
+	BytesNotRead                   int64
+	BytesWrittenForTimestamps      int64
+	BytesWrittenForAliasPerLine    int64
+	BytesWrittenForAliasPerBlock   int64
+	BytesWrittenForRawData         int64
+	BytesWrittenForMissingNewlines int64
+
+	// Line count stats
+
+	LinesRead              int64
+	LinesReadAndSkipped    int64
+	LinesWithTimestamps    int64
+	LinesWithoutTimestamps int64
+	LineLengths            *BucketMetric
+	SkippedLineCounts      *BucketMetric
+	SuccessiveLineCounts   *BucketMetric
+	BlockLineCounts        *BucketMetric
+
+	// Timing stats (nanoseconds)
+	ProcessDuration         int64
+	FillBufferMetric        *CallMetric
+	BufferAsSliceMetric     *CallMetric
+	ParseTimestampMetric    *CallMetric
+	PeekNextLineSliceMetric *CallMetric
+	WriteOutputMetric       *CallMetric
+
+	// Merge debugging
+	HeapPopMetric  *CallMetric
+	HeapPushMetric *CallMetric
+}
+
+func NewMergeMetrics(metricsTreeEnabled bool) *MergeMetrics {
+	metricsTree := NewMetricsTree(metricsTreeEnabled)
+	mm := &MergeMetrics{
+		MetricsTree:          metricsTree,
+		LineLengths:          NewBucketMetric(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000),
+		SkippedLineCounts:    NewBucketMetric(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100),
+		SuccessiveLineCounts: NewBucketMetric(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100),
+		BlockLineCounts:      NewBucketMetric(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100),
+	}
+
+	mm.FillBufferMetric = NewCallMetric(metricsTree)
+	mm.BufferAsSliceMetric = NewCallMetric(metricsTree)
+	mm.ParseTimestampMetric = NewCallMetric(metricsTree)
+	mm.PeekNextLineSliceMetric = NewCallMetric(metricsTree)
+	mm.WriteOutputMetric = NewCallMetric(metricsTree)
+
+	mm.HeapPopMetric = NewCallMetric(metricsTree)
+	mm.HeapPushMetric = NewCallMetric(metricsTree)
+
+	return mm
+}
+
+func ProcessFiles(
+	c *MergeConfig,
+	m *MergeMetrics,
+	pc *ParseTimestampConfig,
+	pm *ParseTimestampMetrics,
+	files []*FileHandle,
+	outputFile *os.File,
+	logFile *os.File,
+) error {
+	writer := bufio.NewWriterSize(outputFile, c.BufferSizeForWrite)
 	defer writer.Flush()
-
-	timestampBuffer := make([]byte, 0, c.TimestampSearchEndIndex)
 
 	h := MinHeap(make([]*FileHandle, 0, len(files))) // Pre-allocate heap with the number of fileList
 	h = h[:0]                                        // Reset the heap length to zero
 	remainingFileCount := 0
 	for _, file := range files {
-		err := file.UpdateTimestamp(c, timestampBuffer)
+		err := file.UpdateTimestamp(c, m, pc, pm)
 		if err != nil {
 			return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
 		}
@@ -32,11 +109,11 @@ func ProcessFiles(c *AppConfig, files []*FileHandle) error {
 			err = file.Close()
 			if err != nil {
 				//goland:noinspection GoUnhandledErrorResult
-				fmt.Fprintf(c.Stderr, "failed to close file %s: %v\n", file.File.Name(), err)
+				fmt.Fprintf(logFile, "failed to close file %s: %v\n", file.File.Name(), err)
 			}
 			// Update metrics
-			BytesRead += int64(file.BytesRead)
-			BytesNotRead += int64(file.Size - file.BytesRead)
+			m.BytesRead += int64(file.BytesRead)
+			m.BytesNotRead += int64(file.Size - file.BytesRead)
 			file.Done = true
 		}
 	}
@@ -49,7 +126,7 @@ func ProcessFiles(c *AppConfig, files []*FileHandle) error {
 	if remainingFileCount > 0 {
 		nextFile = heap.Pop(&h).(*FileHandle)
 		remainingFileCount--
-		HeapPopMetric.CallCount++
+		m.HeapPopMetric.CallCount++
 	}
 
 	// Merge logs
@@ -60,12 +137,12 @@ func ProcessFiles(c *AppConfig, files []*FileHandle) error {
 		// Skip lines until finding an eligible line
 		for file.TimestampParsed && file.Timestamp < c.MinTimestamp {
 			skippedLineCount++
-			err := file.SkipLine(c)
+			err := file.SkipLine(m)
 			if err != nil {
 				return fmt.Errorf("failed to skip line from %s: %v", file.File.Name(), err)
 			}
 
-			err = file.UpdateTimestamp(c, timestampBuffer)
+			err = file.UpdateTimestamp(c, m, pc, pm)
 			if err != nil {
 				return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
 			}
@@ -87,10 +164,10 @@ func ProcessFiles(c *AppConfig, files []*FileHandle) error {
 			if shouldWriteAlias {
 				shouldWriteAlias = false
 				lastPrintedAlias = file.Alias
-				startTime := MeasureStart(c, "WriteAliasPerBlock")
+				startTime := m.MetricsTree.MeasureStart("WriteAliasPerBlock")
 				n, err := writer.WriteString(file.AliasForBlock)
-				BytesWrittenForAliasPerBlock += int64(n)
-				MeasureSince(c, startTime)
+				m.BytesWrittenForAliasPerBlock += int64(n)
+				m.MetricsTree.MeasureSince(startTime)
 				if err != nil {
 					return fmt.Errorf("failed to write alias: %v", err)
 				}
@@ -100,33 +177,33 @@ func ProcessFiles(c *AppConfig, files []*FileHandle) error {
 			if successiveLineCount == 0 {
 				timestampToWrite = file.Timestamp
 			} else {
-				timestampToWrite = noTimestamp
+				timestampToWrite = ZeroTimestamp
 			}
 
 			successiveLineCount++
 
-			err := writeLine(c, writer, timestampToWrite, file)
+			err := writeLine(c, m, writer, timestampToWrite, file)
 			if err != nil {
 				return fmt.Errorf("failed to write line: %v", err)
 			}
 
-			err = file.UpdateTimestamp(c, timestampBuffer)
+			err = file.UpdateTimestamp(c, m, pc, pm)
 			if err != nil {
 				return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
 			}
 
-			if !file.TimestampParsed || file.Timestamp != noTimestamp {
+			if !file.TimestampParsed || file.Timestamp != ZeroTimestamp {
 				// Timestamp changed or file ended
 				blockLineCount += successiveLineCount
-				SuccessiveLineCounts.UpdateBucketCount(successiveLineCount)
+				m.SuccessiveLineCounts.UpdateBucketCount(successiveLineCount)
 				successiveLineCount = 0
 			}
 		}
 
-		LinesRead += int64(blockLineCount + skippedLineCount)
-		LinesReadAndSkipped += int64(skippedLineCount)
-		SkippedLineCounts.UpdateBucketCount(skippedLineCount)
-		BlockLineCounts.UpdateBucketCount(blockLineCount)
+		m.LinesRead += int64(blockLineCount + skippedLineCount)
+		m.LinesReadAndSkipped += int64(skippedLineCount)
+		m.SkippedLineCounts.UpdateBucketCount(skippedLineCount)
+		m.BlockLineCounts.UpdateBucketCount(blockLineCount)
 
 		if file.TimestampParsed && file.Timestamp <= c.MaxTimestamp {
 			heap.Push(&h, file)
@@ -136,11 +213,11 @@ func ProcessFiles(c *AppConfig, files []*FileHandle) error {
 			err := file.Close()
 			if err != nil {
 				//goland:noinspection GoUnhandledErrorResult
-				fmt.Fprintf(c.Stderr, "failed to close file %s: %v\n", file.File.Name(), err)
+				fmt.Fprintf(logFile, "failed to close file %s: %v\n", file.File.Name(), err)
 			}
 			// Update metrics
-			BytesRead += int64(file.BytesRead)
-			BytesNotRead += int64(file.Size - file.BytesRead)
+			m.BytesRead += int64(file.BytesRead)
+			m.BytesNotRead += int64(file.Size - file.BytesRead)
 			file.Done = true
 		}
 
@@ -154,11 +231,13 @@ func ProcessFiles(c *AppConfig, files []*FileHandle) error {
 	return nil
 }
 
-func writeLine(c *AppConfig, writer *bufio.Writer, timestamp Timestamp, file *FileHandle) error {
+var space30 = []byte("                              ")
+
+func writeLine(c *MergeConfig, m *MergeMetrics, writer *bufio.Writer, timestamp Timestamp, file *FileHandle) error {
 	if c.WriteTimestampPerLine {
-		startTime := MeasureStart(c, "WriteTimestamp")
+		startTime := m.MetricsTree.MeasureStart("WriteTimestamp")
 		var toWrite []byte
-		if timestamp == noTimestamp {
+		if timestamp == ZeroTimestamp {
 			toWrite = space30
 		} else {
 			toWrite = []byte(timestamp.String())
@@ -166,25 +245,25 @@ func writeLine(c *AppConfig, writer *bufio.Writer, timestamp Timestamp, file *Fi
 
 		n, err := writer.Write(toWrite)
 		if err != nil {
-			if timestamp == noTimestamp {
+			if timestamp == ZeroTimestamp {
 				return fmt.Errorf("failed to write timestamp padding: %v", err)
 			} else {
 				return fmt.Errorf("failed to write timestamp: %v", err)
 			}
 		}
-		BytesWrittenForTimestamps += int64(n)
-		WriteOutputMetric.MeasureSince(c, startTime)
+		m.BytesWrittenForTimestamps += int64(n)
+		m.WriteOutputMetric.MeasureSince(startTime)
 	}
 	if c.WriteAliasPerLine {
-		startTime := MeasureStart(c, "WriteAliasPerLine")
+		startTime := m.MetricsTree.MeasureStart("WriteAliasPerLine")
 		n, err := writer.WriteString(file.AliasForLine)
-		BytesWrittenForAliasPerLine += int64(n)
+		m.BytesWrittenForAliasPerLine += int64(n)
 		if err != nil {
 			return fmt.Errorf("failed to write alias: %v", err)
 		}
-		WriteOutputMetric.MeasureSince(c, startTime)
+		m.WriteOutputMetric.MeasureSince(startTime)
 	}
 
 	// Write rest of the line including the new line character
-	return file.WriteLine(c, writer)
+	return file.WriteLine(m, writer)
 }

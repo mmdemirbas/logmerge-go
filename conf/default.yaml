@@ -1,9 +1,9 @@
 InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1736999506338_0001-ANALYSIS"
 OutputPath: "/Users/md/dev/mmdemirbas/logmerge/out/output.log"
-LogPath: "/Users/md/dev/mmdemirbas/logmerge/log/103-refactor-with-metrics.err"
+LogPath: "/Users/md/dev/mmdemirbas/logmerge/log/104-metrics-refactor.err"
 
-EnableMetricsCollection: true
-EnableProfiling: false
+MetricsTreeEnabled: true
+ProfilingEnabled: false
 
 WriteAliasPerBlock: true
 WriteAliasPerLine: false

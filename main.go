@@ -7,37 +7,45 @@ import (
 	"time"
 )
 
-// EffectiveConfig defines the configuration of the application.
+// config defines the configuration of the application.
 // It is initialized with default values and then updated with the values from the configuration file.
-var EffectiveConfig = &AppConfig{
-	InputPath:  "",
-	OutputPath: "", // empty means stdout
-	LogPath:    "", // empty means stderr
+var config = &AppConfig{
+	OutputFile: os.Stdout, // overridden by OutputPath if provided
+	LogFile:    os.Stderr, // overridden by LogPath if provided
 
-	EnableMetricsCollection: true,
-	EnableProfiling:         false,
+	ProfilingEnabled: false,
 
-	WriteAliasPerBlock:    true,
-	WriteAliasPerLine:     false,
-	WriteTimestampPerLine: false,
+	ListFilesConfig: &ListFilesConfig{
+		InputPath:               "", // required
+		ExcludedStrictSuffixes:  []string{".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz"},
+		IncludedStrictSuffixes:  []string{},
+		ExcludedLenientSuffixes: []string{},
+		IncludedLenientSuffixes: []string{".log", ".err", ".error", ".warn", ".warning", ".info", ".out", ".debug", ".trace"},
+		FileAliases:             map[string]string{},
+	},
 
-	IgnoreTimezoneInfo: false,
-	MinTimestamp:       noTimestamp,
-	MaxTimestamp:       Timestamp(1<<63 - 1),
+	ParseTimestampConfig: &ParseTimestampConfig{
+		IgnoreTimezoneInfo:      false,
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	},
 
-	ShortestTimestampLen:    15,
-	TimestampSearchEndIndex: 250,
+	MergeConfig: &MergeConfig{
+		MetricsTreeEnabled: true,
 
-	BufferSizeForRead:  1024 * 1024 * 100,
-	BufferSizeForWrite: 1024 * 1024 * 100,
+		WriteAliasPerBlock:    true,
+		WriteAliasPerLine:     false,
+		WriteTimestampPerLine: false,
 
-	ExcludedStrictSuffixes:  []string{".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz"},
-	IncludedStrictSuffixes:  []string{},
-	ExcludedLenientSuffixes: []string{},
-	IncludedLenientSuffixes: []string{".log", ".err", ".error", ".warn", ".warning", ".info", ".out", ".debug", ".trace"},
+		MinTimestamp: ZeroTimestamp,
+		MaxTimestamp: Timestamp(1<<63 - 1),
 
-	FileAliases: map[string]string{},
+		BufferSizeForRead:  1024 * 1024 * 100,
+		BufferSizeForWrite: 1024 * 1024 * 100,
+	},
 }
+
+var metrics *Metrics
 
 // TODO: Catch interrupt signal during merge process and do the post-work anyway
 
@@ -59,82 +67,106 @@ func main() {
 	// Measure program duration even if metrics disabled
 	programStartTime := time.Now()
 
-	yml := &YamlConfig{}
-	err := yml.LoadYamlConfig(os.Args[1])
-	if err == nil {
-		err = EffectiveConfig.LoadAppConfig(yml)
-		if err == nil {
-			// Enable profiling only if configured
-			if EffectiveConfig.EnableProfiling {
-				// Start CPU profiling
-				cpuFile, err := os.Create("out/cpu.prof")
-				if err != nil {
-					//goland:noinspection GoUnhandledErrorResult
-					fmt.Fprintf(os.Stderr, "could not create CPU profile: %v\n", err)
-				} else {
-					defer cpuFile.Close()
-					if err := pprof.StartCPUProfile(cpuFile); err != nil {
-						//goland:noinspection GoUnhandledErrorResult
-						fmt.Fprintf(os.Stderr, "could not start CPU profile: %v\n", err)
-					} else {
-						defer pprof.StopCPUProfile()
-					}
-				}
-			}
+	yml, err := NewYamlConfig(os.Args[1])
+	if err != nil {
+		//goland:noinspection GoUnhandledErrorResult
+		fmt.Fprintf(os.Stderr, "failed to load configuration from YAML file: %s: %v\n", os.Args[1], err)
+		os.Exit(1)
+	}
 
-			files, err := ListFiles(EffectiveConfig)
-			if err != nil {
+	err = config.LoadAppConfig(yml)
+	if err != nil {
+		//goland:noinspection GoUnhandledErrorResult
+		fmt.Fprintf(os.Stderr, "failed to load configuration: %v", err)
+		os.Exit(1)
+	}
+
+	// Enable profiling only if configured
+	if config.ProfilingEnabled {
+		// Start CPU profiling
+		cpuFile, err := os.Create("out/cpu.prof")
+		if err != nil {
+			//goland:noinspection GoUnhandledErrorResult
+			fmt.Fprintf(config.LogFile, "could not create CPU profile: %v\n", err)
+		} else {
+			defer cpuFile.Close()
+			if err := pprof.StartCPUProfile(cpuFile); err != nil {
 				//goland:noinspection GoUnhandledErrorResult
-				fmt.Fprintf(EffectiveConfig.Stderr, "failed to list files: %v", err)
-				os.Exit(1)
+				fmt.Fprintf(config.LogFile, "could not start CPU profile: %v\n", err)
 			} else {
-
-				// Print progress
-				go func() {
-					// TODO: Make printProgress params configurable (initial delay, interval, etc)
-					// Print progress only if it takes some time
-					time.Sleep(1 * time.Second)
-
-					//goland:noinspection GoUnhandledErrorResult
-					fmt.Fprintf(EffectiveConfig.Stderr, "\n")
-
-					ticker := time.NewTicker(1000 * time.Millisecond)
-					for range ticker.C {
-						printProgress(files, programStartTime)
-					}
-				}()
-
-				// Process files
-				err = ProcessFiles(EffectiveConfig, files)
-				if err != nil {
-					// Print progress one last time (for 100% mostly)
-					printProgress(files, programStartTime)
-				}
+				defer pprof.StopCPUProfile()
 			}
+		}
+	}
 
-			if EffectiveConfig.EnableProfiling {
-				// Capture memory profile
-				memFile, err := os.Create("out/mem.prof")
-				if err != nil {
-					//goland:noinspection GoUnhandledErrorResult
-					fmt.Fprintf(EffectiveConfig.Stderr, "could not create memory profile: %v\n", err)
-				} else {
-					defer memFile.Close()
-					if err := pprof.WriteHeapProfile(memFile); err != nil {
-						//goland:noinspection GoUnhandledErrorResult
-						fmt.Fprintf(EffectiveConfig.Stderr, "could not write memory profile: %v\n", err)
-					}
-				}
+	outputFile := config.OutputFile
+	logFile := config.LogFile
+
+	metrics = NewMetrics(config.MergeConfig.MetricsTreeEnabled)
+	files, err := ListFiles(
+		config.ListFilesConfig,
+		metrics.ListFilesMetrics,
+		config.MergeConfig.BufferSizeForRead,
+		config.ParseTimestampConfig.ShortestTimestampLen,
+		logFile,
+	)
+	if err != nil {
+		//goland:noinspection GoUnhandledErrorResult
+		fmt.Fprintf(config.LogFile, "failed to list files: %v", err)
+		os.Exit(1)
+	}
+
+	// Print progress
+	go func() {
+		// TODO: Make printProgress params configurable (initial delay, interval, etc)
+		// Print progress only if it takes some time
+		time.Sleep(1 * time.Second)
+
+		//goland:noinspection GoUnhandledErrorResult
+		fmt.Fprintf(config.LogFile, "\n")
+
+		ticker := time.NewTicker(1000 * time.Millisecond)
+		for range ticker.C {
+			printProgress(files, programStartTime)
+		}
+	}()
+
+	// Process files
+	err = ProcessFiles(
+		config.MergeConfig,
+		metrics.MergeMetrics,
+		config.ParseTimestampConfig,
+		metrics.ParseTimestampMetrics,
+		files,
+		outputFile,
+		logFile,
+	)
+	if err != nil {
+		// Print progress one last time (for 100% mostly)
+		printProgress(files, programStartTime)
+	}
+
+	if config.ProfilingEnabled {
+		// Capture memory profile
+		memFile, err := os.Create("out/mem.prof")
+		if err != nil {
+			//goland:noinspection GoUnhandledErrorResult
+			fmt.Fprintf(config.LogFile, "could not create memory profile: %v\n", err)
+		} else {
+			defer memFile.Close()
+			if err := pprof.WriteHeapProfile(memFile); err != nil {
+				//goland:noinspection GoUnhandledErrorResult
+				fmt.Fprintf(config.LogFile, "could not write memory profile: %v\n", err)
 			}
 		}
 	}
 
 	elapsedTime := time.Since(programStartTime)
-	PrintMetrics(EffectiveConfig, programStartTime, elapsedTime, err)
+	metrics.PrintMetrics(config, programStartTime, elapsedTime, err)
 
 	if err != nil {
 		//goland:noinspection GoUnhandledErrorResult
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+		fmt.Fprintf(logFile, "%v\n", err)
 		os.Exit(1)
 	}
 }

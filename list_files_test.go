@@ -15,7 +15,7 @@ func TestShouldIncludeFile(t *testing.T) {
 		// TODO: Add more tests to cover all cases
 	}
 
-	c := &AppConfig{
+	c := &ListFilesConfig{
 		ExcludedStrictSuffixes:  []string{".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz"},
 		IncludedStrictSuffixes:  []string{},
 		ExcludedLenientSuffixes: []string{},

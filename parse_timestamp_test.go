@@ -2,7 +2,6 @@ package main_test
 
 import (
 	. "github.com/mmdemirbas/logmerge"
-	"os"
 	"strings"
 	"testing"
 )
@@ -27,17 +26,18 @@ func TestParseTimestamp(t *testing.T) {
 		{"2025-01-15 19:23:42.042000000 ", "2025-01-15 19:23:42,042 | WARN  | ContainerLocalizer #0 | Exception encountered while connecting to the server  | Client.java:756"},
 		{"2025-01-15 11:23:49.752000000 ", "2025-01-15T19:23:49.752+0800: 1.412: [GC (Allocation Failure) [PSYoungGen: 128512K->12717K(149504K)] 128512K->12725K(491008K), 0.0111485 secs] [Times: user=0.03 sys=0.01, real=0.01 secs] "},
 		{"2025-01-16 03:24:08.000000000 ", "2025-01-15 19:24:08-08:00 | INFO  | [139837877704256] shard_view_mgt.cpp:109 [SHARD_VIEW][INFO] Update view success, version is 117."},
+		{"2024-08-04 12:00:01.000000000 ", "<165> 2024-08-04T12:00:01Z server1 appname 12345 ID47 [exampleSDID@32473 event=\"LoginSuccess\" user=\"admin\" src_ip=\"192.168.1.10\" dst_ip=\"192.168.1.20\"] User login successful\n\n"},
 	}
 
-	c := &AppConfig{
+	c := &ParseTimestampConfig{
 		ShortestTimestampLen: 15,
-		Stderr:               os.Stderr,
 		IgnoreTimezoneInfo:   false,
 	}
+	m := NewParseTimestampMetrics()
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			ts := ParseTimestamp(c, []byte(tt.input))
+			ts := ParseTimestamp(c, m, []byte(tt.input))
 			actual := ts.String()
 			if strings.Compare(tt.expected, actual) != 0 {
 				t.Errorf(expectedFormat, tt.expected, tt.expected, actual, actual)

@@ -7,15 +7,38 @@ import (
 	"strings"
 )
 
-// TODO: Think about global metric access
+type ListFilesConfig struct {
+	InputPath               string
+	ExcludedStrictSuffixes  []string
+	IncludedStrictSuffixes  []string
+	ExcludedLenientSuffixes []string
+	IncludedLenientSuffixes []string
+	FileAliases             map[string]string
+}
 
-func ListFiles(c *AppConfig) (files []*FileHandle, err error) {
-	fileList, err := listFilePaths(c)
+type ListFilesMetrics struct {
+	DirsScanned  int64
+	FilesScanned int64
+	FilesMatched int64
+	MatchedFiles []string
+}
+
+func NewListFilesMetrics() *ListFilesMetrics {
+	return &ListFilesMetrics{
+		DirsScanned:  0,
+		FilesScanned: 0,
+		FilesMatched: 0,
+		MatchedFiles: make([]string, 0),
+	}
+}
+
+func ListFiles(c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, minBufferSizePerFile int, logFile *os.File) (files []*FileHandle, err error) {
+	fileList, err := listFilePaths(c, m)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list files: %v", err)
 	}
 
-	perFileBufferSize := max(c.TimestampSearchEndIndex, c.BufferSizeForRead/len(fileList))
+	perFileBufferSize := max(minBufferSizePerFile, totalBufferSize/len(fileList))
 	maxAliasLen := 0
 
 	files = make([]*FileHandle, len(fileList))
@@ -30,7 +53,7 @@ func ListFiles(c *AppConfig) (files []*FileHandle, err error) {
 		f, err := os.Open(file)
 		if err != nil {
 			//goland:noinspection GoUnhandledErrorResult
-			fmt.Fprintf(c.Stderr, "failed to open file %s: %v\n", file, err)
+			fmt.Fprintf(logFile, "failed to open file %s: %v\n", file, err)
 			continue
 		}
 
@@ -39,15 +62,10 @@ func ListFiles(c *AppConfig) (files []*FileHandle, err error) {
 			return nil, fmt.Errorf("failed to create handle for file %v: %v", file, err)
 		}
 
-		if c.WriteAliasPerBlock {
-			file.AliasForBlock = fmt.Sprintf("\n--- %s ---\n", file.Alias)
-		}
-
-		if c.WriteAliasPerLine {
-			aliasLen := len(file.Alias)
-			if maxAliasLen < aliasLen {
-				maxAliasLen = aliasLen
-			}
+		file.AliasForBlock = fmt.Sprintf("\n--- %s ---\n", file.Alias)
+		aliasLen := len(file.Alias)
+		if maxAliasLen < aliasLen {
+			maxAliasLen = aliasLen
 		}
 
 		files = append(files, file)
@@ -57,17 +75,15 @@ func ListFiles(c *AppConfig) (files []*FileHandle, err error) {
 		return nil, fmt.Errorf("no fileList to merge")
 	}
 
-	if c.WriteAliasPerLine {
-		// pad source names to max length
-		for _, file := range files {
-			file.AliasForLine = fmt.Sprintf("%-*s - ", maxAliasLen, file.Alias)
-		}
+	// pad source names to max length
+	for _, file := range files {
+		file.AliasForLine = fmt.Sprintf("%-*s - ", maxAliasLen, file.Alias)
 	}
 
 	return files, nil
 }
 
-func listFilePaths(c *AppConfig) (files []string, err error) {
+func listFilePaths(c *ListFilesConfig, m *ListFilesMetrics) (files []string, err error) {
 	basePath := c.InputPath
 	if basePath == "" {
 		return nil, fmt.Errorf("input path is empty")
@@ -85,46 +101,43 @@ func listFilePaths(c *AppConfig) (files []string, err error) {
 				return fmt.Errorf("could not walk %s: %v", path, err)
 			}
 			if info.IsDir() {
-				DirsScanned++
+				m.DirsScanned++
 			} else {
-				visitFile(c, path, &files)
+				visitFile(c, m, path, &files)
 			}
 			return nil
 		})
 	default:
-		visitFile(c, basePath, &files)
+		visitFile(c, m, basePath, &files)
 	}
 	return files, err
 }
 
-func visitFile(c *AppConfig, path string, files *[]string) {
-	FilesScanned++
+func visitFile(c *ListFilesConfig, m *ListFilesMetrics, path string, files *[]string) {
+	m.FilesScanned++
 	if ShouldIncludeFile(c, path) {
-		FilesMatched++
-		MatchedFiles = append(MatchedFiles, path)
+		m.FilesMatched++
+		m.MatchedFiles = append(m.MatchedFiles, path)
 		*files = append(*files, path)
 	}
 }
 
-func getAlias(c *AppConfig, file string) (string, error) {
+func getAlias(c *ListFilesConfig, file string) (string, error) {
 	// TODO: Consider measuring overhead of each features separately (overheadOfWriteAliases etc)
-	if c.WriteAliasPerBlock || c.WriteAliasPerLine {
-		relative, err := filepath.Rel(c.InputPath, file)
-		if err != nil {
-			return "", fmt.Errorf("failed to calculate relative path for file %s: %v", file, err)
-		}
-
-		mappedAlias, ok := c.FileAliases[relative]
-		if ok {
-			return mappedAlias, nil
-		} else {
-			return relative, nil
-		}
+	relative, err := filepath.Rel(c.InputPath, file)
+	if err != nil {
+		return "", fmt.Errorf("failed to calculate relative path for file %s: %v", file, err)
 	}
-	return "", nil
+
+	mappedAlias, ok := c.FileAliases[relative]
+	if ok {
+		return mappedAlias, nil
+	} else {
+		return relative, nil
+	}
 }
 
-func ShouldIncludeFile(c *AppConfig, filePath string) bool {
+func ShouldIncludeFile(c *ListFilesConfig, filePath string) bool {
 	_, fileName := filepath.Split(filePath)
 	lowerName := strings.ToLower(fileName)
 	return !hasSuffix(lowerName, c.ExcludedStrictSuffixes...) &&

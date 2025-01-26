@@ -44,7 +44,7 @@ func (r *FileHandle) FillBuffer() error {
 	return err
 }
 
-func (r *FileHandle) SkipLine(c *AppConfig) error {
+func (r *FileHandle) SkipLine(m *MergeMetrics) error {
 	var (
 		lineLengthWithoutEol       = 0
 		n                          = 0
@@ -56,18 +56,18 @@ func (r *FileHandle) SkipLine(c *AppConfig) error {
 	for !r.Buffer.IsEmpty() {
 		n, eol = r.Buffer.SkipNextLineSlice(&latestCharWasCR)
 		lineLengthWithoutEol += n
-		BytesReadAndSkipped += int64(n)
+		m.BytesReadAndSkipped += int64(n)
 		if eol != None {
 			break
 		}
 
 		if r.Buffer.IsEmpty() {
-			startTime := MeasureStart(c, "FillBuffer")
+			startTime := m.MetricsTree.MeasureStart("FillBuffer")
 			err = r.FillBuffer()
 			if err != nil {
 				return fmt.Errorf("failed to fill buffer: %v", err)
 			}
-			FillBufferMetric.MeasureSince(c, startTime)
+			m.FillBufferMetric.MeasureSince(startTime)
 		}
 	}
 
@@ -79,11 +79,11 @@ func (r *FileHandle) SkipLine(c *AppConfig) error {
 		lineLengthWithoutEol -= 2
 	}
 
-	LineLengths.UpdateBucketCount(lineLengthWithoutEol)
+	m.LineLengths.UpdateBucketCount(lineLengthWithoutEol)
 	return nil
 }
 
-func (r *FileHandle) WriteLine(c *AppConfig, writer *bufio.Writer) error {
+func (r *FileHandle) WriteLine(m *MergeMetrics, writer *bufio.Writer) error {
 	var (
 		count           = 0
 		latestCharWasCR = false
@@ -93,19 +93,19 @@ func (r *FileHandle) WriteLine(c *AppConfig, writer *bufio.Writer) error {
 	)
 
 	for !r.Buffer.IsEmpty() {
-		startTime := MeasureStart(c, "PeekNextLineSlice")
+		startTime := m.MetricsTree.MeasureStart("PeekNextLineSlice")
 		chunk, eol = r.Buffer.PeekNextLineSlice(&latestCharWasCR)
-		PeekNextLineSliceMetric.MeasureSince(c, startTime)
+		m.PeekNextLineSliceMetric.MeasureSince(startTime)
 
 		if chunk != nil {
-			startTime = MeasureStart(c, "WriteLinePartial")
+			startTime = m.MetricsTree.MeasureStart("WriteLinePartial")
 			var n int
 			n, err = writer.Write(chunk)
 			if err == nil {
 				r.Buffer.Skip(n)
 				count += n
 			}
-			WriteOutputMetric.MeasureSince(c, startTime)
+			m.WriteOutputMetric.MeasureSince(startTime)
 		}
 
 		if err != nil {
@@ -116,24 +116,24 @@ func (r *FileHandle) WriteLine(c *AppConfig, writer *bufio.Writer) error {
 		}
 
 		if r.Buffer.IsEmpty() {
-			startTime := MeasureStart(c, "FillBuffer")
+			startTime := m.MetricsTree.MeasureStart("FillBuffer")
 			err = r.FillBuffer()
 			if err != nil {
 				return fmt.Errorf("failed to fill buffer: %v", err)
 			}
-			FillBufferMetric.MeasureSince(c, startTime)
+			m.FillBufferMetric.MeasureSince(startTime)
 		}
 	}
 
 	// Ensure \n is written at the end of the line
 	if eol != LF && eol != CRLF {
-		startTime := MeasureStart(c, "WriteMissingNewline")
+		startTime := m.MetricsTree.MeasureStart("WriteMissingNewline")
 		err = writer.WriteByte('\n')
-		BytesWrittenForMissingNewlines++
+		m.BytesWrittenForMissingNewlines++
 		if err != nil {
 			return fmt.Errorf("failed to write newline: %v", err)
 		}
-		WriteOutputMetric.MeasureSince(c, startTime)
+		m.WriteOutputMetric.MeasureSince(startTime)
 	}
 
 	lineLengthWithoutEol := count
@@ -145,8 +145,8 @@ func (r *FileHandle) WriteLine(c *AppConfig, writer *bufio.Writer) error {
 		lineLengthWithoutEol -= 2
 	}
 
-	BytesWrittenForRawData += int64(count)
-	LineLengths.UpdateBucketCount(lineLengthWithoutEol)
+	m.BytesWrittenForRawData += int64(count)
+	m.LineLengths.UpdateBucketCount(lineLengthWithoutEol)
 
 	return nil
 }
@@ -155,16 +155,18 @@ func (r *FileHandle) Close() error {
 	return r.File.Close()
 }
 
-func (r *FileHandle) UpdateTimestamp(c *AppConfig, timestampBuffer []byte) error {
+var parseTimestampBuffer []byte
+
+func (r *FileHandle) UpdateTimestamp(c *MergeConfig, m *MergeMetrics, pc *ParseTimestampConfig, pm *ParseTimestampMetrics) error {
 	bufLen := r.Buffer.Len()
-	if bufLen < c.TimestampSearchEndIndex {
-		startTime := MeasureStart(c, "FillBuffer")
+	if bufLen < pc.TimestampSearchEndIndex {
+		startTime := m.MetricsTree.MeasureStart("FillBuffer")
 		err := r.FillBuffer()
 		if err != nil {
 			r.TimestampParsed = false
 			return fmt.Errorf("failed to fill buffer: %v", err)
 		}
-		FillBufferMetric.MeasureSince(c, startTime)
+		m.FillBufferMetric.MeasureSince(startTime)
 
 		if bufLen == 0 && r.Buffer.IsEmpty() {
 			r.TimestampParsed = false
@@ -172,18 +174,22 @@ func (r *FileHandle) UpdateTimestamp(c *AppConfig, timestampBuffer []byte) error
 		}
 	}
 
-	startTime := MeasureStart(c, "BufferAsSlice")
-	buf := r.Buffer.AsSlice(timestampBuffer)
-	BufferAsSliceMetric.MeasureSince(c, startTime)
+	if parseTimestampBuffer == nil {
+		parseTimestampBuffer = make([]byte, pc.TimestampSearchEndIndex)
+	}
 
-	startTime = MeasureStart(c, "ParseTimestamp")
-	timestamp := ParseTimestamp(c, buf)
-	ParseTimestampMetric.MeasureSince(c, startTime)
+	startTime := m.MetricsTree.MeasureStart("BufferAsSlice")
+	buf := r.Buffer.AsSlice(parseTimestampBuffer)
+	m.BufferAsSliceMetric.MeasureSince(startTime)
 
-	if timestamp == noTimestamp {
-		LinesWithoutTimestamps++
+	startTime = m.MetricsTree.MeasureStart("ParseTimestamp")
+	timestamp := ParseTimestamp(pc, pm, buf)
+	m.ParseTimestampMetric.MeasureSince(startTime)
+
+	if timestamp == ZeroTimestamp {
+		m.LinesWithoutTimestamps++
 	} else {
-		LinesWithTimestamps++
+		m.LinesWithTimestamps++
 	}
 
 	r.TimestampParsed = true

@@ -10,6 +10,8 @@ import (
 // TODO: Consider bitwise operation to multiply with 1e9 = 2^9 * 5^9 => *5 = x << 2 + x
 
 const (
+	ZeroTimestamp = Timestamp(0)
+
 	secondsPerMinute = 60
 	secondsPerHour   = 60 * 60
 	secondsPerDay    = 60 * 60 * 24

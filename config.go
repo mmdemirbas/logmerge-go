@@ -8,217 +8,200 @@ import (
 )
 
 type AppConfig struct {
-	InputPath  string
-	OutputPath string
-	LogPath    string
+	OutputFile *os.File
+	LogFile    *os.File
 
-	Stdout *os.File
-	Stderr *os.File
+	ProfilingEnabled bool
 
-	EnableMetricsCollection bool
-	EnableProfiling         bool
-
-	WriteAliasPerBlock    bool
-	WriteAliasPerLine     bool
-	WriteTimestampPerLine bool
-
-	MinTimestamp       Timestamp
-	MaxTimestamp       Timestamp
-	IgnoreTimezoneInfo bool
-
-	ShortestTimestampLen    int
-	TimestampSearchEndIndex int
-
-	BufferSizeForRead  int
-	BufferSizeForWrite int
-
-	ExcludedStrictSuffixes  []string
-	IncludedStrictSuffixes  []string
-	ExcludedLenientSuffixes []string
-	IncludedLenientSuffixes []string
-
-	FileAliases map[string]string
+	ListFilesConfig      *ListFilesConfig
+	ParseTimestampConfig *ParseTimestampConfig
+	MergeConfig          *MergeConfig
 }
+
+// TODO: Reflect the same nested config structure in YAML
 
 type YamlConfig struct {
-	InputPath  *string `yaml:"InputPath"`
-	OutputPath *string `yaml:"OutputPath"`
-	LogPath    *string `yaml:"LogPath"`
+	OutputPath       *string `yaml:"OutputPath"`
+	LogPath          *string `yaml:"LogPath"`
+	ProfilingEnabled *bool   `yaml:"ProfilingEnabled"`
 
-	EnableMetricsCollection *bool `yaml:"EnableMetricsCollection"`
-	EnableProfiling         *bool `yaml:"EnableProfiling"`
+	InputPath               *string            `yaml:"InputPath"`
+	ExcludedStrictSuffixes  *[]string          `yaml:"ExcludedStrictSuffixes"`
+	IncludedStrictSuffixes  *[]string          `yaml:"IncludedStrictSuffixes"`
+	ExcludedLenientSuffixes *[]string          `yaml:"ExcludedLenientSuffixes"`
+	IncludedLenientSuffixes *[]string          `yaml:"IncludedLenientSuffixes"`
+	FileAliases             *map[string]string `yaml:"FileAliases"`
 
-	WriteAliasPerBlock    *bool `yaml:"WriteAliasPerBlock"`
-	WriteAliasPerLine     *bool `yaml:"WriteAliasPerLine"`
-	WriteTimestampPerLine *bool `yaml:"WriteTimestampPerLine"`
+	ShortestTimestampLen    *int  `yaml:"ShortestTimestampLen"`
+	IgnoreTimezoneInfo      *bool `yaml:"IgnoreTimezoneInfo"`
+	TimestampSearchEndIndex *int  `yaml:"TimestampSearchEndIndex"`
 
-	MinTimestamp       *string `yaml:"MinTimestamp"`
-	MaxTimestamp       *string `yaml:"MaxTimestamp"`
-	IgnoreTimezoneInfo *bool   `yaml:"IgnoreTimezoneInfo"`
-
-	ShortestTimestampLen    *int `yaml:"ShortestTimestampLen"`
-	TimestampSearchEndIndex *int `yaml:"TimestampSearchEndIndex"`
-
-	BufferSizeForRead  *int `yaml:"BufferSizeForRead"`
-	BufferSizeForWrite *int `yaml:"BufferSizeForWrite"`
-
-	ExcludedStrictSuffixes  *[]string `yaml:"ExcludedStrictSuffixes"`
-	IncludedStrictSuffixes  *[]string `yaml:"IncludedStrictSuffixes"`
-	ExcludedLenientSuffixes *[]string `yaml:"ExcludedLenientSuffixes"`
-	IncludedLenientSuffixes *[]string `yaml:"IncludedLenientSuffixes"`
-
-	FileAliases *map[string]string `yaml:"FileAliases"`
+	MetricsTreeEnabled    *bool   `yaml:"MetricsTreeEnabled"`
+	WriteAliasPerBlock    *bool   `yaml:"WriteAliasPerBlock"`
+	WriteAliasPerLine     *bool   `yaml:"WriteAliasPerLine"`
+	WriteTimestampPerLine *bool   `yaml:"WriteTimestampPerLine"`
+	MinTimestamp          *string `yaml:"MinTimestamp"`
+	MaxTimestamp          *string `yaml:"MaxTimestamp"`
+	BufferSizeForRead     *int    `yaml:"BufferSizeForRead"`
+	BufferSizeForWrite    *int    `yaml:"BufferSizeForWrite"`
 }
 
-func (c *YamlConfig) LoadYamlConfig(yamlPath string) error {
+func NewYamlConfig(yamlPath string) (*YamlConfig, error) {
+	c := &YamlConfig{}
+
 	data, err := os.ReadFile(yamlPath)
 	if err != nil {
-		return fmt.Errorf("failed to read file %s: %w", yamlPath, err)
+		return nil, fmt.Errorf("failed to read file %s: %w", yamlPath, err)
 	}
 
 	err = yaml.Unmarshal(data, &c)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal yaml file %s: %w", yamlPath, err)
+		return nil, fmt.Errorf("failed to unmarshal yaml file %s: %w", yamlPath, err)
 	}
 
-	return nil
+	return c, nil
 }
 
-func (c *AppConfig) LoadAppConfig(yamlConfig *YamlConfig) error {
-	// InputPath
-	if yamlConfig.InputPath != nil {
-		c.InputPath = *yamlConfig.InputPath
-	}
+func (c *AppConfig) LoadAppConfig(yml *YamlConfig) error {
 
-	// OutputPath -> Stdout
-	if yamlConfig.OutputPath != nil {
-		c.OutputPath = *yamlConfig.OutputPath
-	}
-	f, err := createFile(c.OutputPath, os.Stdout)
+	// OutputPath -> OutputFile
+	outputFile, err := createFile(yml.OutputPath)
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %w", err)
 	}
-	c.Stdout = f
-
-	// LogPath -> Stderr
-	if yamlConfig.LogPath != nil {
-		c.LogPath = *yamlConfig.LogPath
+	if outputFile != nil {
+		c.OutputFile = outputFile
 	}
-	f, err = createFile(c.LogPath, os.Stderr)
+
+	// LogPath -> LogFile
+	logFile, err := createFile(yml.LogPath)
 	if err != nil {
 		return fmt.Errorf("failed to create log file: %w", err)
 	}
-	c.Stderr = f
-
-	// EnableMetricsCollection
-	if yamlConfig.EnableMetricsCollection != nil {
-		c.EnableMetricsCollection = *yamlConfig.EnableMetricsCollection
+	if logFile != nil {
+		c.LogFile = logFile
 	}
 
-	// EnableProfiling
-	if yamlConfig.EnableProfiling != nil {
-		c.EnableProfiling = *yamlConfig.EnableProfiling
+	// MetricsTreeEnabled
+	if yml.MetricsTreeEnabled != nil {
+		c.MergeConfig.MetricsTreeEnabled = *yml.MetricsTreeEnabled
+	}
+
+	// ProfilingEnabled
+	if yml.ProfilingEnabled != nil {
+		c.ProfilingEnabled = *yml.ProfilingEnabled
 	}
 
 	// WriteAliasPerBlock
-	if yamlConfig.WriteAliasPerBlock != nil {
-		c.WriteAliasPerBlock = *yamlConfig.WriteAliasPerBlock
+	if yml.WriteAliasPerBlock != nil {
+		c.MergeConfig.WriteAliasPerBlock = *yml.WriteAliasPerBlock
 	}
 
 	// WriteAliasPerLine
-	if yamlConfig.WriteAliasPerLine != nil {
-		c.WriteAliasPerLine = *yamlConfig.WriteAliasPerLine
+	if yml.WriteAliasPerLine != nil {
+		c.MergeConfig.WriteAliasPerLine = *yml.WriteAliasPerLine
 	}
 
 	// WriteTimestampPerLine
-	if yamlConfig.WriteTimestampPerLine != nil {
-		c.WriteTimestampPerLine = *yamlConfig.WriteTimestampPerLine
+	if yml.WriteTimestampPerLine != nil {
+		c.MergeConfig.WriteTimestampPerLine = *yml.WriteTimestampPerLine
 	}
 
 	// MinTimestamp
-	if yamlConfig.MinTimestamp != nil {
-		ts, err := NewTimestampFromString(*yamlConfig.MinTimestamp)
+	if yml.MinTimestamp != nil {
+		ts, err := NewTimestampFromString(*yml.MinTimestamp)
 		if err != nil {
-			return fmt.Errorf("failed to parse MinTimestamp <%s>: %w", *yamlConfig.MinTimestamp, err)
+			return fmt.Errorf("failed to parse MinTimestamp <%s>: %w", *yml.MinTimestamp, err)
 		}
-		c.MinTimestamp = ts
+		c.MergeConfig.MinTimestamp = ts
 	}
 
 	// MaxTimestamp
-	if yamlConfig.MaxTimestamp != nil {
-		ts, err := NewTimestampFromString(*yamlConfig.MaxTimestamp)
+	if yml.MaxTimestamp != nil {
+		ts, err := NewTimestampFromString(*yml.MaxTimestamp)
 		if err != nil {
-			return fmt.Errorf("failed to parse MaxTimestamp <%s>: %w", *yamlConfig.MaxTimestamp, err)
+			return fmt.Errorf("failed to parse MaxTimestamp <%s>: %w", *yml.MaxTimestamp, err)
 		}
-		c.MaxTimestamp = ts
+		c.MergeConfig.MaxTimestamp = ts
 	}
 
 	// IgnoreTimezoneInfo
-	if yamlConfig.IgnoreTimezoneInfo != nil {
-		c.IgnoreTimezoneInfo = *yamlConfig.IgnoreTimezoneInfo
+	if yml.IgnoreTimezoneInfo != nil {
+		c.ParseTimestampConfig.IgnoreTimezoneInfo = *yml.IgnoreTimezoneInfo
 	}
 
 	// ShortestTimestampLen
-	if yamlConfig.ShortestTimestampLen != nil {
-		c.ShortestTimestampLen = *yamlConfig.ShortestTimestampLen
+	if yml.ShortestTimestampLen != nil {
+		c.ParseTimestampConfig.ShortestTimestampLen = *yml.ShortestTimestampLen
 	}
 
 	// TimestampSearchEndIndex
-	if yamlConfig.TimestampSearchEndIndex != nil {
-		c.TimestampSearchEndIndex = *yamlConfig.TimestampSearchEndIndex
+	if yml.TimestampSearchEndIndex != nil {
+		c.ParseTimestampConfig.TimestampSearchEndIndex = *yml.TimestampSearchEndIndex
 	}
 
 	// BufferSizeForRead
-	if yamlConfig.BufferSizeForRead != nil {
-		c.BufferSizeForRead = *yamlConfig.BufferSizeForRead
+	if yml.BufferSizeForRead != nil {
+		c.MergeConfig.BufferSizeForRead = *yml.BufferSizeForRead
 	}
 
 	// BufferSizeForWrite
-	if yamlConfig.BufferSizeForWrite != nil {
-		c.BufferSizeForWrite = *yamlConfig.BufferSizeForWrite
+	if yml.BufferSizeForWrite != nil {
+		c.MergeConfig.BufferSizeForWrite = *yml.BufferSizeForWrite
+	}
+
+	lfc := c.ListFilesConfig
+	if lfc == nil {
+		lfc = &ListFilesConfig{}
+		c.ListFilesConfig = lfc
+	}
+
+	// InputPath
+	if yml.InputPath != nil {
+		lfc.InputPath = *yml.InputPath
 	}
 
 	// ExcludedStrictSuffixes
-	if yamlConfig.ExcludedStrictSuffixes != nil {
-		c.ExcludedStrictSuffixes = *yamlConfig.ExcludedStrictSuffixes
+	if yml.ExcludedStrictSuffixes != nil {
+		lfc.ExcludedStrictSuffixes = *yml.ExcludedStrictSuffixes
 	}
 
 	// IncludedStrictSuffixes
-	if yamlConfig.IncludedStrictSuffixes != nil {
-		c.IncludedStrictSuffixes = *yamlConfig.IncludedStrictSuffixes
+	if yml.IncludedStrictSuffixes != nil {
+		lfc.IncludedStrictSuffixes = *yml.IncludedStrictSuffixes
 	}
 
 	// ExcludedLenientSuffixes
-	if yamlConfig.ExcludedLenientSuffixes != nil {
-		c.ExcludedLenientSuffixes = *yamlConfig.ExcludedLenientSuffixes
+	if yml.ExcludedLenientSuffixes != nil {
+		lfc.ExcludedLenientSuffixes = *yml.ExcludedLenientSuffixes
 	}
 
 	// IncludedLenientSuffixes
-	if yamlConfig.IncludedLenientSuffixes != nil {
-		c.IncludedLenientSuffixes = *yamlConfig.IncludedLenientSuffixes
+	if yml.IncludedLenientSuffixes != nil {
+		lfc.IncludedLenientSuffixes = *yml.IncludedLenientSuffixes
 	}
 
 	// FileAliases
-	if yamlConfig.FileAliases != nil {
-		c.FileAliases = *yamlConfig.FileAliases
+	if yml.FileAliases != nil {
+		lfc.FileAliases = *yml.FileAliases
 	}
 
 	return nil
 }
 
-func createFile(path string, fallback *os.File) (*os.File, error) {
-	if path == "" {
-		return fallback, nil
+func createFile(path *string) (*os.File, error) {
+	if path == nil || *path == "" {
+		return nil, nil
 	}
 
-	err := os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	err := os.MkdirAll(filepath.Dir(*path), os.ModePerm)
 	if err != nil {
-		return nil, fmt.Errorf("could not create directory for file %s: %v", path, err)
+		return nil, fmt.Errorf("could not create directory for file %s: %v", *path, err)
 	}
 
-	f, err := os.Create(path)
+	f, err := os.Create(*path)
 	if err != nil {
-		return nil, fmt.Errorf("could not create file %s: %v", path, err)
+		return nil, fmt.Errorf("could not create file %s: %v", *path, err)
 	}
 
 	return f, nil
