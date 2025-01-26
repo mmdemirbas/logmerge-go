@@ -48,12 +48,8 @@ func (f WritableFile) Close() error {
 	return (*os.File)(&f).Close()
 }
 
-func (f WritableFile) Name() string {
-	return (*os.File)(&f).Name()
-}
-
 func (f WritableFile) MarshalYAML() (interface{}, error) {
-	return f.Name(), nil
+	return (*os.File)(&f).Name(), nil
 }
 
 func (f *WritableFile) UnmarshalYAML(value *yaml.Node) error {

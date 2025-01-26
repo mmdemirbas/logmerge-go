@@ -58,11 +58,10 @@ func NewMergeMetrics() *MergeMetrics {
 func ProcessFiles(
 	c *MergeConfig,
 	m *MergeMetrics,
-	pc *ParseTimestampConfig,
-	pm *ParseTimestampMetrics,
 	files []*FileHandle,
 	outputFile *WritableFile,
 	logFile *WritableFile,
+	updateTimestamp func(file *FileHandle) error,
 ) error {
 	writer := bufio.NewWriterSize(outputFile, c.BufferSizeForWrite)
 	defer writer.Flush()
@@ -70,8 +69,9 @@ func ProcessFiles(
 	h := MinHeap(make([]*FileHandle, 0, len(files))) // Pre-allocate heap with the number of fileList
 	h = h[:0]                                        // Reset the heap length to zero
 	remainingFileCount := 0
+
 	for _, file := range files {
-		err := updateTimestamp(file, m, pc, pm)
+		err := doUpdateTimestamp(file, m, updateTimestamp)
 		if err != nil {
 			return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
 		}
@@ -118,7 +118,7 @@ func ProcessFiles(
 				return fmt.Errorf("failed to skip line from %s: %v", file.File.Name(), err)
 			}
 
-			err = updateTimestamp(file, m, pc, pm)
+			err = doUpdateTimestamp(file, m, updateTimestamp)
 			if err != nil {
 				return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
 			}
@@ -163,7 +163,7 @@ func ProcessFiles(
 				return fmt.Errorf("failed to write line: %v", err)
 			}
 
-			err = updateTimestamp(file, m, pc, pm)
+			err = doUpdateTimestamp(file, m, updateTimestamp)
 			if err != nil {
 				return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
 			}
@@ -207,8 +207,8 @@ func ProcessFiles(
 	return nil
 }
 
-func updateTimestamp(file *FileHandle, m *MergeMetrics, pc *ParseTimestampConfig, pm *ParseTimestampMetrics) error {
-	err := file.UpdateTimestamp(pc, pm)
+func doUpdateTimestamp(file *FileHandle, m *MergeMetrics, updateTimestamp func(file *FileHandle) error) error {
+	err := updateTimestamp(file)
 	if file.TimestampParsed {
 		if file.Timestamp == ZeroTimestamp {
 			m.LinesWithoutTimestamps++

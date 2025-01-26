@@ -30,21 +30,18 @@ var config = &MainConfig{
 	},
 
 	MergeConfig: &MergeConfig{
-		MetricsTreeEnabled: true,
-
-		WriteAliasPerBlock:    true,
+		MetricsTreeEnabled:    false,
+		WriteAliasPerBlock:    false,
 		WriteAliasPerLine:     false,
 		WriteTimestampPerLine: false,
-
-		MinTimestamp: ZeroTimestamp,
-		MaxTimestamp: Timestamp(1<<63 - 1),
-
-		BufferSizeForRead:  1024 * 1024 * 100,
-		BufferSizeForWrite: 1024 * 1024 * 100,
+		MinTimestamp:          ZeroTimestamp,
+		MaxTimestamp:          Timestamp(1<<63 - 1),
+		BufferSizeForRead:     1024 * 1024 * 100,
+		BufferSizeForWrite:    1024 * 1024 * 100,
 	},
 }
 
-var metrics *Metrics
+var metrics *MainMetrics
 
 var GlobalMetricsTree *MetricsTree
 
@@ -131,11 +128,12 @@ func main() {
 	err = ProcessFiles(
 		config.MergeConfig,
 		metrics.MergeMetrics,
-		config.ParseTimestampConfig,
-		metrics.ParseTimestampMetrics,
 		files,
 		outputFile,
 		logFile,
+		func(file *FileHandle) error {
+			return file.UpdateTimestamp(config.ParseTimestampConfig, metrics.ParseTimestampMetrics)
+		},
 	)
 	if err != nil {
 		// Print progress one last time (for 100% mostly)

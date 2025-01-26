@@ -11,7 +11,7 @@ import (
 // TODO: Consider sampling metrics (e.g. measure per 1000 lines instead of every single line)
 // TODO: Consider batching metrics (e.g. accumulate data locally per 1000 lines, then merge to the global metrics)
 
-type Metrics struct {
+type MainMetrics struct {
 	ListFilesMetrics      *ListFilesMetrics
 	ParseTimestampMetrics *ParseTimestampMetrics
 	MergeMetrics          *MergeMetrics
@@ -57,8 +57,8 @@ type BucketMetric struct {
 	count  int64
 }
 
-func NewMetrics() *Metrics {
-	return &Metrics{
+func NewMetrics() *MainMetrics {
+	return &MainMetrics{
 		ListFilesMetrics:      NewListFilesMetrics(),
 		ParseTimestampMetrics: NewParseTimestampMetrics(),
 		MergeMetrics:          NewMergeMetrics(),
@@ -170,7 +170,7 @@ func (b *BucketMetric) UpdateBucketCount(n int) {
 }
 
 //goland:noinspection GoUnhandledErrorResult
-func (m *Metrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTime time.Duration, err error) {
+func (m *MainMetrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTime time.Duration, err error) {
 	inputBytes := m.MergeMetrics.BytesRead + m.MergeMetrics.BytesNotRead
 	bytesReadAndProcessed := m.MergeMetrics.BytesRead - m.MergeMetrics.BytesReadAndSkipped
 	linesReadAndProcessed := m.MergeMetrics.LinesRead - m.MergeMetrics.LinesReadAndSkipped
