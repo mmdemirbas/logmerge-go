@@ -12,15 +12,19 @@ func NewMinHeap(capacity int) *MinHeap {
 	}
 }
 
-// Len returns the number of items in the heap
-func (h *MinHeap) Len() int {
-	return len(h.items)
-}
-
 // Push inserts a FileHandle into the heap
 func (h *MinHeap) Push(file *FileHandle) {
 	h.items = append(h.items, file)
-	h.siftUp(len(h.items) - 1)
+	idx := len(h.items) - 1
+
+	for idx > 0 {
+		parent := (idx - 1) / 2
+		if h.items[parent].Timestamp < h.items[idx].Timestamp {
+			break
+		}
+		h.items[idx], h.items[parent] = h.items[parent], h.items[idx]
+		idx = parent
+	}
 }
 
 // Pop removes and returns the smallest Timestamp FileHandle
@@ -30,67 +34,33 @@ func (h *MinHeap) Pop() *FileHandle {
 		return nil
 	}
 	// Swap top and last, then shrink slice
-	h.swap(0, n-1)
+	h.items[0], h.items[n-1] = h.items[n-1], h.items[0]
 	item := h.items[n-1]
 	h.items = h.items[:n-1]
 
 	// Restore heap property
-	if len(h.items) > 0 {
-		h.siftDown(0)
+	n--
+	if n > 0 {
+		idx := 0
+		for {
+			left := 2*idx + 1
+			right := left + 1
+			smallest := idx
+
+			// Check left child
+			if left < n && h.items[smallest].Timestamp >= h.items[left].Timestamp {
+				smallest = left
+			}
+			// Check right child
+			if right < n && h.items[smallest].Timestamp >= h.items[right].Timestamp {
+				smallest = right
+			}
+			if smallest == idx {
+				break
+			}
+			h.items[idx], h.items[smallest] = h.items[smallest], h.items[idx]
+			idx = smallest
+		}
 	}
 	return item
-}
-
-// Top returns the top element without removing it
-func (h *MinHeap) Top() *FileHandle {
-	if len(h.items) == 0 {
-		return nil
-	}
-	return h.items[0]
-}
-
-// siftUp moves the item at idx up until heap order is restored
-func (h *MinHeap) siftUp(idx int) {
-	for idx > 0 {
-		parent := (idx - 1) / 2
-		if h.less(parent, idx) {
-			break
-		}
-		h.swap(idx, parent)
-		idx = parent
-	}
-}
-
-// siftDown moves the item at idx down until heap order is restored
-func (h *MinHeap) siftDown(idx int) {
-	n := len(h.items)
-	for {
-		left := 2*idx + 1
-		right := left + 1
-		smallest := idx
-
-		// Check left child
-		if left < n && !h.less(smallest, left) {
-			smallest = left
-		}
-		// Check right child
-		if right < n && !h.less(smallest, right) {
-			smallest = right
-		}
-		if smallest == idx {
-			break
-		}
-		h.swap(idx, smallest)
-		idx = smallest
-	}
-}
-
-// less reports whether items[i] < items[j]
-func (h *MinHeap) less(i, j int) bool {
-	return h.items[i].Timestamp < h.items[j].Timestamp
-}
-
-// swap exchanges items at i and j
-func (h *MinHeap) swap(i, j int) {
-	h.items[i], h.items[j] = h.items[j], h.items[i]
 }
