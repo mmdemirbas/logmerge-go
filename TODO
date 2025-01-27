@@ -13,6 +13,7 @@
     - Complete unit tests
     - Allow breaking strict line ordering in favor of keeping logs from same source together, like up to a certain threshold (not exceeding 1sec for example)
     - Add unified log level support to format output logs in IDE better (print log level just like timestamp)
+    - Support merging log files from withing archive files (zip, tar etc)
 
 - Customizations
   - Support: Multiple input paths

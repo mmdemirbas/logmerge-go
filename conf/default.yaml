@@ -51,3 +51,8 @@ MergeConfig:
 
   BufferSizeForRead: 104857600 # 100 MB
   BufferSizeForWrite: 104857600 # 100 MB
+
+PrintProgressConfig:
+    PrintProgressEnabled: true
+    InitialDelayMillis: 1000
+    PeriodMillis: 1000

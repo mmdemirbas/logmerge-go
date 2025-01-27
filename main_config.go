@@ -14,6 +14,7 @@ type MainConfig struct {
 	ListFilesConfig      *ListFilesConfig      `yaml:"ListFilesConfig"`
 	ParseTimestampConfig *ParseTimestampConfig `yaml:"ParseTimestampConfig"`
 	MergeConfig          *MergeConfig          `yaml:"MergeConfig"`
+	PrintProgressConfig  *PrintProgressConfig  `yaml:"PrintProgressConfig"`
 }
 
 func (c *MainConfig) LoadYAML(yamlPath string) error {

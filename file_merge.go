@@ -1,6 +1,7 @@
 package main
 
 import (
+	bytes2 "bytes"
 	"fmt"
 )
 
@@ -45,10 +46,10 @@ type MergeMetrics struct {
 
 func NewMergeMetrics() *MergeMetrics {
 	return &MergeMetrics{
-		LineLengths:          NewBucketMetric(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000),
-		SkippedLineCounts:    NewBucketMetric(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100),
-		SuccessiveLineCounts: NewBucketMetric(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100),
-		BlockLineCounts:      NewBucketMetric(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100),
+		LineLengths:          NewBucketMetric("LineLengths", 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000),
+		SkippedLineCounts:    NewBucketMetric("SkippedLineCounts", 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100),
+		SuccessiveLineCounts: NewBucketMetric("SuccessiveLineCounts", 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100),
+		BlockLineCounts:      NewBucketMetric("BlockLineCounts", 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100),
 	}
 }
 
@@ -87,7 +88,7 @@ func ProcessFiles(
 	GlobalMetricsTree.HeapTotal.Stop(startTime)
 
 	startTime = GlobalMetricsTree.Start("HeapPopFirst")
-	lastPrintedAlias := ""
+	var lastPrintedAlias []byte
 	file := h.Pop()
 	var nextFile = h.Pop()
 	GlobalMetricsTree.HeapTotal.Stop(startTime)
@@ -120,7 +121,7 @@ func ProcessFiles(
 			effectiveMaxTimestamp = c.MaxTimestamp
 		}
 
-		shouldWriteAlias := c.WriteAliasPerBlock && lastPrintedAlias != file.Alias // TODO: Source name comparison could be optimized by using a pointer or number code?
+		shouldWriteAlias := c.WriteAliasPerBlock && !bytes2.Equal(lastPrintedAlias, file.Alias)
 		successiveLineCount := 0
 		blockLineCount := 0
 

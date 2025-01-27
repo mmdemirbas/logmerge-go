@@ -8,7 +8,7 @@ import (
 
 type FileHandle struct {
 	File            *os.File
-	Alias           string
+	Alias           []byte
 	AliasForBlock   []byte
 	AliasForLine    []byte
 	Size            int
@@ -27,7 +27,7 @@ func NewFileHandle(file *os.File, alias string, bufferSize int) (*FileHandle, er
 	fileSize := int(fileInfo.Size())
 	return &FileHandle{
 		File:   file,
-		Alias:  alias,
+		Alias:  []byte(alias),
 		Size:   fileSize,
 		Buffer: NewRingBuffer(bufferSize),
 	}, nil

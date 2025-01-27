@@ -39,6 +39,12 @@ var config = &MainConfig{
 		BufferSizeForRead:     1024 * 1024 * 100,
 		BufferSizeForWrite:    1024 * 1024 * 100,
 	},
+
+	PrintProgressConfig: &PrintProgressConfig{
+		PrintProgressEnabled: true,
+		InitialDelayMillis:   1000,
+		PeriodMillis:         1000,
+	},
 }
 
 var metrics *MainMetrics
@@ -109,18 +115,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Print progress
-	go func() {
-		// TODO: Make printProgress params configurable (initial delay, interval, etc)
-		// Print progress only if it takes some time
-		time.Sleep(1 * time.Second)
-
-		//goland:noinspection GoUnhandledErrorResult
-		fmt.Fprintf(config.LogFile, "\n")
-
-		ticker := time.NewTicker(1000 * time.Millisecond)
-		for range ticker.C {
-			printProgress(files, programStartTime)
+	// Print progress periodically
+	go PrintProgressPeriodically(config.PrintProgressConfig, files, programStartTime)
+	defer func() {
+		if err == nil {
+			PrintProgress(config.PrintProgressConfig, files, programStartTime)
 		}
 	}()
 
@@ -138,10 +137,6 @@ func main() {
 			return file.UpdateTimestamp(config.ParseTimestampConfig, metrics.ParseTimestampMetrics)
 		},
 	)
-	if err == nil {
-		// Print progress one last time (for 100% mostly)
-		printProgress(files, programStartTime)
-	}
 
 	if config.ProfilingEnabled {
 		// Capture memory profile
@@ -166,34 +161,4 @@ func main() {
 		fmt.Fprintf(logFile, "%v\n", err)
 		os.Exit(1)
 	}
-}
-
-func printProgress(files []*FileHandle, programStartTime time.Time) {
-	completedSize := 0
-	completedCount := 0
-
-	totalSize := 0
-	totalCount := len(files)
-
-	for _, file := range files {
-		if file.Done {
-			completedSize += file.Size
-			completedCount++
-		} else {
-			completedSize += file.BytesRead
-		}
-		totalSize += file.Size
-	}
-
-	totalSize = max(totalSize, 1)
-	totalCount = max(totalCount, 1)
-
-	elapsedTime := time.Since(programStartTime)
-
-	//goland:noinspection GoUnhandledErrorResult
-	fmt.Fprintf(os.Stderr, "Progress: %6.2f %% of data (%12s / %12s) - %6.2f %% of files (%5d / %5d) - Elapsed: %s\r",
-		float64(completedSize)/(float64(totalSize)/100), bytes(int64(completedSize)), bytes(int64(totalSize)),
-		float64(completedCount)/(float64(totalCount)/100), int64(completedCount), int64(totalCount),
-		elapsedTime.Round(time.Millisecond).String(),
-	)
 }

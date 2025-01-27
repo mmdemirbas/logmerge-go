@@ -28,22 +28,21 @@ type MetricsTree struct {
 }
 
 type MetricsTreeNode struct {
-	Name   string
-	Metric *CallMetric
-
+	Metric         *CallMetric
 	Parent         *MetricsTreeNode
 	Children       []*MetricsTreeNode
 	ChildrenByName map[string]*MetricsTreeNode
 }
 
 type CallMetric struct {
-	// TODO: Consider putting Name here instead of one-upper-level
-	MetricsTree *MetricsTree
+	Name        string
 	CallCount   int64
 	Duration    int64
+	MetricsTree *MetricsTree
 }
 
 type BucketMetric struct {
+	name   string
 	levels []int
 	values []int64
 	min    int64
@@ -67,25 +66,28 @@ func NewMetricsTree() *MetricsTree {
 	tree.Root = root
 	tree.Current = root
 
-	tree.HeapTotal = NewCallMetric(tree)
+	tree.HeapTotal = NewCallMetric("HeapTotal", tree)
 
 	return tree
 }
 
 func NewMetricsTreeNode(m *MetricsTree, parent *MetricsTreeNode, name string) *MetricsTreeNode {
 	return &MetricsTreeNode{
-		Name:   name,
-		Metric: NewCallMetric(m),
+		Metric: NewCallMetric(name, m),
 		Parent: parent,
 	}
 }
 
-func NewCallMetric(metricsTree *MetricsTree) *CallMetric {
-	return &CallMetric{MetricsTree: metricsTree}
+func NewCallMetric(name string, metricsTree *MetricsTree) *CallMetric {
+	return &CallMetric{
+		Name:        name,
+		MetricsTree: metricsTree,
+	}
 }
 
-func NewBucketMetric(levels ...int) *BucketMetric {
+func NewBucketMetric(name string, levels ...int) *BucketMetric {
 	return &BucketMetric{
+		name:   name,
 		levels: levels,
 		values: make([]int64, len(levels)),
 		min:    1<<63 - 1,
@@ -218,7 +220,7 @@ func (m *MainMetrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTi
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== TIMING SUMMARY =============================================================================================================================================================\n")
 	fmt.Fprintf(c.LogFile, "\n")
-	GlobalMetricsTree.HeapTotal.printCallMetric(logFile, "HeapTotal", bytesSpeed(m.MergeMetrics.BytesRead, elapsedNanoseconds))
+	GlobalMetricsTree.HeapTotal.printCallMetric(logFile, bytesSpeed(m.MergeMetrics.BytesRead, elapsedNanoseconds))
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== TIMING BREAKDOWN ===========================================================================================================================================================\n")
 	fmt.Fprintf(c.LogFile, "\n")
@@ -264,15 +266,15 @@ func (m *MainMetrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTi
 	fmt.Fprintf(c.LogFile, "GCCPUFraction                        : %12.2f / %10s\n", MemStats.GCCPUFraction*1_000_000, "1_000_000")
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== DEBUG METRICS ==============================================================================================================================================================\n")
-	m.MergeMetrics.LineLengths.printBuckets(logFile, "Line lengths")
-	m.MergeMetrics.SkippedLineCounts.printBuckets(logFile, "Skipped line counts")
-	m.MergeMetrics.SuccessiveLineCounts.printBuckets(logFile, "Successive line counts")
-	m.MergeMetrics.BlockLineCounts.printBuckets(logFile, "Block line counts")
-	m.ParseTimestampMetrics.Timestamp_Lenghts.printBuckets(logFile, "Timestamp lengths")
-	m.ParseTimestampMetrics.Timestamp_FirstDigitIndexes.printBuckets(logFile, "First digit indexes")
-	m.ParseTimestampMetrics.Timestamp_FirstDigitIndexesActual.printBuckets(logFile, "First digit indexes actual")
-	m.ParseTimestampMetrics.Timestamp_LastDigitIndexes.printBuckets(logFile, "Last digit indexes")
-	m.ParseTimestampMetrics.Timestamp_NanosLengths.printBuckets(logFile, "Timestamp nanos digit counts")
+	m.MergeMetrics.LineLengths.printBuckets(logFile)
+	m.MergeMetrics.SkippedLineCounts.printBuckets(logFile)
+	m.MergeMetrics.SuccessiveLineCounts.printBuckets(logFile)
+	m.MergeMetrics.BlockLineCounts.printBuckets(logFile)
+	m.ParseTimestampMetrics.Timestamp_Lenghts.printBuckets(logFile)
+	m.ParseTimestampMetrics.Timestamp_FirstDigitIndexes.printBuckets(logFile)
+	m.ParseTimestampMetrics.Timestamp_FirstDigitIndexesActual.printBuckets(logFile)
+	m.ParseTimestampMetrics.Timestamp_LastDigitIndexes.printBuckets(logFile)
+	m.ParseTimestampMetrics.Timestamp_NanosLengths.printBuckets(logFile)
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "ParseTimestamp debugging\n")
 	fmt.Fprintf(c.LogFile, "  too short             : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_LineTooShort)
@@ -316,10 +318,9 @@ func (m *MainMetrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTi
 }
 
 func (t *MetricsTreeNode) printTree(logFile *WritableFile, depth int) {
-	nanoseconds := t.Metric.Duration
-	ownerMetrics := t.Metric.MetricsTree
-
-	ownerMetrics.printDurationLog(logFile, depth, t.Name, t.Metric.CallCount, nanoseconds, "")
+	metric := t.Metric
+	metricsTree := metric.MetricsTree
+	metricsTree.printDurationLog(logFile, depth, metric.Name, metric.CallCount, metric.Duration, "")
 
 	if t.Children != nil {
 		childTotal := int64(0)
@@ -328,9 +329,9 @@ func (t *MetricsTreeNode) printTree(logFile *WritableFile, depth int) {
 			childTotal += child.Metric.Duration
 		}
 
-		rest := nanoseconds - childTotal
+		rest := metric.Duration - childTotal
 		if rest > 0 {
-			ownerMetrics.printDurationLog(logFile, depth+1, "..rest of "+t.Name, t.Metric.CallCount, rest, "")
+			metricsTree.printDurationLog(logFile, depth+1, "..rest of "+metric.Name, metric.CallCount, rest, "")
 		}
 	}
 }
@@ -354,19 +355,19 @@ func (m *MetricsTree) printDurationLog(logFile *WritableFile, depth int, name st
 	)
 }
 
-func (c *CallMetric) printCallMetric(logFile *WritableFile, name string, extra string) {
-	c.MetricsTree.printDurationLog(logFile, 0, name, c.CallCount, c.Duration, extra)
+func (c *CallMetric) printCallMetric(logFile *WritableFile, extra string) {
+	c.MetricsTree.printDurationLog(logFile, 0, c.Name, c.CallCount, c.Duration, extra)
 }
 
 //goland:noinspection GoUnhandledErrorResult
-func (b *BucketMetric) printBuckets(logFile *WritableFile, name string) {
+func (b *BucketMetric) printBuckets(logFile *WritableFile) {
 	minValue := b.min
 	maxValue := b.max
 	total := b.count
 	avgValue := b.sum / max(1, total)
 
 	fmt.Fprintf(logFile, "\n")
-	fmt.Fprintf(logFile, "%s\n", name)
+	fmt.Fprintf(logFile, "%s\n", b.name)
 	fmt.Fprintf(logFile, "  summary\n")
 	fmt.Fprintf(logFile, "    min          : %8s ~ %15v = %10s\n", "", minValue, count(minValue))
 	fmt.Fprintf(logFile, "    avg          : %8s ~ %15v = %10s\n", "", avgValue, count(avgValue))
