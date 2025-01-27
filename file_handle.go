@@ -58,13 +58,13 @@ func (r *FileHandle) SkipLine() (bytesCount int, eolLength int, err error) {
 		}
 
 		if r.Buffer.IsEmpty() {
-			startTime := GlobalMetricsTree.MeasureStart("FillBuffer")
+			startTime := GlobalMetricsTree.Start("FillBuffer")
 			err = r.FillBuffer()
 			if err != nil {
 				err = fmt.Errorf("failed to fill buffer: %v", err)
 				return
 			}
-			GlobalMetricsTree.FillBufferMetric.MeasureSince(startTime)
+			GlobalMetricsTree.Stop(startTime)
 		}
 	}
 
@@ -88,19 +88,19 @@ func (r *FileHandle) WriteLine(m *MergeMetrics, writer *BufferedWriter) error {
 	)
 
 	for !r.Buffer.IsEmpty() {
-		startTime := GlobalMetricsTree.MeasureStart("PeekNextLineSlice")
+		startTime := GlobalMetricsTree.Start("PeekNextLineSlice")
 		chunk, eol = r.Buffer.PeekNextLineSlice(&latestCharWasCR)
-		GlobalMetricsTree.PeekNextLineSliceMetric.MeasureSince(startTime)
+		GlobalMetricsTree.Stop(startTime)
 
 		if chunk != nil {
-			startTime = GlobalMetricsTree.MeasureStart("WriteLinePartial")
+			startTime = GlobalMetricsTree.Start("WriteLinePartial")
 			var n int
 			n, err = writer.Write(chunk)
 			if err == nil {
 				r.Buffer.Skip(n)
 				count += n
 			}
-			GlobalMetricsTree.WriteOutputMetric.MeasureSince(startTime)
+			GlobalMetricsTree.Stop(startTime)
 		}
 
 		if err != nil {
@@ -111,24 +111,24 @@ func (r *FileHandle) WriteLine(m *MergeMetrics, writer *BufferedWriter) error {
 		}
 
 		if r.Buffer.IsEmpty() {
-			startTime := GlobalMetricsTree.MeasureStart("FillBuffer")
+			startTime := GlobalMetricsTree.Start("FillBuffer")
 			err = r.FillBuffer()
 			if err != nil {
 				return fmt.Errorf("failed to fill buffer: %v", err)
 			}
-			GlobalMetricsTree.FillBufferMetric.MeasureSince(startTime)
+			GlobalMetricsTree.Stop(startTime)
 		}
 	}
 
 	// Ensure \n is written at the end of the line
 	if eol != LF && eol != CRLF {
-		startTime := GlobalMetricsTree.MeasureStart("WriteMissingNewline")
+		startTime := GlobalMetricsTree.Start("WriteMissingNewline")
 		_, err = writer.Write(newline)
 		m.BytesWrittenForMissingNewlines++
 		if err != nil {
 			return fmt.Errorf("failed to write newline: %v", err)
 		}
-		GlobalMetricsTree.WriteOutputMetric.MeasureSince(startTime)
+		GlobalMetricsTree.Stop(startTime)
 	}
 
 	lineLengthWithoutEol := count
@@ -155,13 +155,13 @@ var parseTimestampBuffer []byte
 func (r *FileHandle) UpdateTimestamp(pc *ParseTimestampConfig, pm *ParseTimestampMetrics) error {
 	bufLen := r.Buffer.Len()
 	if bufLen < pc.TimestampSearchEndIndex {
-		startTime := GlobalMetricsTree.MeasureStart("FillBuffer")
+		startTime := GlobalMetricsTree.Start("FillBuffer")
 		err := r.FillBuffer()
 		if err != nil {
 			r.TimestampParsed = false
 			return fmt.Errorf("failed to fill buffer: %v", err)
 		}
-		GlobalMetricsTree.FillBufferMetric.MeasureSince(startTime)
+		GlobalMetricsTree.Stop(startTime)
 
 		if bufLen == 0 && r.Buffer.IsEmpty() {
 			r.TimestampParsed = false
@@ -173,13 +173,13 @@ func (r *FileHandle) UpdateTimestamp(pc *ParseTimestampConfig, pm *ParseTimestam
 		parseTimestampBuffer = make([]byte, pc.TimestampSearchEndIndex)
 	}
 
-	startTime := GlobalMetricsTree.MeasureStart("BufferAsSlice")
+	startTime := GlobalMetricsTree.Start("BufferAsSlice")
 	buf := r.Buffer.AsSlice(parseTimestampBuffer)
-	GlobalMetricsTree.BufferAsSliceMetric.MeasureSince(startTime)
+	GlobalMetricsTree.Stop(startTime)
 
-	startTime = GlobalMetricsTree.MeasureStart("ParseTimestamp")
+	startTime = GlobalMetricsTree.Start("ParseTimestamp")
 	timestamp := ParseTimestamp(pc, pm, buf)
-	GlobalMetricsTree.ParseTimestampMetric.MeasureSince(startTime)
+	GlobalMetricsTree.Stop(startTime)
 
 	r.TimestampParsed = true
 	r.Timestamp = timestamp

@@ -24,11 +24,7 @@ type MetricsTree struct {
 
 	// Aggregated metrics
 
-	FillBufferMetric        *CallMetric
-	BufferAsSliceMetric     *CallMetric
-	ParseTimestampMetric    *CallMetric
-	PeekNextLineSliceMetric *CallMetric
-	WriteOutputMetric       *CallMetric
+	HeapTotal *CallMetric
 }
 
 type MetricsTreeNode struct {
@@ -41,6 +37,7 @@ type MetricsTreeNode struct {
 }
 
 type CallMetric struct {
+	// TODO: Consider putting Name here instead of one-upper-level
 	MetricsTree *MetricsTree
 	CallCount   int64
 	Duration    int64
@@ -70,11 +67,7 @@ func NewMetricsTree() *MetricsTree {
 	tree.Root = root
 	tree.Current = root
 
-	tree.FillBufferMetric = NewCallMetric(tree)
-	tree.BufferAsSliceMetric = NewCallMetric(tree)
-	tree.ParseTimestampMetric = NewCallMetric(tree)
-	tree.PeekNextLineSliceMetric = NewCallMetric(tree)
-	tree.WriteOutputMetric = NewCallMetric(tree)
+	tree.HeapTotal = NewCallMetric(tree)
 
 	return tree
 }
@@ -102,9 +95,7 @@ func NewBucketMetric(levels ...int) *BucketMetric {
 	}
 }
 
-// TODO: Optimize metrics collection
-
-func (m *MetricsTree) MeasureStart(name string) time.Time {
+func (m *MetricsTree) Start(name string) time.Time {
 	if !m.Enabled {
 		return time.Time{}
 	}
@@ -130,7 +121,7 @@ func (m *MetricsTree) MeasureStart(name string) time.Time {
 	return time.Now()
 }
 
-func (m *MetricsTree) MeasureSince(startNanos time.Time) int64 {
+func (m *MetricsTree) Stop(startNanos time.Time) int64 {
 	if !m.Enabled {
 		return 0
 	}
@@ -145,8 +136,8 @@ func (m *MetricsTree) MeasureSince(startNanos time.Time) int64 {
 	return elapsed
 }
 
-func (c *CallMetric) MeasureSince(startNanos time.Time) {
-	c.Duration += c.MetricsTree.MeasureSince(startNanos)
+func (c *CallMetric) Stop(startNanos time.Time) {
+	c.Duration += c.MetricsTree.Stop(startNanos)
 	c.CallCount++
 }
 
@@ -227,11 +218,7 @@ func (m *MainMetrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTi
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== TIMING SUMMARY =============================================================================================================================================================\n")
 	fmt.Fprintf(c.LogFile, "\n")
-	GlobalMetricsTree.FillBufferMetric.printCallMetric(logFile, "FillBuffer", bytesSpeed(m.MergeMetrics.BytesRead, elapsedNanoseconds))
-	GlobalMetricsTree.BufferAsSliceMetric.printCallMetric(logFile, "BufferAsSlice", countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
-	GlobalMetricsTree.ParseTimestampMetric.printCallMetric(logFile, "ParseTimestamp", countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
-	GlobalMetricsTree.PeekNextLineSliceMetric.printCallMetric(logFile, "PeekNextLineSlice", countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
-	GlobalMetricsTree.WriteOutputMetric.printCallMetric(logFile, "WriteOutput", bytesSpeed(outputBytes, elapsedNanoseconds))
+	GlobalMetricsTree.HeapTotal.printCallMetric(logFile, "HeapTotal", bytesSpeed(m.MergeMetrics.BytesRead, elapsedNanoseconds))
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== TIMING BREAKDOWN ===========================================================================================================================================================\n")
 	fmt.Fprintf(c.LogFile, "\n")

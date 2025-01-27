@@ -61,6 +61,8 @@ func ProcessFiles(
 	logFile *WritableFile,
 	updateTimestamp func(file *FileHandle) error,
 ) error {
+
+	startTime := GlobalMetricsTree.Start("HeapInit")
 	h := MinHeap(make([]*FileHandle, 0, len(files))) // Pre-allocate heap with the number of fileList
 	h = h[:0]                                        // Reset the heap length to zero
 	remainingFileCount := 0
@@ -87,15 +89,17 @@ func ProcessFiles(
 		}
 	}
 	heap.Init(&h)
+	GlobalMetricsTree.HeapTotal.Stop(startTime)
 
+	startTime = GlobalMetricsTree.Start("HeapPopFirst")
 	lastPrintedAlias := ""
-
 	file := heap.Pop(&h).(*FileHandle)
 	var nextFile *FileHandle = nil
 	if remainingFileCount > 0 {
 		nextFile = heap.Pop(&h).(*FileHandle)
 		remainingFileCount--
 	}
+	GlobalMetricsTree.HeapTotal.Stop(startTime)
 
 	// Merge logs
 	for file != nil {
@@ -134,10 +138,10 @@ func ProcessFiles(
 			if shouldWriteAlias {
 				shouldWriteAlias = false
 				lastPrintedAlias = file.Alias
-				startTime := GlobalMetricsTree.MeasureStart("WriteAliasPerBlock")
+				startTime := GlobalMetricsTree.Start("WriteAliasPerBlock")
 				n, err := writer.Write(file.AliasForBlock)
 				m.BytesWrittenForAliasPerBlock += int64(n)
-				GlobalMetricsTree.MeasureSince(startTime)
+				GlobalMetricsTree.Stop(startTime)
 				if err != nil {
 					return fmt.Errorf("failed to write alias: %v", err)
 				}
@@ -176,7 +180,9 @@ func ProcessFiles(
 		m.BlockLineCounts.UpdateBucketCount(blockLineCount)
 
 		if file.TimestampParsed && file.Timestamp <= c.MaxTimestamp {
+			startTime = GlobalMetricsTree.Start("HeapPushBack")
 			heap.Push(&h, file)
+			GlobalMetricsTree.HeapTotal.Stop(startTime)
 		} else {
 			// Close the file
 			remainingFileCount--
@@ -193,7 +199,9 @@ func ProcessFiles(
 
 		file = nextFile
 		if remainingFileCount > 0 {
+			startTime = GlobalMetricsTree.Start("HeapPopNext")
 			nextFile = heap.Pop(&h).(*FileHandle)
+			GlobalMetricsTree.HeapTotal.Stop(startTime)
 		} else {
 			nextFile = nil
 		}
@@ -217,7 +225,7 @@ var space30 = []byte("                              ")
 
 func writeLine(c *MergeConfig, m *MergeMetrics, writer *BufferedWriter, timestamp Timestamp, file *FileHandle) error {
 	if c.WriteTimestampPerLine {
-		startTime := GlobalMetricsTree.MeasureStart("WriteTimestamp")
+		startTime := GlobalMetricsTree.Start("WriteTimestamp")
 		var toWrite []byte
 		if timestamp == ZeroTimestamp {
 			toWrite = space30
@@ -234,16 +242,16 @@ func writeLine(c *MergeConfig, m *MergeMetrics, writer *BufferedWriter, timestam
 			}
 		}
 		m.BytesWrittenForTimestamps += int64(n)
-		GlobalMetricsTree.WriteOutputMetric.MeasureSince(startTime)
+		GlobalMetricsTree.Stop(startTime)
 	}
 	if c.WriteAliasPerLine {
-		startTime := GlobalMetricsTree.MeasureStart("WriteAliasPerLine")
+		startTime := GlobalMetricsTree.Start("WriteAliasPerLine")
 		n, err := writer.Write(file.AliasForLine)
 		m.BytesWrittenForAliasPerLine += int64(n)
 		if err != nil {
 			return fmt.Errorf("failed to write alias: %v", err)
 		}
-		GlobalMetricsTree.WriteOutputMetric.MeasureSince(startTime)
+		GlobalMetricsTree.Stop(startTime)
 	}
 
 	// Write rest of the line including the new line character
