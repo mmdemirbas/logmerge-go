@@ -7,27 +7,27 @@ import (
 
 func TestMinHeap(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
-		h := NewMinHeap(3)
-		h.Push(&FileHandle{Timestamp: newTime(0)})
-		h.Push(&FileHandle{Timestamp: newTime(-1)})
-		h.Push(&FileHandle{Timestamp: newTime(1)})
-		h.Push(&FileHandle{Timestamp: newTime(-2)})
-		h.Push(&FileHandle{Timestamp: newTime(2)})
+		h := NewMinHeap(10)
+		h.Push(&FileHandle{Timestamp: newTime(100)})
+		h.Push(&FileHandle{Timestamp: newTime(50)})
+		h.Push(&FileHandle{Timestamp: newTime(150)})
+		h.Push(&FileHandle{Timestamp: newTime(75)})
+		h.Push(&FileHandle{Timestamp: newTime(125)})
 
-		if h.Pop().Timestamp != newTime(-2) {
-			t.Error("Expected -2")
+		if h.Pop().Timestamp != newTime(50) {
+			t.Error("Expected 50")
 		}
-		if h.Pop().Timestamp != newTime(-1) {
-			t.Error("Expected -1")
+		if h.Pop().Timestamp != newTime(75) {
+			t.Error("Expected 75")
 		}
-		if h.Pop().Timestamp != newTime(0) {
-			t.Error("Expected 0")
+		if h.Pop().Timestamp != newTime(100) {
+			t.Error("Expected 100")
 		}
-		if h.Pop().Timestamp != newTime(1) {
-			t.Error("Expected 1")
+		if h.Pop().Timestamp != newTime(125) {
+			t.Error("Expected 125")
 		}
-		if h.Pop().Timestamp != newTime(2) {
-			t.Error("Expected 2")
+		if h.Pop().Timestamp != newTime(150) {
+			t.Error("Expected 150")
 		}
 		if h.Pop() != nil {
 			t.Error("Expected nil")
@@ -35,26 +35,26 @@ func TestMinHeap(t *testing.T) {
 	})
 
 	t.Run("2", func(t *testing.T) {
-		h := NewMinHeap(3)
-		h.Push(&FileHandle{Timestamp: newTime(0)})
-		h.Push(&FileHandle{Timestamp: newTime(-1)})
-		h.Push(&FileHandle{Timestamp: newTime(1)})
-		if h.Pop().Timestamp != newTime(-1) {
-			t.Error("Expected -1")
+		h := NewMinHeap(10)
+		h.Push(&FileHandle{Timestamp: newTime(100)})
+		h.Push(&FileHandle{Timestamp: newTime(50)})
+		h.Push(&FileHandle{Timestamp: newTime(150)})
+		if h.Pop().Timestamp != newTime(50) {
+			t.Error("Expected 50")
 		}
-		if h.Pop().Timestamp != newTime(0) {
-			t.Error("Expected 0")
+		if h.Pop().Timestamp != newTime(100) {
+			t.Error("Expected 100")
 		}
-		h.Push(&FileHandle{Timestamp: newTime(-2)})
-		if h.Pop().Timestamp != newTime(-2) {
-			t.Error("Expected -2")
+		h.Push(&FileHandle{Timestamp: newTime(75)})
+		if h.Pop().Timestamp != newTime(75) {
+			t.Error("Expected 75")
 		}
-		h.Push(&FileHandle{Timestamp: newTime(2)})
-		if h.Pop().Timestamp != newTime(1) {
-			t.Error("Expected 1")
+		h.Push(&FileHandle{Timestamp: newTime(200)})
+		if h.Pop().Timestamp != newTime(150) {
+			t.Error("Expected 150")
 		}
-		if h.Pop().Timestamp != newTime(2) {
-			t.Error("Expected 2")
+		if h.Pop().Timestamp != newTime(200) {
+			t.Error("Expected 200")
 		}
 		if h.Pop() != nil {
 			t.Error("Expected nil")
@@ -62,6 +62,6 @@ func TestMinHeap(t *testing.T) {
 	})
 }
 
-func newTime(addMinutes int) Timestamp {
-	return NewTimestamp(2025, 1, 1, 0, addMinutes, 0, 0, 0, 0, 0)
+func newTime(nanos int) Timestamp {
+	return NewTimestamp(1970, 1, 1, 0, 0, 0, nanos, 0, 0, 0)
 }

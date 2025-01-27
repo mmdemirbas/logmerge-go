@@ -5,7 +5,6 @@ type MinHeap struct {
 	items []*FileHandle
 }
 
-// NewMinHeap returns an empty MinHeap with optional capacity preallocation
 func NewMinHeap(capacity int) *MinHeap {
 	return &MinHeap{
 		items: make([]*FileHandle, 0, capacity),
@@ -14,74 +13,60 @@ func NewMinHeap(capacity int) *MinHeap {
 
 // Push inserts a FileHandle into the heap
 func (h *MinHeap) Push(file *FileHandle) {
-	h.items = append(h.items, file)
-	idx := len(h.items) - 1
+	h.items = append(h.items, file) // grow slice by 1
 
-	for idx > 0 {
-		parent := (idx - 1) / 2
-
-		parentItem := h.items[parent]
-		childItem := h.items[idx]
-
-		if parentItem.Timestamp <= childItem.Timestamp {
+	index := len(h.items) - 1 // start at the end
+	for index > 0 {
+		parent := (index - 1) >> 1
+		if file.Timestamp >= h.items[parent].Timestamp {
+			// new item is in correct place (not smaller than parent)
 			break
 		}
 
-		h.items[idx] = parentItem
-		h.items[parent] = childItem
-		idx = parent
+		h.items[index] = h.items[parent] // shift parent down
+		index = parent                   // move up one level
 	}
+
+	h.items[index] = file
 }
 
 // Pop removes and returns the smallest Timestamp FileHandle
 func (h *MinHeap) Pop() *FileHandle {
 	n := len(h.items)
 	if n == 0 {
-		return nil
+		return nil // empty heap
 	}
 
-	item := h.items[0]
+	root := h.items[0] // smallest item is at root
+	if n == 1 {
+		h.items = h.items[:0] // clear slice
+		return root
+	}
 
-	n--
-	h.items[0] = h.items[n]
-	h.items = h.items[:n]
+	n--                   // length decreased by 1
+	last := h.items[n]    // last item which will be re-located
+	h.items = h.items[:n] // shorten slice by 1
 
-	// Restore heap property
-	if n > 0 {
-		idx := 0
-		for {
-			smallest := idx
-			smallestItem := h.items[smallest]
-			smallestTimestamp := smallestItem.Timestamp
+	index := 0               // start at the root
+	firstLeafIndex := n >> 1 // index of first leaf node
 
-			x := 2*idx + 1
-			if x < n {
-				leftItem := h.items[x]
-				if leftItem.Timestamp < smallestTimestamp {
-					smallest = x
-					smallestItem = leftItem
-					smallestTimestamp = leftItem.Timestamp
-				}
+	for index < firstLeafIndex { // loop until the leaf level
+		left := (index << 1) + 1
+		right := left + 1
 
-				x++
-				if x < n {
-					rightItem := h.items[x]
-					if rightItem.Timestamp < smallestTimestamp {
-						smallest = x
-						smallestItem = rightItem
-						smallestTimestamp = rightItem.Timestamp
-					}
-				}
-			}
-
-			if smallest == idx {
-				break
-			}
-
-			h.items[smallest] = h.items[idx]
-			h.items[idx] = smallestItem
-			idx = smallest
+		smallestChild, indexOfSmallestChild := h.items[left], left
+		if right < n && h.items[right].Timestamp < smallestChild.Timestamp {
+			smallestChild, indexOfSmallestChild = h.items[right], right
 		}
+
+		if last.Timestamp <= smallestChild.Timestamp {
+			break
+		}
+
+		h.items[index] = smallestChild
+		index = indexOfSmallestChild
 	}
-	return item
+
+	h.items[index] = last
+	return root
 }
