@@ -1,13 +1,13 @@
 OutputFile: "/Users/md/dev/mmdemirbas/logmerge/out/output.log"
-LogFile: "/Users/md/dev/mmdemirbas/logmerge/log/117-write-optimizations.err"
+LogFile: "/Users/md/dev/mmdemirbas/logmerge/log/122-panic-recovery-removed-0501.err"
 
 ProfilingEnabled: false
 
 ListFilesConfig:
-  #InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/"
-#  InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1736261418288_0021" # 1600
-  InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1734940586637_0046-short-success" # 1300
-  #InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1736999506338_0001-ANALYSIS" # 900
+#  InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/" # 8184
+  InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1734940586637_0046-short-success" # 0501
+#  InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1736261418288_0021" # 0320
+#  InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1736999506338_0001-ANALYSIS" # 0070
 
   ExcludedStrictSuffixes: [ ".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz" ]
   IncludedStrictSuffixes: [ ]

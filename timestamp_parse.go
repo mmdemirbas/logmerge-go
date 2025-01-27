@@ -1,10 +1,5 @@
 package main
 
-import (
-	"fmt"
-	"os"
-)
-
 // TODO: Consider supporting other time formats like 1 Jan 2006; Jan 1, 2006; 01/02/2006 etc.
 
 type ParseTimestampConfig struct {
@@ -68,13 +63,6 @@ func NewParseTimestampMetrics() *ParseTimestampMetrics {
 // TODO: pass LogFile from top level
 
 func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []byte) Timestamp {
-	defer func() {
-		if r := recover(); r != nil {
-			//goland:noinspection GoUnhandledErrorResult
-			fmt.Fprintf(os.Stderr, "ParseTimestamp: Recovered from panic: %v. Buffer: %s\n", r, buffer)
-		}
-	}()
-
 	// TODO: What if we have digits before the actual timestamp?
 	//   In this case, we should skip non-digits after the first digit and try parsing from there.
 
