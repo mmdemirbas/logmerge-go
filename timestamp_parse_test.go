@@ -38,7 +38,7 @@ func TestParseTimestamp(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			ts := ParseTimestamp(c, m, []byte(tt.input))
-			actual := ts.FormatAsString()
+			actual := ts.String()
 			if strings.Compare(tt.expected, actual) != 0 {
 				t.Errorf(expectedFormat, tt.expected, tt.expected, actual, actual)
 			}

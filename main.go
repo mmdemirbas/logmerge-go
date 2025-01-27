@@ -43,7 +43,7 @@ var config = &MainConfig{
 
 var metrics *MainMetrics
 
-var GlobalMetricsTree *MetricsTree
+var GlobalMetricsTree = NewMetricsTree()
 
 // TODO: Catch interrupt signal during merge process and do the post-work anyway
 
@@ -95,7 +95,7 @@ func main() {
 	logFile := config.LogFile
 
 	metrics = NewMetrics()
-	GlobalMetricsTree = NewMetricsTree(config.MergeConfig.MetricsTreeEnabled)
+	GlobalMetricsTree.Enabled = config.MergeConfig.MetricsTreeEnabled
 	files, err := ListFiles(
 		config.ListFilesConfig,
 		metrics.ListFilesMetrics,

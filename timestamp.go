@@ -44,12 +44,12 @@ func init() {
 	for m := 12; m > 0; m-- {
 		monthDayCount := monthDayCounts[m-1]
 		if m == 2 {
-			extraDaysToMonthDay[j] = m<<5 | 29
+			extraDaysToMonthDay[j] = 29<<8 | 2
 			j++
 		}
 		for d := monthDayCount; d > 0; d-- {
-			extraDaysToMonthDay[i] = m<<5 | d
-			extraDaysToMonthDay[j] = m<<5 | d
+			extraDaysToMonthDay[i] = d<<8 | m
+			extraDaysToMonthDay[j] = d<<8 | m
 			i++
 			j++
 		}
@@ -88,58 +88,59 @@ func (t *Timestamp) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
-var zeroString = []byte("1970-01-01 00:00:00.000000000 ")
 var timestampStringBuffer = []byte("1970-01-01 00:00:00.000000000 ")
 
-func (t Timestamp) FormatAsString() string {
+func (t Timestamp) String() string {
 	return string(t.FormatAsBytes())
 }
 
 func (t Timestamp) FormatAsBytes() []byte {
-	if t == 0 {
-		return zeroString
-	}
+	startTime := GlobalMetricsTree.MeasureStart("Timestamp.String/init")
+	GlobalMetricsTree.MeasureSince(startTime)
 
 	nano := uint64(t)
-
-	sec := nano / 1_000_000_000
 	ns := nano % 1_000_000_000
+	sec := nano / 1_000_000_000
 
+	startTime = GlobalMetricsTree.MeasureStart("Timestamp.String/dhms")
 	s := sec % 60
 	m := (sec / 60) % 60
 	h := (sec / 3600) % 24
 	days := sec / 86400
+	GlobalMetricsTree.MeasureSince(startTime)
 
+	startTime = GlobalMetricsTree.MeasureStart("Timestamp.String/step1")
 	year := (days / 365) + 1970
 	y4 := year >> 2
 	epochDays := (year*365 + y4 - y4/25 + (y4>>2)/25) - daysFrom1970
 	leapYear := year&0x03 == 0 && (y4&0x03 == 0 || y4%25 != 0)
+	GlobalMetricsTree.MeasureSince(startTime)
 
-	var daysInYear int
-	if leapYear {
-		daysInYear = 366
-	} else {
-		daysInYear = 365
-	}
-
+	startTime = GlobalMetricsTree.MeasureStart("Timestamp.String/step2")
 	extraDays := int(epochDays - days)
-	if extraDays > daysInYear {
-		extraDays -= daysInYear
+	if extraDays > 366 || (!leapYear && extraDays == 366) {
+		extraDays -= 365
+		if leapYear {
+			extraDays--
+		}
 		year--
 		y4 = year >> 2
 		leapYear = !leapYear && year&0x03 == 0 && (y4&0x03 == 0 || y4%25 != 0)
 	}
-
 	if leapYear {
 		extraDays += 365
 	}
-	monthDay := extraDaysToMonthDay[extraDays]
-	month := monthDay >> 5
-	day := monthDay & 0x1F
+	GlobalMetricsTree.MeasureSince(startTime)
 
+	startTime = GlobalMetricsTree.MeasureStart("Timestamp.String/step3")
+	monthDay := extraDaysToMonthDay[extraDays]
+	month := monthDay & 0xF
+	day := monthDay >> 8
+	GlobalMetricsTree.MeasureSince(startTime)
+
+	startTime = GlobalMetricsTree.MeasureStart("Timestamp.String/byte[]")
 	b := timestampStringBuffer
 
-	// Year (4 digits)
 	b[0] = byte('0' + (year/1000)%10)
 	b[1] = byte('0' + (year/100)%10)
 	b[2] = byte('0' + (year/10)%10)
@@ -159,11 +160,15 @@ func (t Timestamp) FormatAsBytes() []byte {
 
 	b[17] = byte('0' + (s/10)%10)
 	b[18] = byte('0' + (s)%10)
+	GlobalMetricsTree.MeasureSince(startTime)
 
+	startTime = GlobalMetricsTree.MeasureStart("Timestamp.String/byte[]-loop")
 	tmp := ns
 	for i := 28; i >= 20; i-- {
 		b[i] = byte('0' + (tmp % 10))
 		tmp /= 10
 	}
+	GlobalMetricsTree.MeasureSince(startTime)
+
 	return b
 }

@@ -62,7 +62,7 @@ func TestNewTimestampAndString(t *testing.T) {
 			if actualEpochNanos != tt.epochNanos {
 				t.Errorf("NewTimestamp(%d, %d, %d, %d, %d, %d, %d, %d, %d, %d) = %d; want %d", tt.year, tt.month, tt.day, tt.hour, tt.minute, tt.second, tt.nsec, tt.tzSign, tt.tzHour, tt.tzMin, actualEpochNanos, tt.epochNanos)
 			}
-			actualString := actual.FormatAsString()
+			actualString := actual.String()
 			if actualString != tt.timeString {
 				t.Errorf("NewTimestamp(%d, %d, %d, %d, %d, %d, %d, %d, %d, %d).String() = %s; want %s", tt.year, tt.month, tt.day, tt.hour, tt.minute, tt.second, tt.nsec, tt.tzSign, tt.tzHour, tt.tzMin, actualString, tt.timeString)
 			}

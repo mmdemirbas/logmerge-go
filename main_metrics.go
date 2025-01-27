@@ -63,10 +63,8 @@ func NewMetrics() *MainMetrics {
 	}
 }
 
-func NewMetricsTree(metricsTreeEnabled bool) *MetricsTree {
-	tree := &MetricsTree{
-		Enabled: metricsTreeEnabled,
-	}
+func NewMetricsTree() *MetricsTree {
+	tree := &MetricsTree{}
 	root := NewMetricsTreeNode(tree, nil, "MetricsTree")
 
 	tree.Root = root
