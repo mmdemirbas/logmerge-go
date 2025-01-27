@@ -62,7 +62,7 @@ func ListFiles(c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, min
 			return nil, fmt.Errorf("failed to create handle for file %v: %v", file, err)
 		}
 
-		file.AliasForBlock = fmt.Sprintf("\n--- %s ---\n", file.Alias)
+		file.AliasForBlock = []byte(fmt.Sprintf("\n--- %s ---\n", file.Alias))
 		aliasLen := len(file.Alias)
 		if maxAliasLen < aliasLen {
 			maxAliasLen = aliasLen
@@ -77,7 +77,7 @@ func ListFiles(c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, min
 
 	// pad source names to max length
 	for _, file := range files {
-		file.AliasForLine = fmt.Sprintf("%-*s - ", maxAliasLen, file.Alias)
+		file.AliasForLine = []byte(fmt.Sprintf("%-*s - ", maxAliasLen, file.Alias))
 	}
 
 	return files, nil

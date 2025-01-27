@@ -135,7 +135,7 @@ func ProcessFiles(
 				shouldWriteAlias = false
 				lastPrintedAlias = file.Alias
 				startTime := GlobalMetricsTree.MeasureStart("WriteAliasPerBlock")
-				n, err := writer.Write([]byte(file.AliasForBlock))
+				n, err := writer.Write(file.AliasForBlock)
 				m.BytesWrittenForAliasPerBlock += int64(n)
 				GlobalMetricsTree.MeasureSince(startTime)
 				if err != nil {
@@ -238,7 +238,7 @@ func writeLine(c *MergeConfig, m *MergeMetrics, writer *BufferedWriter, timestam
 	}
 	if c.WriteAliasPerLine {
 		startTime := GlobalMetricsTree.MeasureStart("WriteAliasPerLine")
-		n, err := writer.Write([]byte(file.AliasForLine))
+		n, err := writer.Write(file.AliasForLine)
 		m.BytesWrittenForAliasPerLine += int64(n)
 		if err != nil {
 			return fmt.Errorf("failed to write alias: %v", err)

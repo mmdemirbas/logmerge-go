@@ -9,8 +9,8 @@ import (
 type FileHandle struct {
 	File            *os.File
 	Alias           string
-	AliasForBlock   string
-	AliasForLine    string
+	AliasForBlock   []byte
+	AliasForLine    []byte
 	Size            int
 	BytesRead       int
 	Done            bool

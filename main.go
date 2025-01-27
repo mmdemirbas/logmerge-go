@@ -125,6 +125,7 @@ func main() {
 	}()
 
 	writer := NewBufferedWriter(outputFile, config.MergeConfig.BufferSizeForWrite)
+	defer writer.Close()
 
 	// Process files
 	err = ProcessFiles(

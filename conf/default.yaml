@@ -1,5 +1,5 @@
 OutputFile: "/Users/md/dev/mmdemirbas/logmerge/out/output.log"
-LogFile: "/Users/md/dev/mmdemirbas/logmerge/log/116-timestamp-string-metrics.err"
+LogFile: "/Users/md/dev/mmdemirbas/logmerge/log/117-write-optimizations.err"
 
 ProfilingEnabled: false
 

@@ -15,7 +15,7 @@ func NewBufferedWriter(file *WritableFile, bufferSize int) *BufferedWriter {
 }
 
 // Write writes data to buffer first, then to file if buffer is full avoiding memory allocations
-func (w BufferedWriter) Write(data []byte) (int, error) {
+func (w *BufferedWriter) Write(data []byte) (int, error) {
 	bufLen := len(w.Buffer)
 	dataLen := len(data)
 	capacity := cap(w.Buffer)
@@ -49,4 +49,22 @@ func (w BufferedWriter) Write(data []byte) (int, error) {
 
 	// Write data to file directly if it doesn't fit in buffer
 	return w.File.Write(data)
+}
+
+func (w *BufferedWriter) Flush() error {
+	if len(w.Buffer) == 0 {
+		return nil
+	}
+
+	_, err := w.File.Write(w.Buffer)
+	w.Buffer = w.Buffer[:0] // reset the buffer
+	return err
+}
+
+func (w *BufferedWriter) Close() error {
+	err := w.Flush()
+	if err != nil {
+		return err
+	}
+	return w.File.Close()
 }

@@ -38,6 +38,8 @@ func (c *MainConfig) ToYAML() (string, error) {
 	return string(data), nil
 }
 
+// region: WritableFile
+
 type WritableFile struct {
 	File *os.File
 }
@@ -80,3 +82,5 @@ func (f *WritableFile) UnmarshalYAML(value *yaml.Node) error {
 	f.File = file
 	return nil
 }
+
+// endregion: WritableFile
