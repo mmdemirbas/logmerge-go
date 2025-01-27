@@ -50,27 +50,27 @@ func (h *MinHeap) Pop() *FileHandle {
 	if n > 0 {
 		idx := 0
 		for {
-			left := 2*idx + 1
-			right := left + 1
-
 			smallest := idx
 			smallestItem := h.items[smallest]
 			smallestTimestamp := smallestItem.Timestamp
 
-			if left < n {
-				leftItem := h.items[left]
+			x := 2*idx + 1
+			if x < n {
+				leftItem := h.items[x]
 				if leftItem.Timestamp < smallestTimestamp {
-					smallest = left
+					smallest = x
 					smallestItem = leftItem
 					smallestTimestamp = leftItem.Timestamp
 				}
-			}
-			if right < n {
-				rightItem := h.items[right]
-				if rightItem.Timestamp < smallestTimestamp {
-					smallest = right
-					smallestItem = rightItem
-					smallestTimestamp = rightItem.Timestamp
+
+				x++
+				if x < n {
+					rightItem := h.items[x]
+					if rightItem.Timestamp < smallestTimestamp {
+						smallest = x
+						smallestItem = rightItem
+						smallestTimestamp = rightItem.Timestamp
+					}
 				}
 			}
 

@@ -1,23 +1,67 @@
 package main_test
 
 import (
-	"container/heap"
 	. "github.com/mmdemirbas/logmerge"
 	"testing"
 )
 
 func TestMinHeap(t *testing.T) {
-	h := &MinHeap{}
-	heap.Init(h)
-	heap.Push(h, &FileHandle{Timestamp: newTime(0)})
-	heap.Push(h, &FileHandle{Timestamp: newTime(-1)})
-	if (*h)[0].Timestamp > (*h)[1].Timestamp {
-		t.Errorf("MinHeap does not maintain order")
-	}
+	t.Run("1", func(t *testing.T) {
+		h := NewMinHeap(3)
+		h.Push(&FileHandle{Timestamp: newTime(0)})
+		h.Push(&FileHandle{Timestamp: newTime(-1)})
+		h.Push(&FileHandle{Timestamp: newTime(1)})
+		h.Push(&FileHandle{Timestamp: newTime(-2)})
+		h.Push(&FileHandle{Timestamp: newTime(2)})
+
+		if h.Pop().Timestamp != newTime(-2) {
+			t.Error("Expected -2")
+		}
+		if h.Pop().Timestamp != newTime(-1) {
+			t.Error("Expected -1")
+		}
+		if h.Pop().Timestamp != newTime(0) {
+			t.Error("Expected 0")
+		}
+		if h.Pop().Timestamp != newTime(1) {
+			t.Error("Expected 1")
+		}
+		if h.Pop().Timestamp != newTime(2) {
+			t.Error("Expected 2")
+		}
+		if h.Pop() != nil {
+			t.Error("Expected nil")
+		}
+	})
+
+	t.Run("2", func(t *testing.T) {
+		h := NewMinHeap(3)
+		h.Push(&FileHandle{Timestamp: newTime(0)})
+		h.Push(&FileHandle{Timestamp: newTime(-1)})
+		h.Push(&FileHandle{Timestamp: newTime(1)})
+		if h.Pop().Timestamp != newTime(-1) {
+			t.Error("Expected -1")
+		}
+		if h.Pop().Timestamp != newTime(0) {
+			t.Error("Expected 0")
+		}
+		h.Push(&FileHandle{Timestamp: newTime(-2)})
+		if h.Pop().Timestamp != newTime(-2) {
+			t.Error("Expected -2")
+		}
+		h.Push(&FileHandle{Timestamp: newTime(2)})
+		if h.Pop().Timestamp != newTime(1) {
+			t.Error("Expected 1")
+		}
+		if h.Pop().Timestamp != newTime(2) {
+			t.Error("Expected 2")
+		}
+		if h.Pop() != nil {
+			t.Error("Expected nil")
+		}
+	})
 }
 
 func newTime(addMinutes int) Timestamp {
 	return NewTimestamp(2025, 1, 1, 0, addMinutes, 0, 0, 0, 0, 0)
 }
-
-// TODO: Add more tests to cover all cases

@@ -63,7 +63,6 @@ func ProcessFiles(
 
 	startTime := GlobalMetricsTree.Start("HeapInit")
 	h := NewMinHeap(len(files))
-	remainingFileCount := 0
 
 	for _, file := range files {
 		err := doUpdateTimestamp(file, m, updateTimestamp)
@@ -73,7 +72,6 @@ func ProcessFiles(
 
 		if file.TimestampParsed {
 			h.Push(file)
-			remainingFileCount++
 		} else {
 			err = file.Close()
 			if err != nil {
@@ -91,11 +89,7 @@ func ProcessFiles(
 	startTime = GlobalMetricsTree.Start("HeapPopFirst")
 	lastPrintedAlias := ""
 	file := h.Pop()
-	var nextFile *FileHandle = nil
-	if remainingFileCount > 0 {
-		nextFile = h.Pop()
-		remainingFileCount--
-	}
+	var nextFile = h.Pop()
 	GlobalMetricsTree.HeapTotal.Stop(startTime)
 
 	// Merge logs
@@ -182,7 +176,6 @@ func ProcessFiles(
 			GlobalMetricsTree.HeapTotal.Stop(startTime)
 		} else {
 			// Close the file
-			remainingFileCount--
 			err := file.Close()
 			if err != nil {
 				//goland:noinspection GoUnhandledErrorResult
@@ -195,13 +188,9 @@ func ProcessFiles(
 		}
 
 		file = nextFile
-		if remainingFileCount > 0 {
-			startTime = GlobalMetricsTree.Start("HeapPopNext")
-			nextFile = h.Pop()
-			GlobalMetricsTree.HeapTotal.Stop(startTime)
-		} else {
-			nextFile = nil
-		}
+		startTime = GlobalMetricsTree.Start("HeapPopNext")
+		nextFile = h.Pop()
+		GlobalMetricsTree.HeapTotal.Stop(startTime)
 	}
 	return nil
 }
