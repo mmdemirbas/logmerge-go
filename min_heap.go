@@ -19,10 +19,16 @@ func (h *MinHeap) Push(file *FileHandle) {
 
 	for idx > 0 {
 		parent := (idx - 1) / 2
-		if h.items[parent].Timestamp < h.items[idx].Timestamp {
+
+		parentItem := h.items[parent]
+		childItem := h.items[idx]
+
+		if parentItem.Timestamp <= childItem.Timestamp {
 			break
 		}
-		h.items[idx], h.items[parent] = h.items[parent], h.items[idx]
+
+		h.items[idx] = parentItem
+		h.items[parent] = childItem
 		idx = parent
 	}
 }
@@ -33,32 +39,47 @@ func (h *MinHeap) Pop() *FileHandle {
 	if n == 0 {
 		return nil
 	}
-	// Swap top and last, then shrink slice
-	h.items[0], h.items[n-1] = h.items[n-1], h.items[0]
-	item := h.items[n-1]
-	h.items = h.items[:n-1]
+
+	item := h.items[0]
+
+	n--
+	h.items[0] = h.items[n]
+	h.items = h.items[:n]
 
 	// Restore heap property
-	n--
 	if n > 0 {
 		idx := 0
 		for {
 			left := 2*idx + 1
 			right := left + 1
-			smallest := idx
 
-			// Check left child
-			if left < n && h.items[smallest].Timestamp >= h.items[left].Timestamp {
-				smallest = left
+			smallest := idx
+			smallestItem := h.items[smallest]
+			smallestTimestamp := smallestItem.Timestamp
+
+			if left < n {
+				leftItem := h.items[left]
+				if leftItem.Timestamp < smallestTimestamp {
+					smallest = left
+					smallestItem = leftItem
+					smallestTimestamp = leftItem.Timestamp
+				}
 			}
-			// Check right child
-			if right < n && h.items[smallest].Timestamp >= h.items[right].Timestamp {
-				smallest = right
+			if right < n {
+				rightItem := h.items[right]
+				if rightItem.Timestamp < smallestTimestamp {
+					smallest = right
+					smallestItem = rightItem
+					smallestTimestamp = rightItem.Timestamp
+				}
 			}
+
 			if smallest == idx {
 				break
 			}
-			h.items[idx], h.items[smallest] = h.items[smallest], h.items[idx]
+
+			h.items[smallest] = h.items[idx]
+			h.items[idx] = smallestItem
 			idx = smallest
 		}
 	}
