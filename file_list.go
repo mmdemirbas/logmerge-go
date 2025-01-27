@@ -123,7 +123,6 @@ func visitFile(c *ListFilesConfig, m *ListFilesMetrics, path string, files *[]st
 }
 
 func getAlias(c *ListFilesConfig, file string) (string, error) {
-	// TODO: Consider measuring overhead of each features separately (overheadOfWriteAliases etc)
 	relative, err := filepath.Rel(c.InputPath, file)
 	if err != nil {
 		return "", fmt.Errorf("failed to calculate relative path for file %s: %v", file, err)

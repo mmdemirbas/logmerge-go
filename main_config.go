@@ -44,15 +44,15 @@ type WritableFile struct {
 	File *os.File
 }
 
-func (f WritableFile) Write(p []byte) (n int, err error) {
+func (f *WritableFile) Write(p []byte) (n int, err error) {
 	return f.File.Write(p)
 }
 
-func (f WritableFile) Close() error {
+func (f *WritableFile) Close() error {
 	return f.File.Close()
 }
 
-func (f WritableFile) MarshalYAML() (interface{}, error) {
+func (f *WritableFile) MarshalYAML() (interface{}, error) {
 	if f.File == nil {
 		return "", nil
 	}
