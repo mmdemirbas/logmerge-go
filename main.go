@@ -134,7 +134,7 @@ func main() {
 		writer,
 		logFile,
 		func(file *FileHandle) error {
-			return file.UpdateTimestamp(config.ParseTimestampConfig, metrics.ParseTimestampMetrics)
+			return UpdateTimestamp(config.ParseTimestampConfig, metrics.ParseTimestampMetrics, file)
 		},
 	)
 

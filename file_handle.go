@@ -149,39 +149,3 @@ func (r *FileHandle) WriteLine(m *MergeMetrics, writer *BufferedWriter) error {
 func (r *FileHandle) Close() error {
 	return r.File.Close()
 }
-
-var parseTimestampBuffer []byte
-
-func (r *FileHandle) UpdateTimestamp(pc *ParseTimestampConfig, pm *ParseTimestampMetrics) error {
-	bufLen := r.Buffer.Len()
-	if bufLen < pc.TimestampSearchEndIndex {
-		startTime := GlobalMetricsTree.Start("FillBuffer")
-		err := r.FillBuffer()
-		if err != nil {
-			r.TimestampParsed = false
-			return fmt.Errorf("failed to fill buffer: %v", err)
-		}
-		GlobalMetricsTree.Stop(startTime)
-
-		if bufLen == 0 && r.Buffer.IsEmpty() {
-			r.TimestampParsed = false
-			return nil
-		}
-	}
-
-	if parseTimestampBuffer == nil {
-		parseTimestampBuffer = make([]byte, pc.TimestampSearchEndIndex)
-	}
-
-	startTime := GlobalMetricsTree.Start("BufferAsSlice")
-	buf := r.Buffer.AsSlice(parseTimestampBuffer)
-	GlobalMetricsTree.Stop(startTime)
-
-	startTime = GlobalMetricsTree.Start("ParseTimestamp")
-	timestamp := ParseTimestamp(pc, pm, buf)
-	GlobalMetricsTree.Stop(startTime)
-
-	r.TimestampParsed = true
-	r.Timestamp = timestamp
-	return nil
-}

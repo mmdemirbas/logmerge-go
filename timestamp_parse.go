@@ -1,5 +1,7 @@
 package main
 
+import "fmt"
+
 // TODO: Consider supporting other time formats like 1 Jan 2006; Jan 1, 2006; 01/02/2006 etc.
 
 type ParseTimestampConfig struct {
@@ -60,27 +62,76 @@ func NewParseTimestampMetrics() *ParseTimestampMetrics {
 	}
 }
 
-func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []byte) Timestamp {
-	// TODO: What if we have digits before the actual timestamp?
-	//   In this case, we should skip non-digits after the first digit and try parsing from there.
+var parseTimestampBuffer []byte
 
-	n := len(buffer)
-	if n < c.ShortestTimestampLen {
-		m.Timestamp_LineTooShort++
-		return ZeroTimestamp
+func UpdateTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, file *FileHandle) error {
+	bufLen := file.Buffer.Len()
+	if bufLen < c.TimestampSearchEndIndex {
+		startTime := GlobalMetricsTree.Start("FillBuffer")
+		err := file.FillBuffer()
+		if err != nil {
+			file.TimestampParsed = false
+			return fmt.Errorf("failed to fill buffer: %v", err)
+		}
+		GlobalMetricsTree.Stop(startTime)
+
+		if bufLen == 0 && file.Buffer.IsEmpty() {
+			file.TimestampParsed = false
+			return nil
+		}
 	}
 
-	i := 0
+	if parseTimestampBuffer == nil {
+		parseTimestampBuffer = make([]byte, c.TimestampSearchEndIndex)
+	}
+
+	startTime := GlobalMetricsTree.Start("BufferAsSlice")
+	buf := file.Buffer.AsSlice(parseTimestampBuffer)
+	GlobalMetricsTree.Stop(startTime)
+
+	startTime = GlobalMetricsTree.Start("ParseTimestamp")
+	timestamp := ParseTimestamp(c, m, buf)
+	GlobalMetricsTree.Stop(startTime)
+
+	file.TimestampParsed = true
+	file.Timestamp = timestamp
+	return nil
+}
+
+func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []byte) Timestamp {
+	n := len(buffer)
+	if n > c.TimestampSearchEndIndex {
+		n = c.TimestampSearchEndIndex
+	}
+
+	var timestamp Timestamp
+	for i := 0; timestamp == ZeroTimestamp && i < n; {
+		timestamp, i = tryParseTimestamp(c, m, buffer, i, n)
+	}
+	return timestamp
+}
+
+func tryParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []byte, i int, n int) (Timestamp, int) {
+	// TODO: Measure and optimize this method - Maybe I should simplify the code to be able to touch for performance optimizations
+
+	if n < i+c.ShortestTimestampLen {
+		m.Timestamp_LineTooShort++
+		return ZeroTimestamp, n
+	}
+
+	// Skip until the first digit
 	for i < n {
 		b := buffer[i]
-		if b < '9' && b > '0' {
+		c := int(b - '0')
+		if c >= 0 && c <= 9 {
 			break
 		}
+
+		i++
 		if b == '\r' || b == '\n' {
 			m.Timestamp_NoFirstDigit++
-			return ZeroTimestamp
+			return ZeroTimestamp, i
 		}
-		i++
 	}
 
 	firstDigitIndex := i
@@ -88,25 +139,25 @@ func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []
 		m.Timestamp_FirstDigitIndexes.UpdateBucketCount(firstDigitIndex)
 	} else {
 		m.Timestamp_NoFirstDigit++
-		return ZeroTimestamp
+		return ZeroTimestamp, n
 	}
 	if n < i+c.ShortestTimestampLen {
 		m.Timestamp_LineTooShortAfterFirstDigit++
-		return ZeroTimestamp
+		return ZeroTimestamp, n
 	}
 
 	for j := i + c.ShortestTimestampLen - 1; j >= i; j-- {
 		b := buffer[j]
 		if b == '\n' || b == '\r' {
 			m.Timestamp_LineTooShortAfterFirstDigit++
-			return ZeroTimestamp
+			return ZeroTimestamp, j + 1
 		}
 	}
 
-	year, count := parseDigits(buffer, n, &i, 4)
+	year, count := parseDigits(buffer, n, i, 4)
 	if count == 0 {
 		m.Timestamp_NoYear++
-		return ZeroTimestamp
+		return ZeroTimestamp, i + 1
 	} else if count == 2 {
 		if year < 69 {
 			m.Timestamp_2DigitYear_2000++
@@ -117,65 +168,72 @@ func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []
 		}
 	} else if year > 2050 || year < 1969 {
 		m.Timestamp_4DigitYear_OutOfRange++
-		return ZeroTimestamp
+		return ZeroTimestamp, i + count
 	}
 
+	i += count
 	b := buffer[i]
 	if b == '-' || b == '/' {
 		i++
 	}
 
-	month, mcount := parse2Digits(buffer, n, &i)
+	month, mcount := parse2Digits(buffer, n, i)
 	if mcount == 0 {
 		m.Timestamp_NoMonth++
-		return ZeroTimestamp
+		return ZeroTimestamp, i + 1
 	}
 
 	if month > 12 || month < 1 {
 		m.Timestamp_MonthOutOfRange++
-		return ZeroTimestamp
+		return ZeroTimestamp, i + mcount
 	}
 
+	i += mcount
 	b = buffer[i]
 	if b == '-' || b == '/' {
 		i++
 	}
 
-	day, dcount := parse2Digits(buffer, n, &i)
+	day, dcount := parse2Digits(buffer, n, i)
 	if dcount == 0 {
 		m.Timestamp_NoDay++
-		return ZeroTimestamp
+		return ZeroTimestamp, i + 1
 	}
 
 	if day > 31 || day < 1 {
 		m.Timestamp_DayOutOfRange++
-		return ZeroTimestamp
+		return ZeroTimestamp, i + dcount
 	}
 
+	i += dcount
 	b = buffer[i]
-	if i >= n || (b != ' ' && b != 'T' && b != '_') {
-		m.Timestamp_SpaceOperatorMismatch++
-		return ZeroTimestamp
-	}
 	i++
 
-	hour, hcount := parse2Digits(buffer, n, &i)
+	if i >= n || (b != ' ' && b != 'T' && b != '_') {
+		m.Timestamp_SpaceOperatorMismatch++
+		return ZeroTimestamp, i
+	}
+
+	hour, hcount := parse2Digits(buffer, n, i)
 	if hcount == 0 {
 		m.Timestamp_NoHour++
-		return ZeroTimestamp
+		return ZeroTimestamp, i + 1
 	}
 
 	if hour > 23 {
 		m.Timestamp_HourOutOfRange++
-		return ZeroTimestamp
+		return ZeroTimestamp, i + hcount
 	}
 
+	i += hcount
 	if i >= n {
 		m.Timestamp_NoHourSeparator++
-		return ZeroTimestamp
+		return ZeroTimestamp, n
 	}
 
 	b = buffer[i]
+	i++
+
 	if b != ':' && b != '.' && b != '-' {
 		m.Timestamp_HourSeparatorMismatch++
 		v, ok := m.Timestamp_MismatchedHourSeparators[b]
@@ -184,27 +242,29 @@ func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []
 		} else {
 			m.Timestamp_MismatchedHourSeparators[b] = 1
 		}
-		return ZeroTimestamp
+		return ZeroTimestamp, i
 	}
-	i++
 
-	minute, mincount := parse2Digits(buffer, n, &i)
+	minute, mincount := parse2Digits(buffer, n, i)
 	if mincount == 0 {
 		m.Timestamp_NoMinute++
-		return ZeroTimestamp
+		return ZeroTimestamp, i + 1
 	}
 
 	if minute > 59 {
 		m.Timestamp_MinuteOutOfRange++
-		return ZeroTimestamp
+		return ZeroTimestamp, i + mincount
 	}
 
+	i += mincount
 	if i >= n {
 		m.Timestamp_NoMinuteSeparator++
-		return ZeroTimestamp
+		return ZeroTimestamp, n
 	}
 
 	b = buffer[i]
+	i++
+
 	if b != ':' && b != '.' && b != '-' {
 		m.Timestamp_MinuteSeparatorMismatch++
 		v, ok := m.Timestamp_MismatchedMinuteSeparators[b]
@@ -213,27 +273,29 @@ func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []
 		} else {
 			m.Timestamp_MismatchedMinuteSeparators[b] = 1
 		}
-		return ZeroTimestamp
+		return ZeroTimestamp, i
 	}
-	i++
 
-	second, scount := parse2Digits(buffer, n, &i)
+	second, scount := parse2Digits(buffer, n, i)
 	if scount == 0 {
 		m.Timestamp_NoSecond++
-		return ZeroTimestamp
+		return ZeroTimestamp, i + 1
 	}
 
 	if second > 59 {
 		m.Timestamp_SecondOutOfRange++
-		return ZeroTimestamp
+		return ZeroTimestamp, i + scount
 	}
 
+	i += scount
 	var nsec int
 	if i < n && (buffer[i] == '.' || buffer[i] == ',') {
-		m.Timestamp_HasNanos++
 		i++
+		m.Timestamp_HasNanos++
 		var ncount int
-		nsec, ncount = parseDigits(buffer, n, &i, 9)
+		nsec, ncount = parseDigits(buffer, n, i, 9)
+		i += ncount
+
 		m.Timestamp_NanosLengths.UpdateBucketCount(ncount)
 		// Normalize nanoseconds in one step
 		for ncount < 9 {
@@ -250,23 +312,24 @@ func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []
 
 	if !c.IgnoreTimezoneInfo && i < n {
 		b = buffer[i]
+		i++
+
 		switch b {
 		case 'Z':
 			// Already using UTC
 			m.Timestamp_UtcTimezone++
-			i++
 			break
+
 		case '+', '-':
 			m.Timestamp_NonUtcTimezone++
 			tzSign = int(',') - int(b)
-			i++
 
 			if i+2 > n {
 				m.Timestamp_TimezoneEarlyReturn++
 				break
 			}
 
-			tzHour, hcount = parse2Digits(buffer, n, &i)
+			tzHour, hcount = parse2Digits(buffer, n, i)
 			if hcount == 0 {
 				m.Timestamp_NoTimezoneHour++
 				break
@@ -280,7 +343,7 @@ func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []
 			if i < n && buffer[i] == ':' {
 				i++
 				if i+2 <= n {
-					tzMin, _ = parse2Digits(buffer, n, &i)
+					tzMin, _ = parse2Digits(buffer, n, i)
 				}
 			}
 
@@ -293,47 +356,42 @@ func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []
 	m.Timestamp_FirstDigitIndexesActual.UpdateBucketCount(firstDigitIndex)
 	m.Timestamp_Lenghts.UpdateBucketCount(i - firstDigitIndex)
 
-	return NewTimestamp(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin)
+	return NewTimestamp(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin), i
 }
 
-func parseDigits(buffer []byte, n int, i *int, maxCount int) (int, int) {
-	if *i >= n {
+func parseDigits(buffer []byte, n int, i int, maxCount int) (val int, count int) {
+	if i >= n {
 		return 0, 0
 	}
 
-	val := 0
-	count := 0
-
-	for count < maxCount {
-		d := int(buffer[*i] - '0')
+	for count < maxCount && i < n {
+		d := int(buffer[i] - '0')
 		if d < 0 || d > 9 {
 			break
 		}
 
 		val = val*10 + d
 		count++
-		*i++
+		i++
 	}
 
 	return val, count
 }
 
-func parse2Digits(buffer []byte, n int, i *int) (int, int) {
-	if *i >= n {
+func parse2Digits(buffer []byte, n int, i int) (val int, count int) {
+	if i >= n {
 		return 0, 0
 	}
 
-	d := int(buffer[*i] - '0')
-	if d < 0 || d > 9 {
+	d := int(buffer[i] - '0')
+	i++
+	if d < 0 || d > 9 || i >= n {
 		return 0, 0
 	}
 
-	*i++
-	dd := int(buffer[*i] - '0')
+	dd := int(buffer[i] - '0')
 	if dd < 0 || dd > 9 {
 		return d, 1
 	}
-
-	*i++
 	return d*10 + dd, 2
 }

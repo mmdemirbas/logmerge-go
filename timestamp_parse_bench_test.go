@@ -12,7 +12,7 @@ func BenchmarkParseTimestamp(b *testing.B) {
 	}
 	m := NewParseTimestampMetrics()
 	tsBytes := []byte(("2025-01-15 19:24:08.123Z"))
-	for i := 0; i < b.N; i++ {
+	for n := 0; n < b.N; n++ {
 		ParseTimestamp(c, m, tsBytes)
 	}
 }
