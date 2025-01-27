@@ -1,7 +1,6 @@
 package main
 
 import (
-	"container/heap"
 	"fmt"
 )
 
@@ -63,8 +62,7 @@ func ProcessFiles(
 ) error {
 
 	startTime := GlobalMetricsTree.Start("HeapInit")
-	h := MinHeap(make([]*FileHandle, 0, len(files))) // Pre-allocate heap with the number of fileList
-	h = h[:0]                                        // Reset the heap length to zero
+	h := NewMinHeap(len(files))
 	remainingFileCount := 0
 
 	for _, file := range files {
@@ -74,7 +72,7 @@ func ProcessFiles(
 		}
 
 		if file.TimestampParsed {
-			h = append(h, file)
+			h.Push(file)
 			remainingFileCount++
 		} else {
 			err = file.Close()
@@ -88,15 +86,14 @@ func ProcessFiles(
 			file.Done = true
 		}
 	}
-	heap.Init(&h)
 	GlobalMetricsTree.HeapTotal.Stop(startTime)
 
 	startTime = GlobalMetricsTree.Start("HeapPopFirst")
 	lastPrintedAlias := ""
-	file := heap.Pop(&h).(*FileHandle)
+	file := h.Pop()
 	var nextFile *FileHandle = nil
 	if remainingFileCount > 0 {
-		nextFile = heap.Pop(&h).(*FileHandle)
+		nextFile = h.Pop()
 		remainingFileCount--
 	}
 	GlobalMetricsTree.HeapTotal.Stop(startTime)
@@ -181,7 +178,7 @@ func ProcessFiles(
 
 		if file.TimestampParsed && file.Timestamp <= c.MaxTimestamp {
 			startTime = GlobalMetricsTree.Start("HeapPushBack")
-			heap.Push(&h, file)
+			h.Push(file)
 			GlobalMetricsTree.HeapTotal.Stop(startTime)
 		} else {
 			// Close the file
@@ -200,7 +197,7 @@ func ProcessFiles(
 		file = nextFile
 		if remainingFileCount > 0 {
 			startTime = GlobalMetricsTree.Start("HeapPopNext")
-			nextFile = heap.Pop(&h).(*FileHandle)
+			nextFile = h.Pop()
 			GlobalMetricsTree.HeapTotal.Stop(startTime)
 		} else {
 			nextFile = nil
