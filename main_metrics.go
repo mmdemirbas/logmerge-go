@@ -174,8 +174,6 @@ func (m *MainMetrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTi
 
 	logFile := c.LogFile
 
-	// TODO: Print metrics in a more structured way, e.g. YAML.
-
 	fmt.Fprintf(c.LogFile, "===== SUMMARY ====================================================================================================================================================================\n")
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "Start time               : %s\n", startTime.Format(time.RFC3339Nano))

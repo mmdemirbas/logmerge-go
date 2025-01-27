@@ -60,8 +60,6 @@ func NewParseTimestampMetrics() *ParseTimestampMetrics {
 	}
 }
 
-// TODO: pass LogFile from top level
-
 func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []byte) Timestamp {
 	// TODO: What if we have digits before the actual timestamp?
 	//   In this case, we should skip non-digits after the first digit and try parsing from there.
@@ -127,7 +125,7 @@ func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []
 		i++
 	}
 
-	month, mcount := parseDigits(buffer, n, &i, 2)
+	month, mcount := parse2Digits(buffer, n, &i)
 	if mcount == 0 {
 		m.Timestamp_NoMonth++
 		return ZeroTimestamp
@@ -143,7 +141,7 @@ func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []
 		i++
 	}
 
-	day, dcount := parseDigits(buffer, n, &i, 2)
+	day, dcount := parse2Digits(buffer, n, &i)
 	if dcount == 0 {
 		m.Timestamp_NoDay++
 		return ZeroTimestamp
@@ -161,7 +159,7 @@ func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []
 	}
 	i++
 
-	hour, hcount := parseDigits(buffer, n, &i, 2)
+	hour, hcount := parse2Digits(buffer, n, &i)
 	if hcount == 0 {
 		m.Timestamp_NoHour++
 		return ZeroTimestamp
@@ -190,7 +188,7 @@ func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []
 	}
 	i++
 
-	minute, mincount := parseDigits(buffer, n, &i, 2)
+	minute, mincount := parse2Digits(buffer, n, &i)
 	if mincount == 0 {
 		m.Timestamp_NoMinute++
 		return ZeroTimestamp
@@ -219,7 +217,7 @@ func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []
 	}
 	i++
 
-	second, scount := parseDigits(buffer, n, &i, 2)
+	second, scount := parse2Digits(buffer, n, &i)
 	if scount == 0 {
 		m.Timestamp_NoSecond++
 		return ZeroTimestamp
@@ -268,7 +266,7 @@ func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []
 				break
 			}
 
-			tzHour, hcount = parseDigits(buffer, n, &i, 2)
+			tzHour, hcount = parse2Digits(buffer, n, &i)
 			if hcount == 0 {
 				m.Timestamp_NoTimezoneHour++
 				break
@@ -282,7 +280,7 @@ func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []
 			if i < n && buffer[i] == ':' {
 				i++
 				if i+2 <= n {
-					tzMin, _ = parseDigits(buffer, n, &i, 2)
+					tzMin, _ = parse2Digits(buffer, n, &i)
 				}
 			}
 
@@ -298,21 +296,44 @@ func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []
 	return NewTimestamp(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin)
 }
 
-// TODO consider inlining or improving parseDigits performance
-//
-//go:noline
-func parseDigits(buffer []byte, n int, i *int, maxCount int) (val, count int) {
-	end := *i + maxCount
-	if end > n {
-		end = n
+func parseDigits(buffer []byte, n int, i *int, maxCount int) (int, int) {
+	if *i >= n {
+		return 0, 0
 	}
-	for ; *i < end; *i++ {
-		c := buffer[*i]
-		if c > '9' || c < '0' {
+
+	val := 0
+	count := 0
+
+	for count < maxCount {
+		d := int(buffer[*i] - '0')
+		if d < 0 || d > 9 {
 			break
 		}
-		val = val*10 + int(c-'0')
+
+		val = val*10 + d
 		count++
+		*i++
 	}
-	return
+
+	return val, count
+}
+
+func parse2Digits(buffer []byte, n int, i *int) (int, int) {
+	if *i >= n {
+		return 0, 0
+	}
+
+	d := int(buffer[*i] - '0')
+	if d < 0 || d > 9 {
+		return 0, 0
+	}
+
+	*i++
+	dd := int(buffer[*i] - '0')
+	if dd < 0 || dd > 9 {
+		return d, 1
+	}
+
+	*i++
+	return d*10 + dd, 2
 }

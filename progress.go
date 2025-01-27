@@ -7,9 +7,9 @@ import (
 )
 
 type PrintProgressConfig struct {
-	PrintProgressEnabled bool
-	InitialDelayMillis   int
-	PeriodMillis         int
+	PrintProgressEnabled bool `yaml:"PrintProgressEnabled"`
+	InitialDelayMillis   int  `yaml:"InitialDelayMillis"`
+	PeriodMillis         int  `yaml:"PeriodMillis"`
 }
 
 func PrintProgressPeriodically(c *PrintProgressConfig, files []*FileHandle, programStartTime time.Time) {
