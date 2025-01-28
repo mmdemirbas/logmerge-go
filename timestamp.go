@@ -19,27 +19,23 @@ const (
 
 var daysAfter = [13]int{
 	0,
-	daysFrom1970 + 1 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30 + 31 + 28 + 31,
-	daysFrom1970 + 1 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30 + 31 + 28,
-	daysFrom1970 + 1 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30 + 31,
-	daysFrom1970 + 1 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30,
-	daysFrom1970 + 1 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31,
-	daysFrom1970 + 1 + 31 + 30 + 31 + 30 + 31 + 31 + 30,
-	daysFrom1970 + 1 + 31 + 30 + 31 + 30 + 31 + 31,
-	daysFrom1970 + 1 + 31 + 30 + 31 + 30 + 31,
-	daysFrom1970 + 1 + 31 + 30 + 31 + 30,
-	daysFrom1970 + 1 + 31 + 30 + 31,
-	daysFrom1970 + 1 + 31 + 30,
-	daysFrom1970 + 1 + 31,
+	31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30 + 31 + 28 + 31,
+	31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30 + 31 + 28,
+	31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30 + 31,
+	31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30,
+	31 + 30 + 31 + 30 + 31 + 31 + 30 + 31,
+	31 + 30 + 31 + 30 + 31 + 31 + 30,
+	31 + 30 + 31 + 30 + 31 + 31,
+	31 + 30 + 31 + 30 + 31,
+	31 + 30 + 31 + 30,
+	31 + 30 + 31,
+	31 + 30,
+	31,
 }
 
 func NewTimestamp(y, M, d, H, m, s, ns, tzSgn, tzH, tzM int) Timestamp {
-	y4 := y >> 2
-	ed := y*365 + y4 - y4/25 + (y4>>2)/25 - daysAfter[M] + d
-	if y&0x03 == 0 && M <= 2 && (y4&0x03 == 0 || y4%25 != 0) {
-		ed--
-	}
-
+	leapDay := -isLeapYear(y) & ((M - 3) >> 31)
+	ed := epochDaysIncludingYear(y) - daysFrom1970 - 1 - daysAfter[M] + d - leapDay
 	return Timestamp(uint64(ed*86400+(H-tzSgn*tzH)*3600+(m-tzSgn*tzM)*60+s)*1e9 + uint64(ns))
 }
 
@@ -52,11 +48,12 @@ var extraDaysToMonthDay = make([]int, 1+365+366)
 
 const extraDaysToMonthDayShift = 4
 const extraDaysToMonthMonthMask = 1<<extraDaysToMonthDayShift - 1
+const extraDaysToMonthLeapYearIndexShift = 365
 
 func init() {
 	monthDayCounts := []int{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
 	i := 1
-	j := 366
+	j := i + extraDaysToMonthLeapYearIndexShift
 	for m := 12; m > 0; m-- {
 		monthDayCount := monthDayCounts[m-1]
 		if m == 2 {
@@ -77,31 +74,37 @@ func (t Timestamp) String() string {
 }
 
 func (t Timestamp) FormatAsBytes() []byte {
-	sec := t / 1_000_000_000
+	nano := int64(t)
+
+	sec := int(nano / 1_000_000_000)
 	s := sec % 60
 	m := (sec / 60) % 60
 	h := (sec / 3600) % 24
 	days := sec / 86400
 
+	// Guess the year
 	year := (days / 365) + 1970
-	y4 := year >> 2
 
-	extraDaysIndex := (year*365 + y4 - y4/25 + (y4>>2)/25) - daysFrom1970 - days
-	leapYear := year&0x03 == 0 && (y4&0x03 == 0 || y4%25 != 0)
-	if leapYear && extraDaysIndex > 366 {
-		extraDaysIndex-- // match correct indexes (-366+365)
-		year--
-	} else if leapYear {
-		extraDaysIndex += 365 // match correct indexes
-	} else if extraDaysIndex > 365 {
-		year--
-		y4 = year >> 2
-		if year&0x03 != 0 || (y4&0x03 != 0 && y4%25 == 0) {
-			extraDaysIndex -= 365 // match correct indexes
-		}
-	}
+	// Calculate the epoch days based on the guessed year
+	extraDays := epochDaysIncludingYear(year) - daysFrom1970 - days
 
-	monthDay := extraDaysToMonthDay[extraDaysIndex]
+	// daysInYear = isLeapYear(year) ? 366 : 365
+	daysInYear := 365 - isLeapYear(year)
+
+	// daysInYear < extraDays => tooMuchDays, we need to decrement the year
+	tooMuchDays := (daysInYear - extraDays) >> 31
+
+	// if tooMuchDays, extraDays -= daysInYear
+	extraDays -= tooMuchDays & daysInYear
+
+	// if tooMuchDays, year--
+	year -= tooMuchDays & 1
+
+	// if isLeapYear(year), extraDays += extraDaysToMonthLeapYearIndexShift
+	// Note that we need to re-calculate isLeapYear here since year might have changed
+	extraDays += isLeapYear(year) & extraDaysToMonthLeapYearIndexShift
+
+	monthDay := extraDaysToMonthDay[extraDays]
 	day := monthDay >> extraDaysToMonthDayShift
 	month := monthDay & extraDaysToMonthMonthMask
 
@@ -127,17 +130,28 @@ func (t Timestamp) FormatAsBytes() []byte {
 	b[17] = byte('0' + (s/10)%10)
 	b[18] = byte('0' + (s)%10)
 
-	b[20] = byte('0' + ((t / 100_000_000) % 10))
-	b[21] = byte('0' + ((t / 10_000_000) % 10))
-	b[22] = byte('0' + ((t / 1_000_000) % 10))
-	b[23] = byte('0' + ((t / 100_000) % 10))
-	b[24] = byte('0' + ((t / 10_000) % 10))
-	b[25] = byte('0' + ((t / 1_000) % 10))
-	b[26] = byte('0' + ((t / 100) % 10))
-	b[27] = byte('0' + ((t / 10) % 10))
-	b[28] = byte('0' + ((t) % 10))
+	b[20] = byte('0' + ((nano / 100_000_000) % 10))
+	b[21] = byte('0' + ((nano / 10_000_000) % 10))
+	b[22] = byte('0' + ((nano / 1_000_000) % 10))
+	b[23] = byte('0' + ((nano / 100_000) % 10))
+	b[24] = byte('0' + ((nano / 10_000) % 10))
+	b[25] = byte('0' + ((nano / 1_000) % 10))
+	b[26] = byte('0' + ((nano / 100) % 10))
+	b[27] = byte('0' + ((nano / 10) % 10))
+	b[28] = byte('0' + ((nano) % 10))
 
 	return b
+}
+
+func epochDaysIncludingYear(y int) int {
+	y4 := y >> 2
+	y16 := y >> 4
+	return y*365 + y4 - y4/25 + y16/25
+}
+
+func isLeapYear(y int) int {
+	y4 := y >> 2
+	return ((y&0x03 - 1) & ((y4&0x03 - 1) | (^(y4%25 - 1)))) >> 31
 }
 
 // endregion: String

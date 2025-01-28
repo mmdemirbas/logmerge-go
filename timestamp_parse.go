@@ -99,10 +99,11 @@ func UpdateTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, file *Fi
 }
 
 func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []byte) Timestamp {
-	n := len(buffer)
-	if n > c.TimestampSearchEndIndex {
-		n = c.TimestampSearchEndIndex
-	}
+	// TODO: Ensure that those optimizations really pay off with measuring actual performance
+	// n := min(len(buffer), c.TimestampSearchEndIndex)
+	a := len(buffer)
+	b := c.TimestampSearchEndIndex
+	n := b + ((a - b) & ((a - b) >> 31))
 
 	var timestamp Timestamp
 	for i := 0; timestamp == ZeroTimestamp && i < n; {
@@ -123,7 +124,7 @@ func tryParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer
 	for i < n {
 		b := buffer[i]
 		c := int(b - '0')
-		if c >= 0 && c <= 9 {
+		if 0 <= c && c <= 9 {
 			break
 		}
 
@@ -173,9 +174,10 @@ func tryParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer
 
 	i += count
 	b := buffer[i]
-	if b == '-' || b == '/' {
-		i++
-	}
+
+	// TODO: Ensure that those optimizations really pay off with measuring actual performance
+	// if b == '-' || b == '/' { i++ }
+	i -= ((int(b)^int('-'))*(int(b)^int('/')) - 1) >> 31
 
 	month, mcount := parse2Digits(buffer, n, i)
 	if mcount == 0 {
@@ -190,9 +192,9 @@ func tryParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer
 
 	i += mcount
 	b = buffer[i]
-	if b == '-' || b == '/' {
-		i++
-	}
+
+	// if b == '-' || b == '/' { i++ }
+	i -= ((int(b)^int('-'))*(int(b)^int('/')) - 1) >> 31
 
 	day, dcount := parse2Digits(buffer, n, i)
 	if dcount == 0 {
