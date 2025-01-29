@@ -60,13 +60,16 @@ func (r *RingBuffer) Peek(index int) byte {
 // Skip advances the read position by one byte.
 func (r *RingBuffer) Skip(count int) {
 	newReadIndex := (r.readIndex + count) % r.cap
-	if newReadIndex == r.writeIndex {
-		// Reset buffer if empty for better memory usage
-		r.readIndex = 0
-		r.writeIndex = 0
-	} else {
-		r.readIndex = newReadIndex
-	}
+
+	// If buffer is empty, reset read/write index to reduce chance of split buffer into two parts.
+	// Buffer split could cause bad performance for other operations.
+	// Below operations are optimized using branchless code to avoid slow conditional branches.
+	//r.readIndex = (newReadIndex == r.writeIndex) ? 0 : newReadIndex
+	//r.writeIndex = (newReadIndex == r.writeIndex) ? 0 : r.writeIndex
+	diff := newReadIndex - r.writeIndex
+	nonEmpty := (diff >> 31) ^ ((-diff) >> 31)
+	r.readIndex = nonEmpty & newReadIndex
+	r.writeIndex = nonEmpty & r.writeIndex
 }
 
 // Read returns the next byte to be read from the buffer and advances the read position by one byte.
@@ -89,14 +92,12 @@ func (r *RingBuffer) Fill(reader io.Reader) (count int, err error) {
 	}
 
 	var firstPartEnd int
-	if r.writeIndex >= r.readIndex {
-		if r.readIndex == 0 {
-			firstPartEnd = r.cap - 1 // Leave last slot empty
-		} else {
-			firstPartEnd = r.cap
-		}
-	} else {
+	if r.writeIndex < r.readIndex {
 		firstPartEnd = r.readIndex - 1
+	} else if r.readIndex == 0 {
+		firstPartEnd = r.cap - 1 // Leave last slot empty
+	} else {
+		firstPartEnd = r.cap
 	}
 
 	n, err := reader.Read(r.buf[r.writeIndex:firstPartEnd])
@@ -112,6 +113,18 @@ func (r *RingBuffer) Fill(reader io.Reader) (count int, err error) {
 
 	return count, err
 }
+
+// EOLType represents the type of end-of-line character(s) found.
+type EOLType int
+
+const (
+	None EOLType = iota
+	CR
+	LF
+	CRLF
+)
+
+var newline = []byte{'\n'}
 
 func (r *RingBuffer) SkipNextLineSlice(latestCharWasCR *bool) (int, EOLType) {
 	readIndex := r.readIndex
@@ -131,19 +144,11 @@ func (r *RingBuffer) SkipNextLineSlice(latestCharWasCR *bool) (int, EOLType) {
 		return 0, CR
 	}
 
-	var searchUntil int
-	if readIndex < writeIndex {
-		searchUntil = writeIndex
-	} else {
-		searchUntil = r.cap
-	}
+	// (readIndex < writeIndex) ? writeIndex : cap (we are sure that readIndex != writeIndex)
+	searchUntil := ((readIndex-writeIndex)>>31)&writeIndex | ((writeIndex-readIndex)>>31)&r.cap
 
 	i := readIndex
-	for ; i < searchUntil; i++ {
-		b := buf[i]
-		if b == '\r' || b == '\n' {
-			break
-		}
+	for ; i < searchUntil && buf[i] != '\r' && buf[i] != '\n'; i++ {
 	}
 
 	if i == searchUntil {
@@ -167,18 +172,6 @@ func (r *RingBuffer) SkipNextLineSlice(latestCharWasCR *bool) (int, EOLType) {
 	return i + 1 - readIndex, LF
 }
 
-// EOLType represents the type of end-of-line character(s) found.
-type EOLType int
-
-const (
-	None EOLType = iota
-	CR
-	LF
-	CRLF
-)
-
-var newline = []byte{'\n'}
-
 // PeekNextLineSlice returns the slice including the first end-of-line character found in the buffer,
 // and the type of end-of-line character(s) found. If it couldn't find an end-of-line character
 // until the end of the buffer, it returns the slice until the end of the buffer and
@@ -200,12 +193,8 @@ func (r *RingBuffer) PeekNextLineSlice(latestCharWasCR *bool) ([]byte, EOLType) 
 		}
 	}
 
-	var searchUntil int
-	if readIndex < writeIndex {
-		searchUntil = writeIndex
-	} else {
-		searchUntil = r.cap
-	}
+	// (readIndex < writeIndex) ? writeIndex : cap (we are sure that readIndex != writeIndex)
+	searchUntil := ((readIndex-writeIndex)>>31)&writeIndex | ((writeIndex-readIndex)>>31)&r.cap
 
 	i := readIndex
 	for ; i < searchUntil; i++ {
@@ -219,48 +208,29 @@ func (r *RingBuffer) PeekNextLineSlice(latestCharWasCR *bool) ([]byte, EOLType) 
 		return buf[readIndex:searchUntil], None
 	}
 	if buf[i] == '\r' {
-		if i+1 == searchUntil {
-			*latestCharWasCR = true
+		*latestCharWasCR = i+1 == searchUntil
+		if *latestCharWasCR {
 			return buf[readIndex:searchUntil], None // EOL could be CR or CRLF
 		}
-		if buf[i+1] == '\n' {
-			return buf[readIndex : i+2], CRLF
-		}
-		return buf[readIndex : i+1], CR
+		// if buf[i+1] == '\n' { return buf[readIndex : i+2], CRLF } else { return buf[readIndex : i+1], CR }
+		nextIsLF := ((int(buf[i+1]) ^ int('\n')) - 1) >> 31
+		return buf[readIndex:(i + 1 - nextIsLF)], EOLType(nextIsLF&0x2 + 1)
 	}
 	return buf[readIndex : i+1], LF
 }
 
 func (r *RingBuffer) AsSlice(buffer []byte) []byte {
 	readIndex := r.readIndex
-	writeIndex := r.writeIndex
+	capacity := r.cap
 
-	if readIndex == writeIndex {
-		return nil
+	outLen := min(cap(buffer), r.Len())
+	endIndex := readIndex + outLen
+	if endIndex <= capacity {
+		return r.buf[readIndex:endIndex]
 	}
 
-	if readIndex < writeIndex {
-		return r.buf[readIndex:writeIndex]
-	}
-
-	if writeIndex == 0 {
-		return r.buf[readIndex:]
-	}
-
-	outLen := cap(buffer)
-	ringBufferLen := r.Len()
-	if outLen > ringBufferLen {
-		outLen = ringBufferLen
-	}
-
-	headLen := r.cap - readIndex
-	if outLen <= headLen {
-		return r.buf[readIndex:]
-	}
-
-	tailLen := outLen - headLen
 	buffer = buffer[:outLen]
 	copy(buffer, r.buf[readIndex:])
-	copy(buffer[headLen:], r.buf[:tailLen])
+	copy(buffer[(capacity-readIndex):], r.buf[:(endIndex-capacity)])
 	return buffer
 }
