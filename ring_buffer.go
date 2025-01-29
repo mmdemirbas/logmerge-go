@@ -86,31 +86,26 @@ func (r *RingBuffer) Write(b byte) {
 }
 
 // Fill reads data from the reader into the buffer until the buffer is full or the reader returns an error.
-func (r *RingBuffer) Fill(reader io.Reader) (count int, err error) {
+func (r *RingBuffer) Fill(reader io.Reader) (int, error) {
 	if r.IsFull() {
 		return 0, nil
 	}
 
-	var firstPartEnd int
-	if r.writeIndex < r.readIndex {
-		firstPartEnd = r.readIndex - 1
-	} else if r.readIndex == 0 {
-		firstPartEnd = r.cap - 1 // Leave last slot empty
-	} else {
-		firstPartEnd = r.cap
-	}
+	readPartSplit := (r.writeIndex - r.readIndex) >> 31 // W--R-- or --W--R or --W--R--
+	readAtZero := (r.readIndex - 1) >> 31               // R--W--
+	writePartSplit := ^readPartSplit & ^readAtZero      // --R--W-- or --R--W
 
-	n, err := reader.Read(r.buf[r.writeIndex:firstPartEnd])
-	count = n
-	r.writeIndex = (r.writeIndex + n) % r.cap
+	endIndex := readPartSplit&(r.readIndex-1) | readAtZero&(r.cap-1) | writePartSplit&(r.cap)
+	n, err := reader.Read(r.buf[r.writeIndex:endIndex])
+	count := n
 
-	if err == nil && n > 0 &&
-		r.writeIndex == 0 && r.readIndex > 1 {
+	// Read second part if first part already filled and there is a second part.
+	if writePartSplit == -1 && ((r.writeIndex + n) == r.cap) && r.readIndex > 1 && err == nil {
 		n, err = reader.Read(r.buf[0 : r.readIndex-1])
 		count += n
-		r.writeIndex = n
 	}
 
+	r.writeIndex = (r.writeIndex + count) % r.cap
 	return count, err
 }
 
@@ -147,6 +142,7 @@ func (r *RingBuffer) SkipNextLineSlice(latestCharWasCR *bool) (int, EOLType) {
 	// (readIndex < writeIndex) ? writeIndex : cap (we are sure that readIndex != writeIndex)
 	searchUntil := ((readIndex-writeIndex)>>31)&writeIndex | ((writeIndex-readIndex)>>31)&r.cap
 
+	// skip until EOL
 	i := readIndex
 	for ; i < searchUntil && buf[i] != '\r' && buf[i] != '\n'; i++ {
 	}
@@ -196,12 +192,9 @@ func (r *RingBuffer) PeekNextLineSlice(latestCharWasCR *bool) ([]byte, EOLType) 
 	// (readIndex < writeIndex) ? writeIndex : cap (we are sure that readIndex != writeIndex)
 	searchUntil := ((readIndex-writeIndex)>>31)&writeIndex | ((writeIndex-readIndex)>>31)&r.cap
 
+	// find EOL
 	i := readIndex
-	for ; i < searchUntil; i++ {
-		b := buf[i]
-		if b == '\r' || b == '\n' {
-			break
-		}
+	for ; i < searchUntil && buf[i] != '\r' && buf[i] != '\n'; i++ {
 	}
 
 	if i == searchUntil {

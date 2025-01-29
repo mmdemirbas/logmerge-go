@@ -174,7 +174,7 @@ func tryParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer
 	// if b == '-' || b == '/' { i++ }
 	i -= ((int(b)^int('-'))*(int(b)^int('/')) - 1) >> 31
 
-	month, mcount := parse2Digits(buffer, n, i)
+	month, mcount := parseMax2Digits(buffer, n, i)
 	if mcount == 0 {
 		m.Timestamp_NoMonth++
 		return ZeroTimestamp, i + 1
@@ -189,9 +189,9 @@ func tryParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer
 	b = buffer[i]
 
 	// if b == '-' || b == '/' { i++ }
-	i -= ((int(b)^int('-'))*(int(b)^int('/')) - 1) >> 31
+	i -= ((int(b)^int('-'))&(int(b)^int('/')) - 1) >> 31
 
-	day, dcount := parse2Digits(buffer, n, i)
+	day, dcount := parseMax2Digits(buffer, n, i)
 	if dcount == 0 {
 		m.Timestamp_NoDay++
 		return ZeroTimestamp, i + 1
@@ -211,7 +211,7 @@ func tryParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer
 		return ZeroTimestamp, i
 	}
 
-	hour, hcount := parse2Digits(buffer, n, i)
+	hour, hcount := parseMax2Digits(buffer, n, i)
 	if hcount == 0 {
 		m.Timestamp_NoHour++
 		return ZeroTimestamp, i + 1
@@ -242,7 +242,7 @@ func tryParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer
 		return ZeroTimestamp, i
 	}
 
-	minute, mincount := parse2Digits(buffer, n, i)
+	minute, mincount := parseMax2Digits(buffer, n, i)
 	if mincount == 0 {
 		m.Timestamp_NoMinute++
 		return ZeroTimestamp, i + 1
@@ -273,7 +273,7 @@ func tryParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer
 		return ZeroTimestamp, i
 	}
 
-	second, scount := parse2Digits(buffer, n, i)
+	second, scount := parseMax2Digits(buffer, n, i)
 	if scount == 0 {
 		m.Timestamp_NoSecond++
 		return ZeroTimestamp, i + 1
@@ -326,7 +326,7 @@ func tryParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer
 				break
 			}
 
-			tzHour, hcount = parse2Digits(buffer, n, i)
+			tzHour, hcount = parseMax2Digits(buffer, n, i)
 			if hcount == 0 {
 				m.Timestamp_NoTimezoneHour++
 				break
@@ -340,7 +340,7 @@ func tryParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer
 			if i < n && buffer[i] == ':' {
 				i++
 				if i+2 <= n {
-					tzMin, _ = parse2Digits(buffer, n, i)
+					tzMin, _ = parseMax2Digits(buffer, n, i)
 				}
 			}
 
@@ -375,20 +375,23 @@ func parseDigits(buffer []byte, n int, i int, maxCount int) (val int, count int)
 	return val, count
 }
 
-func parse2Digits(buffer []byte, n int, i int) (val int, count int) {
-	if i >= n {
-		return 0, 0
-	}
+func parseMax2Digits(buffer []byte, n int, i int) (int, int) {
+	if i+1 < n {
+		b1 := int(buffer[i])
+		b2 := int(buffer[i+1])
 
-	d := int(buffer[i] - '0')
-	i++
-	if d < 0 || d > 9 || i >= n {
-		return 0, 0
-	}
+		isDigit1 := ((47 - b1) >> 31) & ((b1 - 58) >> 31)
+		isDigit2 := ((47 - b2) >> 31) & ((b2 - 58) >> 31)
 
-	dd := int(buffer[i] - '0')
-	if dd < 0 || dd > 9 {
-		return d, 1
+		oneDigit := isDigit1 & ^isDigit2
+		twoDigits := isDigit1 & isDigit2
+
+		return twoDigits&(10*b1+b2-528) | oneDigit&(b1-48), twoDigits&2 | oneDigit&1
 	}
-	return d*10 + dd, 2
+	if i < n {
+		b1 := int(buffer[i])
+		isDigit := ((47 - b1) >> 31) & ((b1 - 58) >> 31)
+		return isDigit&(b1-48) | ^isDigit, isDigit
+	}
+	return 0, 0
 }
