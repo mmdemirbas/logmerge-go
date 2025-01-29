@@ -484,5 +484,5 @@ func TestRingBuffer(t *testing.T) {
 
 	// TODO: Add tests for SkipNextLineSlice
 	// TODO: Add tests for PeekNextLineSlice
-	// TODO: Add tests for AsSlice
+	// TODO: Add tests for PeekSlice
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"runtime"
 	"sort"
 	"strings"
@@ -346,7 +347,7 @@ func (m *MetricsTree) printDurationLog(logFile *WritableFile, depth int, name st
 		name,
 		divideSafe(nanoseconds, m.Root.Metric.Duration)*100,
 		duration(nanoseconds),
-		durationFloat(float64(nanoseconds)/float64(max(1, n))),
+		durationFloat(divideSafe(nanoseconds, n)),
 		n,
 		count(n),
 		extra,
@@ -362,13 +363,14 @@ func (b *BucketMetric) printBuckets(logFile *WritableFile) {
 	minValue := b.min
 	maxValue := b.max
 	total := b.count
-	avgValue := b.sum / max(1, total)
+	avgValue := divideSafe(b.sum, total)
+	avgValueRounded := math.Round(avgValue*1e3) / 1e3
 
 	fmt.Fprintf(logFile, "\n")
 	fmt.Fprintf(logFile, "%s\n", b.name)
 	fmt.Fprintf(logFile, "  summary\n")
 	fmt.Fprintf(logFile, "    min          : %8s ~ %15v = %10s\n", "", minValue, count(minValue))
-	fmt.Fprintf(logFile, "    avg          : %8s ~ %15v = %10s\n", "", avgValue, count(avgValue))
+	fmt.Fprintf(logFile, "    avg          : %8s ~ %15v ~ %10s\n", "", avgValueRounded, count(int64(math.Round(avgValue))))
 	fmt.Fprintf(logFile, "    max          : %8s ~ %15v = %10s\n", "", maxValue, count(maxValue))
 	fmt.Fprintf(logFile, "    count        : %8s ~ %15v = %10s\n", "", total, count(total))
 	fmt.Fprintf(logFile, "  buckets\n")

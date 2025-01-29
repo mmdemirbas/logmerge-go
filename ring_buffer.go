@@ -212,18 +212,18 @@ func (r *RingBuffer) PeekNextLineSlice(latestCharWasCR *bool) ([]byte, EOLType) 
 	return buf[readIndex : i+1], LF
 }
 
-func (r *RingBuffer) AsSlice(buffer []byte) []byte {
+func (r *RingBuffer) PeekSlice(buffer []byte) []byte {
 	readIndex := r.readIndex
 	capacity := r.cap
 
-	outLen := min(cap(buffer), r.Len())
-	endIndex := readIndex + outLen
-	if endIndex <= capacity {
-		return r.buf[readIndex:endIndex]
+	outLen := FastMin(cap(buffer), r.Len())
+	tailLen := readIndex + outLen - capacity
+	if tailLen <= 0 {
+		return r.buf[readIndex : readIndex+outLen]
 	}
 
 	buffer = buffer[:outLen]
 	copy(buffer, r.buf[readIndex:])
-	copy(buffer[(capacity-readIndex):], r.buf[:(endIndex-capacity)])
+	copy(buffer[(outLen-tailLen):], r.buf[:tailLen])
 	return buffer
 }
