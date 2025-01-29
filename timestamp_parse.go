@@ -99,13 +99,7 @@ func UpdateTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, file *Fi
 }
 
 func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []byte) Timestamp {
-	// TODO: Ensure that those optimizations really pay off with measuring actual performance
-	startTime := GlobalMetricsTree.Start("MinBufferLen")
-	n := min(len(buffer), c.TimestampSearchEndIndex)
-	//a := len(buffer)
-	//b := c.TimestampSearchEndIndex
-	//n := b + ((a - b) & ((a - b) >> 31))
-	GlobalMetricsTree.Stop(startTime)
+	n := FastMin(len(buffer), c.TimestampSearchEndIndex)
 
 	var timestamp Timestamp
 	for i := 0; timestamp == ZeroTimestamp && i < n; {
