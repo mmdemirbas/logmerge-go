@@ -53,6 +53,9 @@ func NewMergeMetrics() *MergeMetrics {
 	}
 }
 
+var cachedTimestamp = ZeroTimestamp
+var cachedTimestampString = []byte("                              ") // do not write for the timestamp-less lines at the very beginning of the files
+
 func ProcessFiles(
 	c *MergeConfig,
 	m *MergeMetrics,
@@ -71,7 +74,7 @@ func ProcessFiles(
 			return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
 		}
 
-		if file.TimestampParsed {
+		if file.LineTimestampParsed {
 			h.Push(file)
 		} else {
 			err = file.Close()
@@ -99,7 +102,7 @@ func ProcessFiles(
 		skippedLineCount := 0
 
 		// Skip lines until finding an eligible line
-		for file.TimestampParsed && file.Timestamp < c.MinTimestamp {
+		for file.LineTimestampParsed && file.LineTimestamp < c.MinTimestamp {
 			skippedLineCount++
 			bytesCount, eolLength, err := file.SkipLine()
 			m.BytesReadAndSkipped += int64(bytesCount)
@@ -115,8 +118,8 @@ func ProcessFiles(
 		}
 
 		var effectiveMaxTimestamp Timestamp
-		if nextFile != nil && nextFile.Timestamp < c.MaxTimestamp {
-			effectiveMaxTimestamp = nextFile.Timestamp
+		if nextFile != nil && nextFile.LineTimestamp < c.MaxTimestamp {
+			effectiveMaxTimestamp = nextFile.LineTimestamp
 		} else {
 			effectiveMaxTimestamp = c.MaxTimestamp
 		}
@@ -126,7 +129,7 @@ func ProcessFiles(
 		blockLineCount := 0
 
 		// Write lines until reaching the known bigger timestamp or a skip-line or the end of the file
-		for file.TimestampParsed && file.Timestamp <= effectiveMaxTimestamp {
+		for file.LineTimestampParsed && file.LineTimestamp <= effectiveMaxTimestamp {
 			if shouldWriteAlias {
 				shouldWriteAlias = false
 				lastPrintedAlias = file.Alias
@@ -139,16 +142,8 @@ func ProcessFiles(
 				}
 			}
 
-			var timestampToWrite Timestamp
-			if successiveLineCount == 0 {
-				timestampToWrite = file.Timestamp
-			} else {
-				timestampToWrite = ZeroTimestamp
-			}
-
 			successiveLineCount++
-
-			err := writeLine(c, m, writer, timestampToWrite, file)
+			err := writeLine(c, m, writer, file)
 			if err != nil {
 				return fmt.Errorf("failed to write line: %v", err)
 			}
@@ -158,7 +153,7 @@ func ProcessFiles(
 				return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
 			}
 
-			if !file.TimestampParsed || file.Timestamp != ZeroTimestamp {
+			if !file.LineTimestampParsed || file.LineTimestamp != ZeroTimestamp {
 				// Timestamp changed or file ended
 				blockLineCount += successiveLineCount
 				m.SuccessiveLineCounts.UpdateBucketCount(successiveLineCount)
@@ -171,7 +166,7 @@ func ProcessFiles(
 		m.SkippedLineCounts.UpdateBucketCount(skippedLineCount)
 		m.BlockLineCounts.UpdateBucketCount(blockLineCount)
 
-		if file.TimestampParsed && file.Timestamp <= c.MaxTimestamp {
+		if file.LineTimestampParsed && file.LineTimestamp <= c.MaxTimestamp {
 			startTime = GlobalMetricsTree.Start("HeapPushBack")
 			h.Push(file)
 			GlobalMetricsTree.HeapTotal.Stop(startTime)
@@ -198,35 +193,34 @@ func ProcessFiles(
 
 func doUpdateTimestamp(file *FileHandle, m *MergeMetrics, updateTimestamp func(file *FileHandle) error) error {
 	err := updateTimestamp(file)
-	if file.TimestampParsed {
-		if file.Timestamp == ZeroTimestamp {
+	if file.LineTimestampParsed {
+		if file.LineTimestamp == ZeroTimestamp {
 			m.LinesWithoutTimestamps++
 		} else {
 			m.LinesWithTimestamps++
+			file.BlockTimestamp = file.LineTimestamp
 		}
 	}
 	return err
 }
 
-var space30 = []byte("                              ")
-
-func writeLine(c *MergeConfig, m *MergeMetrics, writer *BufferedWriter, timestamp Timestamp, file *FileHandle) error {
+func writeLine(c *MergeConfig, m *MergeMetrics, writer *BufferedWriter, file *FileHandle) error {
 	if c.WriteTimestampPerLine {
 		startTime := GlobalMetricsTree.Start("WriteTimestamp")
+		timestampToLog := file.BlockTimestamp
+
 		var toWrite []byte
-		if timestamp == ZeroTimestamp {
-			toWrite = space30
+		if timestampToLog == cachedTimestamp {
+			toWrite = cachedTimestampString
 		} else {
-			toWrite = timestamp.FormatAsBytes()
+			toWrite = timestampToLog.FormatAsBytes()
+			cachedTimestamp = timestampToLog
+			cachedTimestampString = toWrite
 		}
 
 		n, err := writer.Write(toWrite)
 		if err != nil {
-			if timestamp == ZeroTimestamp {
-				return fmt.Errorf("failed to write timestamp padding: %v", err)
-			} else {
-				return fmt.Errorf("failed to write timestamp: %v", err)
-			}
+			return fmt.Errorf("failed to write timestamp: %v", err)
 		}
 		m.BytesWrittenForTimestamps += int64(n)
 		GlobalMetricsTree.Stop(startTime)

@@ -18,7 +18,7 @@ func (h *MinHeap) Push(file *FileHandle) {
 	index := len(h.items) - 1 // start at the end
 	for index > 0 {
 		parent := (index - 1) >> 1
-		if file.Timestamp >= h.items[parent].Timestamp {
+		if file.LineTimestamp >= h.items[parent].LineTimestamp {
 			// new item is in correct place (not smaller than parent)
 			break
 		}
@@ -55,11 +55,11 @@ func (h *MinHeap) Pop() *FileHandle {
 		right := left + 1
 
 		smallestChild, indexOfSmallestChild := h.items[left], left
-		if right < n && h.items[right].Timestamp < smallestChild.Timestamp {
+		if right < n && h.items[right].LineTimestamp < smallestChild.LineTimestamp {
 			smallestChild, indexOfSmallestChild = h.items[right], right
 		}
 
-		if last.Timestamp <= smallestChild.Timestamp {
+		if last.LineTimestamp <= smallestChild.LineTimestamp {
 			break
 		}
 

@@ -7,16 +7,17 @@ import (
 )
 
 type FileHandle struct {
-	File            *os.File
-	Alias           []byte
-	AliasForBlock   []byte
-	AliasForLine    []byte
-	Size            int
-	BytesRead       int
-	Done            bool
-	Buffer          *RingBuffer
-	TimestampParsed bool
-	Timestamp       Timestamp
+	File                *os.File
+	Alias               []byte
+	AliasForBlock       []byte
+	AliasForLine        []byte
+	Size                int         // Size of the file in bytes
+	BytesRead           int         // Number of bytes read from the file
+	Done                bool        // Whether the file has been fully read
+	Buffer              *RingBuffer // Buffer for reading the file
+	LineTimestampParsed bool        // Whether the timestamp for the current line has been parsed
+	LineTimestamp       Timestamp   // The timestamp for the current line
+	BlockTimestamp      Timestamp   // The timestamp for the current block, i.e. the last non-zero timestamp
 }
 
 func NewFileHandle(file *os.File, alias string, bufferSize int) (*FileHandle, error) {
@@ -26,10 +27,15 @@ func NewFileHandle(file *os.File, alias string, bufferSize int) (*FileHandle, er
 	}
 	fileSize := int(fileInfo.Size())
 	return &FileHandle{
-		File:   file,
-		Alias:  []byte(alias),
-		Size:   fileSize,
-		Buffer: NewRingBuffer(bufferSize),
+		File:                file,
+		Alias:               []byte(alias),
+		Size:                fileSize,
+		BytesRead:           0,
+		Buffer:              NewRingBuffer(bufferSize),
+		Done:                false,
+		LineTimestampParsed: false,
+		LineTimestamp:       ZeroTimestamp,
+		BlockTimestamp:      ZeroTimestamp,
 	}, nil
 }
 

@@ -70,13 +70,15 @@ func UpdateTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, file *Fi
 		startTime := GlobalMetricsTree.Start("FillBuffer")
 		err := file.FillBuffer()
 		if err != nil {
-			file.TimestampParsed = false
+			file.LineTimestampParsed = false
+			file.LineTimestamp = ZeroTimestamp
 			return fmt.Errorf("failed to fill buffer: %v", err)
 		}
 		GlobalMetricsTree.Stop(startTime)
 
 		if bufLen == 0 && file.Buffer.IsEmpty() {
-			file.TimestampParsed = false
+			file.LineTimestampParsed = false
+			file.LineTimestamp = ZeroTimestamp
 			return nil
 		}
 	}
@@ -93,8 +95,8 @@ func UpdateTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, file *Fi
 	timestamp := ParseTimestamp(c, m, buf)
 	GlobalMetricsTree.Stop(startTime)
 
-	file.TimestampParsed = true
-	file.Timestamp = timestamp
+	file.LineTimestampParsed = true
+	file.LineTimestamp = timestamp
 	return nil
 }
 
@@ -110,6 +112,8 @@ func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []
 
 func tryParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []byte, i int, n int) (Timestamp, int) {
 	// TODO: Measure and optimize this method - Maybe I should simplify the code to be able to touch for performance optimizations
+
+	// TODO: Remove statistics in this method. Not needed anymore.
 
 	if n < i+c.ShortestTimestampLen {
 		m.Timestamp_LineTooShort++
