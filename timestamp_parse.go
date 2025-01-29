@@ -100,10 +100,12 @@ func UpdateTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, file *Fi
 
 func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []byte) Timestamp {
 	// TODO: Ensure that those optimizations really pay off with measuring actual performance
-	// n := min(len(buffer), c.TimestampSearchEndIndex)
-	a := len(buffer)
-	b := c.TimestampSearchEndIndex
-	n := b + ((a - b) & ((a - b) >> 31))
+	startTime := GlobalMetricsTree.Start("MinBufferLen")
+	n := min(len(buffer), c.TimestampSearchEndIndex)
+	//a := len(buffer)
+	//b := c.TimestampSearchEndIndex
+	//n := b + ((a - b) & ((a - b) >> 31))
+	GlobalMetricsTree.Stop(startTime)
 
 	var timestamp Timestamp
 	for i := 0; timestamp == ZeroTimestamp && i < n; {
@@ -175,7 +177,6 @@ func tryParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer
 	i += count
 	b := buffer[i]
 
-	// TODO: Ensure that those optimizations really pay off with measuring actual performance
 	// if b == '-' || b == '/' { i++ }
 	i -= ((int(b)^int('-'))*(int(b)^int('/')) - 1) >> 31
 
