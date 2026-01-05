@@ -15,12 +15,12 @@ var config = &MainConfig{
 	ProfilingEnabled: false,
 
 	ListFilesConfig: &ListFilesConfig{
-		InputPath:               "", // required
-		ExcludedStrictSuffixes:  []string{".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz"},
-		IncludedStrictSuffixes:  []string{},
-		ExcludedLenientSuffixes: []string{},
-		IncludedLenientSuffixes: []string{".log", ".err", ".error", ".warn", ".warning", ".info", ".out", ".debug", ".trace"},
-		FileAliases:             map[string]string{},
+		InputPath:          "", // required
+		ExcludedSuffixes:   []string{".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz"},
+		IncludedSuffixes:   []string{},
+		ExcludedSubstrings: []string{},
+		IncludedSubstrings: []string{".log", ".err", ".error", ".warn", ".warning", ".info", ".out", ".debug", ".trace"},
+		FileAliases:        map[string]string{},
 	},
 
 	ParseTimestampConfig: &ParseTimestampConfig{

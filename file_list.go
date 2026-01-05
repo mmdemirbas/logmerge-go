@@ -8,12 +8,12 @@ import (
 )
 
 type ListFilesConfig struct {
-	InputPath               string            `yaml:"InputPath"`
-	ExcludedStrictSuffixes  []string          `yaml:"ExcludedStrictSuffixes"`
-	IncludedStrictSuffixes  []string          `yaml:"IncludedStrictSuffixes"`
-	ExcludedLenientSuffixes []string          `yaml:"ExcludedLenientSuffixes"`
-	IncludedLenientSuffixes []string          `yaml:"IncludedLenientSuffixes"`
-	FileAliases             map[string]string `yaml:"FileAliases"`
+	InputPath          string            `yaml:"InputPath"`
+	ExcludedSuffixes   []string          `yaml:"ExcludedSuffixes"`
+	IncludedSuffixes   []string          `yaml:"IncludedSuffixes"`
+	ExcludedSubstrings []string          `yaml:"ExcludedSubstrings"`
+	IncludedSubstrings []string          `yaml:"IncludedSubstrings"`
+	FileAliases        map[string]string `yaml:"FileAliases"`
 }
 
 type ListFilesMetrics struct {
@@ -36,6 +36,10 @@ func ListFiles(c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, min
 	fileList, err := listFilePaths(c, m)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list files: %v", err)
+	}
+
+	if len(fileList) == 0 {
+		return nil, fmt.Errorf("no files found")
 	}
 
 	perFileBufferSize := FastMax(minBufferSizePerFile, totalBufferSize/len(fileList))
@@ -139,18 +143,16 @@ func getAlias(c *ListFilesConfig, file string) (string, error) {
 func ShouldIncludeFile(c *ListFilesConfig, filePath string) bool {
 	_, fileName := filepath.Split(filePath)
 	lowerName := strings.ToLower(fileName)
-	return !hasSuffix(lowerName, c.ExcludedStrictSuffixes...) &&
-		(len(c.IncludedStrictSuffixes) == 0 || hasSuffix(lowerName, c.IncludedStrictSuffixes...)) &&
-		!hasLenientSuffix(lowerName, c.ExcludedLenientSuffixes...) &&
-		(len(c.IncludedLenientSuffixes) == 0 || hasLenientSuffix(lowerName, c.IncludedLenientSuffixes...))
+	return !hasSuffix(lowerName, c.ExcludedSuffixes...) &&
+		(len(c.IncludedSuffixes) == 0 || hasSuffix(lowerName, c.IncludedSuffixes...)) &&
+		!hasSubstring(lowerName, c.ExcludedSubstrings...) &&
+		(len(c.IncludedSubstrings) == 0 || hasSubstring(lowerName, c.IncludedSubstrings...))
 }
 
-func hasLenientSuffix(s string, suffices ...string) bool {
-	if hasSuffix(s, suffices...) {
-		return true
-	}
+func hasSubstring(s string, suffices ...string) bool {
 	for _, suffix := range suffices {
-		if strings.Contains(s, suffix+".") {
+		lowerSuffix := strings.ToLower(suffix)
+		if strings.Contains(s, lowerSuffix) {
 			return true
 		}
 	}
@@ -159,7 +161,8 @@ func hasLenientSuffix(s string, suffices ...string) bool {
 
 func hasSuffix(s string, suffices ...string) bool {
 	for _, suffix := range suffices {
-		if strings.HasSuffix(s, suffix) {
+		lowerSuffix := strings.ToLower(suffix)
+		if strings.HasSuffix(s, lowerSuffix) {
 			return true
 		}
 	}

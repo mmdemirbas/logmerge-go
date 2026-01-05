@@ -9,10 +9,10 @@ ListFilesConfig:
 #  InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1736261418288_0021" # 0320
 #  InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1736999506338_0001-ANALYSIS" # 0070
 
-  ExcludedStrictSuffixes: [ ".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz" ]
-  IncludedStrictSuffixes: [ ]
-  ExcludedLenientSuffixes: [ ]
-  IncludedLenientSuffixes: [ ".log", ".err", ".error", ".warn", ".warning", ".info", ".out", ".debug", ".trace" ]
+  ExcludedSuffixes: [ ".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz" ]
+  IncludedSuffixes: [ ]
+  ExcludedSubstrings: [ ]
+  IncludedSubstrings: [ ".log", ".err", ".error", ".warn", ".warning", ".info", ".out", ".debug", ".trace" ]
 
   FileAliases:
     "172.16.0.240/memartscc/cc-worker/ccworker.INFO.20250115-172150.3239354": "cc"

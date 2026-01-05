@@ -16,10 +16,10 @@ func TestShouldIncludeFile(t *testing.T) {
 	}
 
 	c := &ListFilesConfig{
-		ExcludedStrictSuffixes:  []string{".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz"},
-		IncludedStrictSuffixes:  []string{},
-		ExcludedLenientSuffixes: []string{},
-		IncludedLenientSuffixes: []string{".log", ".err", ".error", ".warn", ".warning", ".info", ".out", ".debug", ".trace"},
+		ExcludedSuffixes:   []string{".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz"},
+		IncludedSuffixes:   []string{},
+		ExcludedSubstrings: []string{},
+		IncludedSubstrings: []string{".log", ".err", ".error", ".warn", ".warning", ".info", ".out", ".debug", ".trace"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
