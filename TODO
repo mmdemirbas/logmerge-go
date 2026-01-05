@@ -1,6 +1,8 @@
 - Documentation
     - Write README - Document exact behaviour (how timestamp-less lines combined together and sorted first etc)
 - Usability
+    - Support: Include timestamp-less entries always regardless of the MinTimestamp setting
+    - Support: Use the file modification time as the timestamp if no timestamp is present in the line.
     - Support: Included / excluded paths
     - Support CLI flags for all customizations. CLI flags will be more prioritized than config file.
 - Code tidy up
