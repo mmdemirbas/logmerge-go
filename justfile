@@ -33,8 +33,14 @@ clean:
 [group("common")]
 build:
     mkdir -p {{ BIN_DIR }}
-    CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o {{ BIN_DIR }}/{{ BINARY_NAME }}-macos-arm64 *.go
-    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o {{ BIN_DIR }}/{{ BINARY_NAME }}-windows-amd64.exe *.go
+    for goos in darwin windows linux; do \
+        [ $goos = windows ] && ext=".exe" || ext=""; \
+        for goarch in amd64 arm64; do \
+            CGO_ENABLED=0 GOOS=$goos GOARCH=$goarch go build -ldflags="-s -w" -o {{ BIN_DIR }}/{{ BINARY_NAME }}-$goos-$goarch$ext *.go && \
+                echo "[ OK ] Built: {{ BINARY_NAME }}-$goos-$goarch$ext" || \
+                echo "[FAIL] Failed to build: {{ BINARY_NAME }}-$goos-$goarch$ext"; \
+        done \
+    done
 
 # Run unit tests
 [group("test")]
