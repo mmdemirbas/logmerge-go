@@ -34,6 +34,8 @@ func NewListFilesMetrics() *ListFilesMetrics {
 }
 
 func ListFiles(c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, minBufferSizePerFile int, logFile *WritableFile) (files []*FileHandle, err error) {
+	c.normalize()
+
 	fileList, err := listFilePaths(c, m)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list files: %v", err)
@@ -141,29 +143,74 @@ func getAlias(c *ListFilesConfig, file string) (string, error) {
 	}
 }
 
-func ShouldIncludeFile(c *ListFilesConfig, filePath string) bool {
-	_, fileName := filepath.Split(filePath)
-	lowerName := strings.ToLower(fileName)
-	return !hasSuffix(lowerName, c.ExcludedSuffixes...) &&
-		(len(c.IncludedSuffixes) == 0 || hasSuffix(lowerName, c.IncludedSuffixes...)) &&
-		!hasSubstring(lowerName, c.ExcludedSubstrings...) &&
-		(len(c.IncludedSubstrings) == 0 || hasSubstring(lowerName, c.IncludedSubstrings...))
+func (c *ListFilesConfig) normalize() {
+	for i, s := range c.ExcludedSuffixes {
+		c.ExcludedSuffixes[i] = strings.ToLower(s)
+	}
+	for i, s := range c.IncludedSuffixes {
+		c.IncludedSuffixes[i] = strings.ToLower(s)
+	}
+	for i, s := range c.ExcludedSubstrings {
+		c.ExcludedSubstrings[i] = strings.ToLower(s)
+	}
+	for i, s := range c.IncludedSubstrings {
+		c.IncludedSubstrings[i] = strings.ToLower(s)
+	}
 }
 
-func hasSubstring(s string, suffices ...string) bool {
-	for _, suffix := range suffices {
-		lowerSuffix := strings.ToLower(suffix)
-		if strings.Contains(s, lowerSuffix) {
-			return true
+func ShouldIncludeFile(c *ListFilesConfig, filePath string) bool {
+	_, fileName := filepath.Split(filePath)
+	return !hasSuffixFold(fileName, c.ExcludedSuffixes...) &&
+		(len(c.IncludedSuffixes) == 0 || hasSuffixFold(fileName, c.IncludedSuffixes...)) &&
+		!hasSubstringFold(fileName, c.ExcludedSubstrings...) &&
+		(len(c.IncludedSubstrings) == 0 || hasSubstringFold(fileName, c.IncludedSubstrings...))
+}
+
+func hasSubstringFold(s string, substrings ...string) bool {
+	for _, sub := range substrings {
+		n := len(sub)
+		if n == 0 || len(s) < n {
+			continue
+		}
+		for i := 0; i <= len(s)-n; i++ {
+			match := true
+			for j := 0; j < n; j++ {
+				c := s[i+j]
+				if 'A' <= c && c <= 'Z' {
+					c += 'a' - 'A'
+				}
+				if c != sub[j] {
+					match = false
+					break
+				}
+			}
+			if match {
+				return true
+			}
 		}
 	}
 	return false
 }
 
-func hasSuffix(s string, suffices ...string) bool {
-	for _, suffix := range suffices {
-		lowerSuffix := strings.ToLower(suffix)
-		if strings.HasSuffix(s, lowerSuffix) {
+func hasSuffixFold(s string, suffixes ...string) bool {
+	for _, suf := range suffixes {
+		n := len(suf)
+		if len(s) < n {
+			continue
+		}
+		match := true
+		offset := len(s) - n
+		for i := 0; i < n; i++ {
+			c := s[offset+i]
+			if 'A' <= c && c <= 'Z' {
+				c += 'a' - 'A'
+			}
+			if c != suf[i] {
+				match = false
+				break
+			}
+		}
+		if match {
 			return true
 		}
 	}
