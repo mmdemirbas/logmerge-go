@@ -1,9 +1,10 @@
 package main_test
 
 import (
-	. "github.com/mmdemirbas/logmerge"
 	"strings"
 	"testing"
+
+	. "github.com/mmdemirbas/logmerge"
 )
 
 func TestParseTimestamp(t *testing.T) {
@@ -35,11 +36,10 @@ func TestParseTimestamp(t *testing.T) {
 		TimestampSearchEndIndex: 250,
 		IgnoreTimezoneInfo:      false,
 	}
-	m := NewParseTimestampMetrics()
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			ts := ParseTimestamp(c, m, []byte(tt.input))
+			ts := ParseTimestamp(c, []byte(tt.input))
 			actual := ts.String()
 			if strings.Compare(tt.expected, actual) != 0 {
 				t.Errorf(expectedFormat, tt.expected, tt.expected, actual, actual)

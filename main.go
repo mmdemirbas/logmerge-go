@@ -144,7 +144,7 @@ func run() error {
 		writer,
 		logFile,
 		func(file *FileHandle) error {
-			return UpdateTimestamp(config.ParseTimestampConfig, metrics.ParseTimestampMetrics, file)
+			return UpdateTimestamp(config.ParseTimestampConfig, file)
 		},
 	)
 

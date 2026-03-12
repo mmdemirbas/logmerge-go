@@ -13,9 +13,8 @@ import (
 // TODO: Consider batching metrics (e.g. accumulate data locally per 1000 lines, then merge to the global metrics)
 
 type MainMetrics struct {
-	ListFilesMetrics      *ListFilesMetrics
-	ParseTimestampMetrics *ParseTimestampMetrics
-	MergeMetrics          *MergeMetrics
+	ListFilesMetrics *ListFilesMetrics
+	MergeMetrics     *MergeMetrics
 }
 
 type MetricsTree struct {
@@ -54,9 +53,8 @@ type BucketMetric struct {
 
 func NewMetrics() *MainMetrics {
 	return &MainMetrics{
-		ListFilesMetrics:      NewListFilesMetrics(),
-		ParseTimestampMetrics: NewParseTimestampMetrics(),
-		MergeMetrics:          NewMergeMetrics(),
+		ListFilesMetrics: NewListFilesMetrics(),
+		MergeMetrics:     NewMergeMetrics(),
 	}
 }
 
@@ -269,43 +267,6 @@ func (m *MainMetrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTi
 	m.MergeMetrics.SkippedLineCounts.printBuckets(logFile)
 	m.MergeMetrics.SuccessiveLineCounts.printBuckets(logFile)
 	m.MergeMetrics.BlockLineCounts.printBuckets(logFile)
-	m.ParseTimestampMetrics.Timestamp_Lenghts.printBuckets(logFile)
-	m.ParseTimestampMetrics.Timestamp_FirstDigitIndexes.printBuckets(logFile)
-	m.ParseTimestampMetrics.Timestamp_FirstDigitIndexesActual.printBuckets(logFile)
-	m.ParseTimestampMetrics.Timestamp_LastDigitIndexes.printBuckets(logFile)
-	m.ParseTimestampMetrics.Timestamp_NanosLengths.printBuckets(logFile)
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "ParseTimestamp debugging\n")
-	fmt.Fprintf(c.LogFile, "  too short             : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_LineTooShort)
-	fmt.Fprintf(c.LogFile, "  no digit              : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_NoFirstDigit)
-	fmt.Fprintf(c.LogFile, "  too short after digit : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_LineTooShortAfterFirstDigit)
-	fmt.Fprintf(c.LogFile, "  no year               : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_NoYear)
-	fmt.Fprintf(c.LogFile, "  2-digit year 1900     : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_2DigitYear_1900)
-	fmt.Fprintf(c.LogFile, "  2-digit year 2000     : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_2DigitYear_2000)
-	fmt.Fprintf(c.LogFile, "  4-digit year out-range: %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_4DigitYear_OutOfRange)
-	fmt.Fprintf(c.LogFile, "  no month              : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_NoMonth)
-	fmt.Fprintf(c.LogFile, "  month out of range    : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_MonthOutOfRange)
-	fmt.Fprintf(c.LogFile, "  no day                : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_NoDay)
-	fmt.Fprintf(c.LogFile, "  day out of range      : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_DayOutOfRange)
-	fmt.Fprintf(c.LogFile, "  space operator mismtch: %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_SpaceOperatorMismatch)
-	fmt.Fprintf(c.LogFile, "  no hour               : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_NoHour)
-	fmt.Fprintf(c.LogFile, "  hour out of range     : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_HourOutOfRange)
-	fmt.Fprintf(c.LogFile, "  no hour separator     : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_NoHourSeparator)
-	fmt.Fprintf(c.LogFile, "  hour separator mismtch: %8s ~ %15d => %v\n", "", m.ParseTimestampMetrics.Timestamp_HourSeparatorMismatch, m.ParseTimestampMetrics.Timestamp_MismatchedHourSeparators)
-	fmt.Fprintf(c.LogFile, "  no minute             : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_NoMinute)
-	fmt.Fprintf(c.LogFile, "  minute out of range   : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_MinuteOutOfRange)
-	fmt.Fprintf(c.LogFile, "  no minute separator   : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_NoMinuteSeparator)
-	fmt.Fprintf(c.LogFile, "  minute sep. mismatch  : %8s ~ %15d => %v\n", "", m.ParseTimestampMetrics.Timestamp_MinuteSeparatorMismatch, m.ParseTimestampMetrics.Timestamp_MismatchedMinuteSeparators)
-	fmt.Fprintf(c.LogFile, "  no second             : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_NoSecond)
-	fmt.Fprintf(c.LogFile, "  second out of range   : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_SecondOutOfRange)
-	fmt.Fprintf(c.LogFile, "  has nanos             : %8s ~ %15d\n", percent(m.ParseTimestampMetrics.Timestamp_HasNanos, m.ParseTimestampMetrics.Timestamp_HasNanos+m.ParseTimestampMetrics.Timestamp_HasNotNanos), m.ParseTimestampMetrics.Timestamp_HasNanos)
-	fmt.Fprintf(c.LogFile, "  has not nanos         : %8s ~ %15d\n", percent(m.ParseTimestampMetrics.Timestamp_HasNotNanos, m.ParseTimestampMetrics.Timestamp_HasNanos+m.ParseTimestampMetrics.Timestamp_HasNotNanos), m.ParseTimestampMetrics.Timestamp_HasNotNanos)
-	fmt.Fprintf(c.LogFile, "  no timezone           : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_NoTimezone)
-	fmt.Fprintf(c.LogFile, "  UTC timezone          : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_UtcTimezone)
-	fmt.Fprintf(c.LogFile, "  non-UTC timezone      : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_NonUtcTimezone)
-	fmt.Fprintf(c.LogFile, "  timezone early return : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_TimezoneEarlyReturn)
-	fmt.Fprintf(c.LogFile, "  no timezone hour      : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_NoTimezoneHour)
-	fmt.Fprintf(c.LogFile, "  tz hour out-range     : %8s ~ %15d\n", "", m.ParseTimestampMetrics.Timestamp_TimezoneHourOutOfRange)
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== FILE LIST ==================================================================================================================================================================\n")
 	fmt.Fprintf(c.LogFile, "File list (%d files):\n", len(m.ListFilesMetrics.MatchedFiles))

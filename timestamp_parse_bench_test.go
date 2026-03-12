@@ -1,8 +1,9 @@
 package main_test
 
 import (
-	. "github.com/mmdemirbas/logmerge"
 	"testing"
+
+	. "github.com/mmdemirbas/logmerge"
 )
 
 func BenchmarkParseTimestamp(b *testing.B) {
@@ -10,9 +11,8 @@ func BenchmarkParseTimestamp(b *testing.B) {
 		ShortestTimestampLen: 15,
 		IgnoreTimezoneInfo:   false,
 	}
-	m := NewParseTimestampMetrics()
 	tsBytes := []byte(("2025-01-15 19:24:08.123Z"))
 	for n := 0; n < b.N; n++ {
-		ParseTimestamp(c, m, tsBytes)
+		ParseTimestamp(c, tsBytes)
 	}
 }
