@@ -61,10 +61,12 @@ tasks:
     deps: [ check-pgo ]
     cmds:
       - mkdir -p {{.DIST_DIR}}
-      - GOOS={{.ITEM.os}} GOARCH={{.ITEM.arch}} go build -pgo={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -ldflags="-s -w" -o {{.DIST_DIR}}/{{.BINARY_NAME}}-pgo-{{.ITEM.os}}-{{.ITEM.arch}}{{if eq .ITEM.os "windows"}}.exe{{end}} ./cmd/logmerge
-    matrix:
-      os: [ darwin, linux, windows ]
-      arch: [ amd64, arm64 ]
+      - for:
+          matrix:
+            os: [ darwin, linux, windows ]
+            arch: [ amd64, arm64 ]
+        cmd:
+          GOOS={{.ITEM.os}} GOARCH={{.ITEM.arch}} go build -pgo={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -ldflags="-s -w" -o {{.DIST_DIR}}/{{.BINARY_NAME}}-pgo-{{.ITEM.os}}-{{.ITEM.arch}}{{if eq .ITEM.os "windows"}}.exe{{end}} ./cmd/logmerge
 
   test:
     desc: "Run unit tests"
