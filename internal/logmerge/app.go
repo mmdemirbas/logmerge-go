@@ -50,8 +50,6 @@ var config = &MainConfig{
 
 var metrics *MainMetrics
 
-var GlobalMetricsTree = NewMetricsTree()
-
 // TODO: Catch interrupt signal during merge process and do the post-work anyway
 
 func Run() error {
@@ -97,7 +95,9 @@ func Run() error {
 	logFile := config.LogFile
 
 	metrics = NewMetrics()
-	GlobalMetricsTree.Enabled = config.MergeConfig.MetricsTreeEnabled
+	metrics.Tree = NewMetricsTree()
+	metrics.Tree.Enabled = config.MergeConfig.MetricsTreeEnabled
+
 	files, err := ListFiles(
 		config.ListFilesConfig,
 		metrics.ListFilesMetrics,
@@ -107,6 +107,11 @@ func Run() error {
 	)
 	if err != nil {
 		return fmt.Errorf("failed to list files: %w", err)
+	}
+
+	// Enable local metrics for each file handle
+	for _, f := range files {
+		f.Metrics.Enabled = config.MergeConfig.MetricsTreeEnabled
 	}
 
 	// Print progress periodically
@@ -134,6 +139,11 @@ func Run() error {
 			return UpdateTimestamp(config.ParseTimestampConfig, file)
 		},
 	)
+
+	// Aggregate local metrics into the main tree
+	for _, f := range files {
+		metrics.Tree.Merge(f.Metrics)
+	}
 
 	if config.ProfilingEnabled {
 		// Capture memory profile

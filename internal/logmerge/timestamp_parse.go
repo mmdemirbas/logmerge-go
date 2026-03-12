@@ -13,14 +13,14 @@ type ParseTimestampConfig struct {
 func UpdateTimestamp(c *ParseTimestampConfig, file *FileHandle) error {
 	bufLen := file.Buffer.Len()
 	if bufLen < c.TimestampSearchEndIndex {
-		startTime := GlobalMetricsTree.Start("FillBuffer")
+		startTime := file.Metrics.Start("FillBuffer")
 		err := file.FillBuffer()
 		if err != nil {
 			file.LineTimestampParsed = false
 			file.LineTimestamp = ZeroTimestamp
 			return fmt.Errorf("failed to fill buffer: %v", err)
 		}
-		GlobalMetricsTree.Stop(startTime)
+		file.Metrics.Stop(startTime)
 
 		if bufLen == 0 && file.Buffer.IsEmpty() {
 			file.LineTimestampParsed = false
@@ -29,15 +29,12 @@ func UpdateTimestamp(c *ParseTimestampConfig, file *FileHandle) error {
 		}
 	}
 
-	startTime := GlobalMetricsTree.Start("BufferAsSlice")
+	startTime := file.Metrics.Start("BufferAsSlice")
 	var latestCharWasCR bool
 	buf, _ := file.Buffer.PeekNextLineSlice(&latestCharWasCR)
-	GlobalMetricsTree.Stop(startTime)
+	file.Metrics.Stop(startTime)
 
-	startTime = GlobalMetricsTree.Start("ParseTimestamp")
 	timestamp := ParseTimestamp(c, buf)
-	GlobalMetricsTree.Stop(startTime)
-
 	file.LineTimestampParsed = true
 	file.LineTimestamp = timestamp
 	return nil

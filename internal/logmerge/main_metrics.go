@@ -15,6 +15,7 @@ import (
 type MainMetrics struct {
 	ListFilesMetrics *ListFilesMetrics
 	MergeMetrics     *MergeMetrics
+	Tree             *MetricsTree
 }
 
 type MetricsTree struct {
@@ -96,6 +97,42 @@ func NewBucketMetric(name string, levels ...int) *BucketMetric {
 	}
 }
 
+func (m *MetricsTree) Merge(other *MetricsTree) {
+	if other == nil || other.Root == nil {
+		return
+	}
+	m.Enabled = m.Enabled || other.Enabled
+	m.Root.merge(other.Root)
+	if m.HeapTotal != nil && other.HeapTotal != nil {
+		m.HeapTotal.merge(other.HeapTotal)
+	}
+}
+
+func (n *MetricsTreeNode) merge(other *MetricsTreeNode) {
+	n.Metric.merge(other.Metric)
+	if n.ChildrenByName == nil {
+		n.ChildrenByName = make(map[string]*MetricsTreeNode)
+	}
+	for name, otherChild := range other.ChildrenByName {
+		if child, exists := n.ChildrenByName[name]; exists {
+			child.merge(otherChild)
+		} else {
+			newChild := NewMetricsTreeNode(n.Metric.MetricsTree, n, name)
+			n.ChildrenByName[name] = newChild
+			n.Children = append(n.Children, newChild)
+			newChild.merge(otherChild)
+		}
+	}
+}
+
+func (c *CallMetric) merge(other *CallMetric) {
+	if other == nil {
+		return
+	}
+	c.CallCount += other.CallCount
+	c.Duration += other.Duration
+}
+
 func (m *MetricsTree) Start(name string) time.Time {
 	if !m.Enabled {
 		return time.Time{}
@@ -168,8 +205,8 @@ func (m *MainMetrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTi
 	runtime.ReadMemStats(&MemStats)
 
 	elapsedNanoseconds := elapsedTime.Nanoseconds()
-	GlobalMetricsTree.Root.Metric.Duration = elapsedNanoseconds
-	GlobalMetricsTree.Root.Metric.CallCount = 1
+	m.Tree.Root.Metric.Duration = elapsedNanoseconds
+	m.Tree.Root.Metric.CallCount = 1
 
 	logFile := c.LogFile
 
@@ -217,11 +254,13 @@ func (m *MainMetrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTi
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== TIMING SUMMARY =============================================================================================================================================================\n")
 	fmt.Fprintf(c.LogFile, "\n")
-	GlobalMetricsTree.HeapTotal.printCallMetric(logFile, bytesSpeed(m.MergeMetrics.BytesRead, elapsedNanoseconds))
+	if m.Tree.HeapTotal != nil {
+		m.Tree.HeapTotal.printCallMetric(logFile, bytesSpeed(m.MergeMetrics.BytesRead, elapsedNanoseconds))
+	}
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== TIMING BREAKDOWN ===========================================================================================================================================================\n")
 	fmt.Fprintf(c.LogFile, "\n")
-	GlobalMetricsTree.Root.printTree(logFile, 0)
+	m.Tree.Root.printTree(logFile, 0)
 	fmt.Fprintf(c.LogFile, "\n")
 	fmt.Fprintf(c.LogFile, "===== RUNTIME METRICS ============================================================================================================================================================\n")
 	fmt.Fprintf(c.LogFile, "NumCPU                               : %12v\n", runtime.NumCPU())

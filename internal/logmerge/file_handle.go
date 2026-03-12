@@ -12,13 +12,14 @@ type FileHandle struct {
 	Alias               []byte
 	AliasForBlock       []byte
 	AliasForLine        []byte
-	Size                int         // Size of the file in bytes
-	BytesRead           int         // Number of bytes read from the file
-	Done                bool        // Whether the file has been fully read
-	Buffer              *RingBuffer // Buffer for reading the file
-	LineTimestampParsed bool        // Whether the timestamp for the current line has been parsed
-	LineTimestamp       Timestamp   // The timestamp for the current line
-	BlockTimestamp      Timestamp   // The timestamp for the current block, i.e. the last non-zero timestamp
+	Size                int          // Size of the file in bytes
+	BytesRead           int          // Number of bytes read from the file
+	Done                bool         // Whether the file has been fully read
+	Buffer              *RingBuffer  // Buffer for reading the file
+	LineTimestampParsed bool         // Whether the timestamp for the current line has been parsed
+	LineTimestamp       Timestamp    // The timestamp for the current line
+	BlockTimestamp      Timestamp    // The timestamp for the current block, i.e. the last non-zero timestamp
+	Metrics             *MetricsTree // Local metrics for thread-safe tracking
 }
 
 func NewFileHandle(file *os.File, alias string, bufferSize int) (*FileHandle, error) {
@@ -37,6 +38,7 @@ func NewFileHandle(file *os.File, alias string, bufferSize int) (*FileHandle, er
 		LineTimestampParsed: false,
 		LineTimestamp:       ZeroTimestamp,
 		BlockTimestamp:      ZeroTimestamp,
+		Metrics:             NewMetricsTree(),
 	}, nil
 }
 
@@ -65,13 +67,13 @@ func (r *FileHandle) SkipLine() (bytesCount int, eolLength int, err error) {
 		}
 
 		if r.Buffer.IsEmpty() {
-			startTime := GlobalMetricsTree.Start("FillBuffer")
+			startTime := r.Metrics.Start("FillBuffer")
 			err = r.FillBuffer()
 			if err != nil {
 				err = fmt.Errorf("failed to fill buffer: %v", err)
 				return
 			}
-			GlobalMetricsTree.Stop(startTime)
+			r.Metrics.Stop(startTime)
 		}
 	}
 
@@ -95,12 +97,12 @@ func (r *FileHandle) WriteLine(m *MergeMetrics, writer *bufio.Writer) error {
 	)
 
 	for !r.Buffer.IsEmpty() || latestCharWasCR {
-		startTime := GlobalMetricsTree.Start("PeekNextLineSlice")
+		startTime := r.Metrics.Start("PeekNextLineSlice")
 		chunk, eol = r.Buffer.PeekNextLineSlice(&latestCharWasCR)
-		GlobalMetricsTree.Stop(startTime)
+		r.Metrics.Stop(startTime)
 
 		if chunk != nil {
-			startTime = GlobalMetricsTree.Start("WriteLinePartial")
+			startTime = r.Metrics.Start("WriteLinePartial")
 			var n int
 			n, err = writer.Write(chunk)
 			if err == nil {
@@ -111,7 +113,7 @@ func (r *FileHandle) WriteLine(m *MergeMetrics, writer *bufio.Writer) error {
 				}
 				count += n
 			}
-			GlobalMetricsTree.Stop(startTime)
+			r.Metrics.Stop(startTime)
 		}
 
 		if err != nil {
@@ -122,24 +124,24 @@ func (r *FileHandle) WriteLine(m *MergeMetrics, writer *bufio.Writer) error {
 		}
 
 		if r.Buffer.IsEmpty() && !latestCharWasCR {
-			startTime := GlobalMetricsTree.Start("FillBuffer")
+			startTime := r.Metrics.Start("FillBuffer")
 			err = r.FillBuffer()
 			if err != nil {
 				return fmt.Errorf("failed to fill buffer: %v", err)
 			}
-			GlobalMetricsTree.Stop(startTime)
+			r.Metrics.Stop(startTime)
 		}
 	}
 
 	// Ensure \n is written at the end of the line
 	if eol != LF && eol != CRLF {
-		startTime := GlobalMetricsTree.Start("WriteMissingNewline")
+		startTime := r.Metrics.Start("WriteMissingNewline")
 		_, err = writer.Write(newline)
 		m.BytesWrittenForMissingNewlines++
 		if err != nil {
 			return fmt.Errorf("failed to write newline: %v", err)
 		}
-		GlobalMetricsTree.Stop(startTime)
+		r.Metrics.Stop(startTime)
 	}
 
 	lineLengthWithoutEol := count
