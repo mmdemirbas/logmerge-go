@@ -10,8 +10,8 @@ import (
 
 // config defines the default configuration which will be overwritten by the configuration file
 var config = &MainConfig{
-	OutputFile: &WritableFile{os.Stdout},
-	LogFile:    &WritableFile{os.Stderr},
+	OutputFile: &WritableFile{File: os.Stdout},
+	LogFile:    &WritableFile{File: os.Stderr},
 
 	ProfilingEnabled: false,
 

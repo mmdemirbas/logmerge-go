@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
+
+	"gopkg.in/yaml.v3"
 )
 
 type MainConfig struct {
@@ -28,6 +29,13 @@ func (c *MainConfig) LoadYAML(yamlPath string) error {
 		return fmt.Errorf("failed to unmarshal YAML: %w", err)
 	}
 
+	if err := c.OutputFile.Initialize(); err != nil {
+		return err
+	}
+	if err := c.LogFile.Initialize(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -42,6 +50,7 @@ func (c *MainConfig) ToYAML() (string, error) {
 // region: WritableFile
 
 type WritableFile struct {
+	Path string
 	File *os.File
 }
 
@@ -61,23 +70,25 @@ func (f *WritableFile) MarshalYAML() (interface{}, error) {
 }
 
 func (f *WritableFile) UnmarshalYAML(value *yaml.Node) error {
-	var path string
-	if err := value.Decode(&path); err != nil {
+	if err := value.Decode(&f.Path); err != nil {
 		return fmt.Errorf("failed to decode file path: %w", err)
 	}
+	return nil
+}
 
-	if path == "" {
-		// leave default value
+func (f *WritableFile) Initialize() error {
+	if f.Path == "" {
+		// leave default value (e.g., os.Stdout/os.Stderr)
 		return nil
 	}
 
-	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
-		return fmt.Errorf("could not create directory for %s: %v", path, err)
+	if err := os.MkdirAll(filepath.Dir(f.Path), os.ModePerm); err != nil {
+		return fmt.Errorf("could not create directory for %s: %v", f.Path, err)
 	}
 
-	file, err := os.Create(path)
+	file, err := os.Create(f.Path)
 	if err != nil {
-		return fmt.Errorf("could not create file %s: %v", path, err)
+		return fmt.Errorf("could not create file %s: %v", f.Path, err)
 	}
 
 	f.File = file
