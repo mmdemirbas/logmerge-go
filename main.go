@@ -56,6 +56,7 @@ var GlobalMetricsTree = NewMetricsTree()
 
 func main() {
 	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Fatal error: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -81,9 +82,7 @@ func run() error {
 	ymlFile := os.Args[1]
 	err := config.LoadYAML(ymlFile)
 	if err != nil {
-		//goland:noinspection GoUnhandledErrorResult
-		fmt.Fprintf(os.Stderr, "failed to load configuration from file %s: %v\n", ymlFile, err)
-		return err
+		return fmt.Errorf("failed to load configuration from file %s: %w", ymlFile, err)
 	}
 
 	// Enable profiling only if configured
@@ -117,9 +116,7 @@ func run() error {
 		logFile,
 	)
 	if err != nil {
-		//goland:noinspection GoUnhandledErrorResult
-		fmt.Fprintf(config.LogFile, "failed to list files: %v", err)
-		return err
+		return fmt.Errorf("failed to list files: %w", err)
 	}
 
 	// Print progress periodically
@@ -166,10 +163,5 @@ func run() error {
 	elapsedTime := time.Since(programStartTime)
 	metrics.PrintMetrics(config, programStartTime, elapsedTime, err)
 
-	if err != nil {
-		//goland:noinspection GoUnhandledErrorResult
-		fmt.Fprintf(logFile, "%v\n", err)
-		return err
-	}
-	return nil
+	return err
 }
