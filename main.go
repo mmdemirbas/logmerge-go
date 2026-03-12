@@ -54,6 +54,12 @@ var GlobalMetricsTree = NewMetricsTree()
 // TODO: Catch interrupt signal during merge process and do the post-work anyway
 
 func main() {
+	if err := run(); err != nil {
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	// Print usage if used incorrectly
 	//goland:noinspection GoUnhandledErrorResult,
 	if len(os.Args) != 2 {
@@ -65,7 +71,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "\n")
 		fmt.Fprintf(os.Stderr, "  <confFile>   Path to the configuration file in YAML format.\n")
 		fmt.Fprintf(os.Stderr, "\n")
-		os.Exit(1)
+		return fmt.Errorf("incorrect usage")
 	}
 
 	// Measure program duration even if metrics disabled
@@ -76,7 +82,7 @@ func main() {
 	if err != nil {
 		//goland:noinspection GoUnhandledErrorResult
 		fmt.Fprintf(os.Stderr, "failed to load configuration from file %s: %v\n", ymlFile, err)
-		os.Exit(1)
+		return err
 	}
 
 	// Enable profiling only if configured
@@ -112,7 +118,7 @@ func main() {
 	if err != nil {
 		//goland:noinspection GoUnhandledErrorResult
 		fmt.Fprintf(config.LogFile, "failed to list files: %v", err)
-		os.Exit(1)
+		return err
 	}
 
 	// Print progress periodically
@@ -159,6 +165,7 @@ func main() {
 	if err != nil {
 		//goland:noinspection GoUnhandledErrorResult
 		fmt.Fprintf(logFile, "%v\n", err)
-		os.Exit(1)
+		return err
 	}
+	return nil
 }

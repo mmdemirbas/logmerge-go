@@ -11,6 +11,17 @@ func NewMinHeap(capacity int) *MinHeap {
 	}
 }
 
+func (h *MinHeap) Len() int {
+	return len(h.items)
+}
+
+func (h *MinHeap) Peek() *FileHandle {
+	if len(h.items) == 0 {
+		return nil
+	}
+	return h.items[0]
+}
+
 // Push inserts a FileHandle into the heap
 func (h *MinHeap) Push(file *FileHandle) {
 	h.items = append(h.items, file) // grow slice by 1

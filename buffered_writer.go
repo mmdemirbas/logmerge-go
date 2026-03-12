@@ -33,9 +33,11 @@ func (w *BufferedWriter) Write(data []byte) (int, error) {
 	}
 
 	// Write buffer to file
-	n, err := w.File.Write(w.Buffer)
-	if err != nil {
-		return n, err
+	{
+		_, err := w.File.Write(w.Buffer)
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	// Reset buffer

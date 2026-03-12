@@ -78,9 +78,12 @@ func ProcessFiles(
 			h.Push(file)
 		} else {
 			err = file.Close()
+			//goland:noinspection GoUnhandledErrorResult
 			if err != nil {
 				//goland:noinspection GoUnhandledErrorResult
 				fmt.Fprintf(logFile, "failed to close file %s: %v\n", file.File.Name(), err)
+			} else {
+				fmt.Fprintf(logFile, "closed file %s as it has no parsable timestamps\n", file.File.Name())
 			}
 			// Update metrics
 			m.BytesRead += int64(file.BytesRead)
@@ -89,20 +92,14 @@ func ProcessFiles(
 		}
 	}
 	GlobalMetricsTree.HeapTotal.Stop(startTime)
-
-	startTime = GlobalMetricsTree.Start("HeapPopFirst")
 	var lastPrintedAlias []byte
-	file := h.Pop()
-	var nextFile = h.Pop()
-	GlobalMetricsTree.HeapTotal.Stop(startTime)
 
-	// Merge logs
-	for file != nil {
-		// TODO: Hand off writing to a separate goroutine responsible for writing to the output
+	for h.Len() > 0 {
+		file := h.Pop()
 		skippedLineCount := 0
 
 		// Skip lines until finding an eligible line
-		for file.LineTimestampParsed && file.LineTimestamp < c.MinTimestamp {
+		for file.LineTimestampParsed && file.LineTimestamp != ZeroTimestamp && file.LineTimestamp < c.MinTimestamp {
 			skippedLineCount++
 			bytesCount, eolLength, err := file.SkipLine()
 			m.BytesReadAndSkipped += int64(bytesCount)
@@ -117,11 +114,16 @@ func ProcessFiles(
 			}
 		}
 
-		var effectiveMaxTimestamp Timestamp
-		if nextFile != nil && nextFile.LineTimestamp < c.MaxTimestamp {
-			effectiveMaxTimestamp = nextFile.LineTimestamp
-		} else {
-			effectiveMaxTimestamp = c.MaxTimestamp
+		m.LinesRead += int64(skippedLineCount)
+		m.LinesReadAndSkipped += int64(skippedLineCount)
+		m.SkippedLineCounts.UpdateBucketCount(skippedLineCount)
+
+		effectiveMaxTimestamp := c.MaxTimestamp
+		if h.Len() > 0 {
+			nextFile := h.Peek()
+			if nextFile.LineTimestamp < c.MaxTimestamp {
+				effectiveMaxTimestamp = nextFile.LineTimestamp
+			}
 		}
 
 		shouldWriteAlias := c.WriteAliasPerBlock && !bytes2.Equal(lastPrintedAlias, file.Alias)
@@ -158,18 +160,22 @@ func ProcessFiles(
 				blockLineCount += successiveLineCount
 				m.SuccessiveLineCounts.UpdateBucketCount(successiveLineCount)
 				successiveLineCount = 0
+
+				// Re-evaluate effectiveMaxTimestamp because we might have a new timestamp in 'file'
+				if file.LineTimestampParsed && file.LineTimestamp > effectiveMaxTimestamp {
+					break
+				}
 			}
 		}
 
-		m.LinesRead += int64(blockLineCount + skippedLineCount)
-		m.LinesReadAndSkipped += int64(skippedLineCount)
-		m.SkippedLineCounts.UpdateBucketCount(skippedLineCount)
-		m.BlockLineCounts.UpdateBucketCount(blockLineCount)
+		m.LinesRead += int64(blockLineCount + successiveLineCount)
+		m.BlockLineCounts.UpdateBucketCount(blockLineCount + successiveLineCount)
+		if successiveLineCount > 0 {
+			m.SuccessiveLineCounts.UpdateBucketCount(successiveLineCount)
+		}
 
 		if file.LineTimestampParsed && file.LineTimestamp <= c.MaxTimestamp {
-			startTime = GlobalMetricsTree.Start("HeapPushBack")
 			h.Push(file)
-			GlobalMetricsTree.HeapTotal.Stop(startTime)
 		} else {
 			// Close the file
 			err := file.Close()
@@ -182,11 +188,6 @@ func ProcessFiles(
 			m.BytesNotRead += int64(file.Size - file.BytesRead)
 			file.Done = true
 		}
-
-		file = nextFile
-		startTime = GlobalMetricsTree.Start("HeapPopNext")
-		nextFile = h.Pop()
-		GlobalMetricsTree.HeapTotal.Stop(startTime)
 	}
 	return nil
 }

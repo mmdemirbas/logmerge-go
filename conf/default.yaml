@@ -1,13 +1,10 @@
-OutputFile: "/Users/md/dev/mmdemirbas/logmerge/out/output.log"
-LogFile: "/Users/md/dev/mmdemirbas/logmerge/log/139-0501.err"
+OutputFile: "/Users/md/dev/mmdemirbas/logmerge-go/out/merged.log"
+LogFile: "/Users/md/dev/mmdemirbas/logmerge-go/out/stats.log"
 
 ProfilingEnabled: false
 
 ListFilesConfig:
-#  InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/" # 8184
-  InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1734940586637_0046-short-success" # 0501
-#  InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1736261418288_0021" # 0320
-#  InputPath: "/Users/md/code/spark-kit/memartscc-token-renewal/remote-test/log/application_1736999506338_0001-ANALYSIS" # 0070
+  InputPath: "/Users/md/dev/mmdemirbas/logmerge-go/examples/application_1766646997565_0051"
 
   ExcludedSuffixes: [ ".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz" ]
   IncludedSuffixes: [ ]

@@ -88,7 +88,8 @@ func UpdateTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, file *Fi
 	}
 
 	startTime := GlobalMetricsTree.Start("BufferAsSlice")
-	buf := file.Buffer.PeekSlice(parseTimestampBuffer)
+	var latestCharWasCR bool
+	buf, _ := file.Buffer.PeekNextLineSlice(&latestCharWasCR)
 	GlobalMetricsTree.Stop(startTime)
 
 	startTime = GlobalMetricsTree.Start("ParseTimestamp")

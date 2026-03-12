@@ -93,7 +93,7 @@ func (r *FileHandle) WriteLine(m *MergeMetrics, writer *BufferedWriter) error {
 		err             error = nil
 	)
 
-	for !r.Buffer.IsEmpty() {
+	for !r.Buffer.IsEmpty() || latestCharWasCR {
 		startTime := GlobalMetricsTree.Start("PeekNextLineSlice")
 		chunk, eol = r.Buffer.PeekNextLineSlice(&latestCharWasCR)
 		GlobalMetricsTree.Stop(startTime)
@@ -103,7 +103,11 @@ func (r *FileHandle) WriteLine(m *MergeMetrics, writer *BufferedWriter) error {
 			var n int
 			n, err = writer.Write(chunk)
 			if err == nil {
-				r.Buffer.Skip(n)
+				if eol == CRLF && len(chunk) == 1 && chunk[0] == '\n' {
+					// this chunk is just the '\n' part of a split CRLF
+				} else {
+					r.Buffer.Skip(n)
+				}
 				count += n
 			}
 			GlobalMetricsTree.Stop(startTime)
@@ -116,7 +120,7 @@ func (r *FileHandle) WriteLine(m *MergeMetrics, writer *BufferedWriter) error {
 			break
 		}
 
-		if r.Buffer.IsEmpty() {
+		if r.Buffer.IsEmpty() && !latestCharWasCR {
 			startTime := GlobalMetricsTree.Start("FillBuffer")
 			err = r.FillBuffer()
 			if err != nil {

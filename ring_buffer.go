@@ -182,6 +182,7 @@ func (r *RingBuffer) PeekNextLineSlice(latestCharWasCR *bool) ([]byte, EOLType) 
 	}
 
 	if *latestCharWasCR {
+		*latestCharWasCR = false
 		if buf[readIndex] == '\n' {
 			return newline, CRLF
 		} else {
