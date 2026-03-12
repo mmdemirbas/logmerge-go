@@ -54,8 +54,10 @@ func NewMergeMetrics() *MergeMetrics {
 	}
 }
 
-var cachedTimestamp = ZeroTimestamp
-var cachedTimestampString = []byte("                              ") // do not write for the timestamp-less lines at the very beginning of the files
+type writeState struct {
+	cachedTimestamp       Timestamp
+	cachedTimestampString []byte
+}
 
 func ProcessFiles(
 	c *MergeConfig,
@@ -65,6 +67,13 @@ func ProcessFiles(
 	logFile *WritableFile,
 	updateTimestamp func(file *FileHandle) error,
 ) error {
+	ws := &writeState{
+		cachedTimestamp:       ZeroTimestamp,
+		cachedTimestampString: make([]byte, 30),
+	}
+	for i := range ws.cachedTimestampString {
+		ws.cachedTimestampString[i] = ' '
+	}
 
 	startTime := GlobalMetricsTree.Start("HeapInit")
 	h := NewMinHeap(len(files))
@@ -146,7 +155,7 @@ func ProcessFiles(
 			}
 
 			successiveLineCount++
-			err := writeLine(c, m, writer, file)
+			err := writeLine(c, m, ws, writer, file)
 			if err != nil {
 				return fmt.Errorf("failed to write line: %v", err)
 			}
@@ -206,19 +215,17 @@ func doUpdateTimestamp(file *FileHandle, m *MergeMetrics, updateTimestamp func(f
 	return err
 }
 
-func writeLine(c *MergeConfig, m *MergeMetrics, writer *bufio.Writer, file *FileHandle) error {
+func writeLine(c *MergeConfig, m *MergeMetrics, ws *writeState, writer *bufio.Writer, file *FileHandle) error {
 	if c.WriteTimestampPerLine {
 		startTime := GlobalMetricsTree.Start("WriteTimestamp")
 		timestampToLog := file.BlockTimestamp
 
 		var toWrite []byte
-		if timestampToLog == cachedTimestamp {
-			toWrite = cachedTimestampString
-		} else {
-			toWrite = timestampToLog.FormatAsBytes()
-			cachedTimestamp = timestampToLog
-			cachedTimestampString = toWrite
+		if timestampToLog != ws.cachedTimestamp {
+			timestampToLog.FormatTo(ws.cachedTimestampString)
+			ws.cachedTimestamp = timestampToLog
 		}
+		toWrite = ws.cachedTimestampString
 
 		n, err := writer.Write(toWrite)
 		if err != nil {

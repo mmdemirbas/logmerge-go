@@ -44,7 +44,8 @@ func NewTimestamp(y, M, d, H, m, s, ns, tzSgn, tzH, tzM int) Timestamp {
 
 // region: String
 
-var timestampStringBuffer = []byte("1970-01-01 00:00:00.000000000 ")
+const timestampStringTemplate = "1970-01-01 00:00:00.000000000 "
+
 var extraDaysToMonthDay = make([]int, 1+365+366)
 
 const extraDaysToMonthDayShift = 4
@@ -71,10 +72,12 @@ func init() {
 }
 
 func (t Timestamp) String() string {
-	return string(t.FormatAsBytes())
+	var buf [30]byte
+	t.FormatTo(buf[:])
+	return string(buf[:])
 }
 
-func (t Timestamp) FormatAsBytes() []byte {
+func (t Timestamp) FormatTo(b []byte) {
 	nano := int64(t)
 
 	sec := int(nano / 1_000_000_000)
@@ -109,7 +112,7 @@ func (t Timestamp) FormatAsBytes() []byte {
 	day := monthDay >> extraDaysToMonthDayShift
 	month := monthDay & extraDaysToMonthMonthMask
 
-	b := timestampStringBuffer
+	copy(b, timestampStringTemplate)
 
 	b[0] = byte('0' + (year/1000)%10)
 	b[1] = byte('0' + (year/100)%10)
@@ -140,8 +143,6 @@ func (t Timestamp) FormatAsBytes() []byte {
 	b[26] = byte('0' + ((nano / 100) % 10))
 	b[27] = byte('0' + ((nano / 10) % 10))
 	b[28] = byte('0' + ((nano) % 10))
-
-	return b
 }
 
 func epochDaysIncludingYear(y int) int {

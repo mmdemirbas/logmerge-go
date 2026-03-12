@@ -10,8 +10,6 @@ type ParseTimestampConfig struct {
 	TimestampSearchEndIndex int  `yaml:"TimestampSearchEndIndex"`
 }
 
-var parseTimestampBuffer []byte
-
 func UpdateTimestamp(c *ParseTimestampConfig, file *FileHandle) error {
 	bufLen := file.Buffer.Len()
 	if bufLen < c.TimestampSearchEndIndex {
@@ -29,10 +27,6 @@ func UpdateTimestamp(c *ParseTimestampConfig, file *FileHandle) error {
 			file.LineTimestamp = ZeroTimestamp
 			return nil
 		}
-	}
-
-	if parseTimestampBuffer == nil {
-		parseTimestampBuffer = make([]byte, c.TimestampSearchEndIndex)
 	}
 
 	startTime := GlobalMetricsTree.Start("BufferAsSlice")
