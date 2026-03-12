@@ -4,6 +4,7 @@ import (
 	"bufio"
 	bytes2 "bytes"
 	"fmt"
+	"sync"
 )
 
 type MergeConfig struct {
@@ -45,6 +46,25 @@ type MergeMetrics struct {
 	BlockLineCounts        *BucketMetric
 }
 
+func (m *MergeMetrics) Merge(other *MergeMetrics) {
+	m.BytesRead += other.BytesRead
+	m.BytesReadAndSkipped += other.BytesReadAndSkipped
+	m.BytesNotRead += other.BytesNotRead
+	m.BytesWrittenForTimestamps += other.BytesWrittenForTimestamps
+	m.BytesWrittenForAliasPerLine += other.BytesWrittenForAliasPerLine
+	m.BytesWrittenForAliasPerBlock += other.BytesWrittenForAliasPerBlock
+	m.BytesWrittenForRawData += other.BytesWrittenForRawData
+	m.BytesWrittenForMissingNewlines += other.BytesWrittenForMissingNewlines
+	m.LinesRead += other.LinesRead
+	m.LinesReadAndSkipped += other.LinesReadAndSkipped
+	m.LinesWithTimestamps += other.LinesWithTimestamps
+	m.LinesWithoutTimestamps += other.LinesWithoutTimestamps
+	m.LineLengths.Merge(other.LineLengths)
+	m.SkippedLineCounts.Merge(other.SkippedLineCounts)
+	m.SuccessiveLineCounts.Merge(other.SuccessiveLineCounts)
+	m.BlockLineCounts.Merge(other.BlockLineCounts)
+}
+
 func NewMergeMetrics() *MergeMetrics {
 	return &MergeMetrics{
 		LineLengths:          NewBucketMetric("LineLengths", 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000),
@@ -77,50 +97,33 @@ func ProcessFiles(
 
 	h := NewMinHeap(len(files))
 
+	var wg sync.WaitGroup
 	for _, file := range files {
-		err := doUpdateTimestamp(file, m, updateTimestamp)
-		if err != nil {
-			return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
-		}
+		wg.Add(1)
+		go func(f *FileHandle) {
+			defer wg.Done()
+			_ = doUpdateTimestamp(f, f.MergeMetrics, updateTimestamp)
+		}(file)
+	}
+	wg.Wait()
 
+	for _, file := range files {
 		if file.LineTimestampParsed {
 			h.Push(file)
 		} else {
-			err = file.Close()
-			//goland:noinspection GoUnhandledErrorResult
-			if err != nil {
-				//goland:noinspection GoUnhandledErrorResult
-				fmt.Fprintf(logFile, "failed to close file %s: %v\n", file.File.Name(), err)
-			} else {
-				fmt.Fprintf(logFile, "closed file %s as it has no parsable timestamps\n", file.File.Name())
-			}
-			// Update metrics
-			m.BytesRead += int64(file.BytesRead)
-			m.BytesNotRead += int64(file.Size - file.BytesRead)
+			_ = file.Close()
+			fmt.Fprintf(logFile, "closed file %s as it has no parsable timestamps\n", file.File.Name())
+			file.MergeMetrics.BytesRead += int64(file.BytesRead)
+			file.MergeMetrics.BytesNotRead += int64(file.Size - file.BytesRead)
 			file.Done = true
 		}
 	}
+
 	var lastPrintedAlias []byte
 
 	for h.Len() > 0 {
 		file := h.Pop()
 		skippedLineCount := 0
-
-		// Skip lines until finding an eligible line
-		for file.LineTimestampParsed && file.LineTimestamp != ZeroTimestamp && file.LineTimestamp < c.MinTimestamp {
-			skippedLineCount++
-			bytesCount, eolLength, err := file.SkipLine()
-			m.BytesReadAndSkipped += int64(bytesCount)
-			m.LineLengths.UpdateBucketCount(bytesCount - eolLength)
-			if err != nil {
-				return fmt.Errorf("failed to skip line from %s: %v", file.File.Name(), err)
-			}
-
-			err = doUpdateTimestamp(file, m, updateTimestamp)
-			if err != nil {
-				return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
-			}
-		}
 
 		m.LinesRead += int64(skippedLineCount)
 		m.LinesReadAndSkipped += int64(skippedLineCount)
@@ -158,7 +161,7 @@ func ProcessFiles(
 				return fmt.Errorf("failed to write line: %v", err)
 			}
 
-			err = doUpdateTimestamp(file, m, updateTimestamp)
+			err = doUpdateTimestamp(file, file.MergeMetrics, updateTimestamp)
 			if err != nil {
 				return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
 			}

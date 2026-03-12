@@ -97,42 +97,6 @@ func NewBucketMetric(name string, levels ...int) *BucketMetric {
 	}
 }
 
-func (m *MetricsTree) Merge(other *MetricsTree) {
-	if other == nil || other.Root == nil {
-		return
-	}
-	m.Enabled = m.Enabled || other.Enabled
-	m.Root.merge(other.Root)
-	if m.HeapTotal != nil && other.HeapTotal != nil {
-		m.HeapTotal.merge(other.HeapTotal)
-	}
-}
-
-func (n *MetricsTreeNode) merge(other *MetricsTreeNode) {
-	n.Metric.merge(other.Metric)
-	if n.ChildrenByName == nil {
-		n.ChildrenByName = make(map[string]*MetricsTreeNode)
-	}
-	for name, otherChild := range other.ChildrenByName {
-		if child, exists := n.ChildrenByName[name]; exists {
-			child.merge(otherChild)
-		} else {
-			newChild := NewMetricsTreeNode(n.Metric.MetricsTree, n, name)
-			n.ChildrenByName[name] = newChild
-			n.Children = append(n.Children, newChild)
-			newChild.merge(otherChild)
-		}
-	}
-}
-
-func (c *CallMetric) merge(other *CallMetric) {
-	if other == nil {
-		return
-	}
-	c.CallCount += other.CallCount
-	c.Duration += other.Duration
-}
-
 func (m *MetricsTree) Start(name string) time.Time {
 	if !m.Enabled {
 		return time.Time{}
@@ -179,6 +143,39 @@ func (c *CallMetric) Stop(startNanos time.Time) {
 	c.CallCount++
 }
 
+func (m *MetricsTree) Merge(other *MetricsTree) {
+	if other == nil || other.Root == nil {
+		return
+	}
+	m.Enabled = m.Enabled || other.Enabled
+	m.Root.merge(other.Root)
+}
+
+func (n *MetricsTreeNode) merge(other *MetricsTreeNode) {
+	n.Metric.merge(other.Metric)
+	if n.ChildrenByName == nil {
+		n.ChildrenByName = make(map[string]*MetricsTreeNode)
+	}
+	for name, otherChild := range other.ChildrenByName {
+		if child, exists := n.ChildrenByName[name]; exists {
+			child.merge(otherChild)
+		} else {
+			newChild := NewMetricsTreeNode(n.Metric.MetricsTree, n, name)
+			n.ChildrenByName[name] = newChild
+			n.Children = append(n.Children, newChild)
+			newChild.merge(otherChild)
+		}
+	}
+}
+
+func (c *CallMetric) merge(other *CallMetric) {
+	if other == nil {
+		return
+	}
+	c.CallCount += other.CallCount
+	c.Duration += other.Duration
+}
+
 func (b *BucketMetric) UpdateBucketCount(n int) {
 	for i, level := range b.levels {
 		if n <= level {
@@ -190,6 +187,16 @@ func (b *BucketMetric) UpdateBucketCount(n int) {
 	b.max = max(b.max, int64(n))
 	b.sum += int64(n)
 	b.count++
+}
+
+func (b *BucketMetric) Merge(other *BucketMetric) {
+	for i := range b.values {
+		b.values[i] += other.values[i]
+	}
+	b.min = min(b.min, other.min)
+	b.max = max(b.max, other.max)
+	b.sum += other.sum
+	b.count += other.count
 }
 
 //goland:noinspection GoUnhandledErrorResult

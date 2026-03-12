@@ -114,6 +114,11 @@ func Run() error {
 		f.Metrics.Enabled = config.MergeConfig.MetricsTreeEnabled
 	}
 
+	// Propagate configuration to local metrics
+	for _, f := range files {
+		f.Metrics.Enabled = config.MergeConfig.MetricsTreeEnabled
+	}
+
 	// Print progress periodically
 	go PrintProgressPeriodically(config.PrintProgressConfig, files, programStartTime)
 	defer func() {
@@ -144,6 +149,13 @@ func Run() error {
 	for _, f := range files {
 		metrics.Tree.Merge(f.Metrics)
 	}
+
+	// Final aggregation of localized metrics
+	for _, f := range files {
+		metrics.MergeMetrics.Merge(f.MergeMetrics)
+		metrics.Tree.Merge(f.Metrics)
+	}
+	metrics.Tree.Root.Metric.Duration = time.Since(programStartTime).Nanoseconds()
 
 	if config.ProfilingEnabled {
 		// Capture memory profile

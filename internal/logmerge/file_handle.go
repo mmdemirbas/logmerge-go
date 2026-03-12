@@ -12,14 +12,15 @@ type FileHandle struct {
 	Alias               []byte
 	AliasForBlock       []byte
 	AliasForLine        []byte
-	Size                int          // Size of the file in bytes
-	BytesRead           int          // Number of bytes read from the file
-	Done                bool         // Whether the file has been fully read
-	Buffer              *RingBuffer  // Buffer for reading the file
-	LineTimestampParsed bool         // Whether the timestamp for the current line has been parsed
-	LineTimestamp       Timestamp    // The timestamp for the current line
-	BlockTimestamp      Timestamp    // The timestamp for the current block, i.e. the last non-zero timestamp
-	Metrics             *MetricsTree // Local metrics for thread-safe tracking
+	Size                int         // Size of the file in bytes
+	BytesRead           int         // Number of bytes read from the file
+	Done                bool        // Whether the file has been fully read
+	Buffer              *RingBuffer // Buffer for reading the file
+	LineTimestampParsed bool        // Whether the timestamp for the current line has been parsed
+	LineTimestamp       Timestamp   // The timestamp for the current line
+	BlockTimestamp      Timestamp   // The timestamp for the current block, i.e. the last non-zero timestamp
+	Metrics             *MetricsTree
+	MergeMetrics        *MergeMetrics
 }
 
 func NewFileHandle(file *os.File, alias string, bufferSize int) (*FileHandle, error) {
@@ -39,6 +40,7 @@ func NewFileHandle(file *os.File, alias string, bufferSize int) (*FileHandle, er
 		LineTimestamp:       ZeroTimestamp,
 		BlockTimestamp:      ZeroTimestamp,
 		Metrics:             NewMetricsTree(),
+		MergeMetrics:        NewMergeMetrics(),
 	}, nil
 }
 
