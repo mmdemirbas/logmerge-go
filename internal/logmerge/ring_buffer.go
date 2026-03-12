@@ -92,6 +92,17 @@ func (r *RingBuffer) Fill(reader io.Reader) (int, error) {
 		return 0, nil
 	}
 
+	// Realignment: If the buffer is nearly empty or data is split,
+	// move existing data to the start to maximize contiguous space.
+	if r.readIndex > 0 && (r.IsEmpty() || r.writeIndex < r.readIndex) {
+		n := r.Len()
+		if n > 0 {
+			copy(r.buf, r.String()) // Simplified move; in production use a more efficient shift
+		}
+		r.readIndex = 0
+		r.writeIndex = n
+	}
+
 	readPartSplit := (r.writeIndex - r.readIndex) >> 31 // W--R-- or --W--R or --W--R--
 	readAtZero := (r.readIndex - 1) >> 31               // R--W--
 	writePartSplit := ^readPartSplit & ^readAtZero      // --R--W-- or --R--W
