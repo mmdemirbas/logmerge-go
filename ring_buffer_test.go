@@ -482,7 +482,97 @@ func TestRingBuffer(t *testing.T) {
 		})
 	})
 
-	// TODO: Add tests for SkipNextLineSlice
-	// TODO: Add tests for PeekNextLineSlice
-	// TODO: Add tests for PeekSlice
+	t.Run("EOL Parsing", func(t *testing.T) {
+		t.Run("Empty Buffer", func(t *testing.T) {
+			r := NewRingBuffer(5)
+			latestCR := false
+			slice, eol := r.PeekNextLineSlice(&latestCR)
+			assertEquals(t, []byte(nil), slice)
+			assertEquals(t, None, eol)
+
+			n, eolSkip := r.SkipNextLineSlice(&latestCR)
+			assertEquals(t, 0, n)
+			assertEquals(t, None, eolSkip)
+		})
+
+		t.Run("No EOL", func(t *testing.T) {
+			r := NewRingBuffer(5)
+			r.Write('a')
+			r.Write('b')
+			latestCR := false
+			slice, eol := r.PeekNextLineSlice(&latestCR)
+			assertEquals(t, []byte("ab"), slice)
+			assertEquals(t, None, eol)
+
+			n, eolSkip := r.SkipNextLineSlice(&latestCR)
+			assertEquals(t, 2, n)
+			assertEquals(t, None, eolSkip)
+			assertEquals(t, 0, r.Len())
+		})
+
+		t.Run("LF only", func(t *testing.T) {
+			r := NewRingBuffer(5)
+			r.Write('a')
+			r.Write('\n')
+			r.Write('b')
+			latestCR := false
+			slice, eol := r.PeekNextLineSlice(&latestCR)
+			assertEquals(t, []byte("a\n"), slice)
+			assertEquals(t, LF, eol)
+
+			n, eolSkip := r.SkipNextLineSlice(&latestCR)
+			assertEquals(t, 2, n)
+			assertEquals(t, LF, eolSkip)
+			assertEquals(t, 1, r.Len())
+		})
+
+		t.Run("CR only", func(t *testing.T) {
+			r := NewRingBuffer(5)
+			r.Write('a')
+			r.Write('\r')
+			r.Write('b')
+			latestCR := false
+			slice, eol := r.PeekNextLineSlice(&latestCR)
+			assertEquals(t, []byte("a\r"), slice)
+			assertEquals(t, CR, eol)
+
+			n, eolSkip := r.SkipNextLineSlice(&latestCR)
+			assertEquals(t, 2, n)
+			assertEquals(t, CR, eolSkip)
+			assertEquals(t, 1, r.Len())
+		})
+
+		t.Run("CRLF", func(t *testing.T) {
+			r := NewRingBuffer(5)
+			r.Write('a')
+			r.Write('\r')
+			r.Write('\n')
+			latestCR := false
+			slice, eol := r.PeekNextLineSlice(&latestCR)
+			assertEquals(t, []byte("a\r\n"), slice)
+			assertEquals(t, CRLF, eol)
+		})
+
+		t.Run("Split CRLF", func(t *testing.T) {
+			r := NewRingBuffer(5)
+			latestCR := true
+			r.Write('\n')
+			slice, eol := r.PeekNextLineSlice(&latestCR)
+			assertEquals(t, []byte("\n"), slice)
+			assertEquals(t, CRLF, eol)
+			assertEquals(t, false, latestCR)
+		})
+	})
+
+	t.Run("PeekSlice", func(t *testing.T) {
+		r := NewRingBuffer(5)
+		r.Write('a')
+		r.Write('b')
+		r.Write('c')
+
+		buf := make([]byte, 5)
+		res := r.PeekSlice(buf)
+		assertEquals(t, []byte("abc"), res)
+		assertEquals(t, 3, r.Len())
+	})
 }
