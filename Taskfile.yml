@@ -80,6 +80,12 @@ tasks:
       - go test -bench=. -benchmem ./internal/logmerge -run=^$ -benchtime=5s -cpuprofile={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -memprofile={{.OUT_DIR}}/{{.MEM_PROF_FILE}} -trace={{.OUT_DIR}}/{{.TRACE_FILE}}
       - mv logmerge.test {{.OUT_DIR}}/logmerge.test || true
 
+  profile:
+    desc: "Run benchmark and immediately open CPU flame graph"
+    cmds:
+      - task: benchmark
+      - task: inspect-cpu
+
   run:
     desc: "Run the application locally"
     vars:
@@ -103,7 +109,7 @@ tasks:
   inspect-cpu:
     desc: "Browse captured CPU profile in a web browser"
     cmds:
-      - go tool pprof -http=:8080 {{.OUT_DIR}}/{{.CPU_PROF_FILE}}
+      - go tool pprof -http=:8080 {{.OUT_DIR}}/{{.CPU_PROF_FILE}} & sleep 2 && open http://localhost:8080/ui/flamegraph
 
   inspect-mem:
     desc: "Browse captured memory profile in a web browser"

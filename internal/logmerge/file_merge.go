@@ -158,8 +158,9 @@ func doProcessFiles(
 	for _, file := range files {
 		if file.LineTimestampParsed {
 			h.Push(file)
-		} else {
-			_ = file.Close()
+		} else if file.BytesRead > 0 {
+			// Only log if we actually tried to read data and found nothing
+			// This prevents double-logging during benchmark resets
 			fmt.Fprintf(logFile, "closed file %s as it has no parsable timestamps\n", file.File.Name())
 			file.MergeMetrics.BytesRead += int64(file.BytesRead)
 			file.MergeMetrics.BytesNotRead += int64(file.Size - file.BytesRead)
