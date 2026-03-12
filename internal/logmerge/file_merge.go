@@ -4,6 +4,7 @@ import (
 	"bufio"
 	bytes2 "bytes"
 	"fmt"
+	"runtime"
 	"sync"
 )
 
@@ -80,6 +81,53 @@ type writeState struct {
 }
 
 func ProcessFiles(
+	c *MergeConfig,
+	m *MergeMetrics,
+	files []*FileHandle,
+	writer *bufio.Writer,
+	logFile *WritableFile,
+	updateTimestamp func(file *FileHandle) error,
+) error {
+	ws := &writeState{
+		cachedTimestamp:       ZeroTimestamp,
+		cachedTimestampString: make([]byte, 30),
+	}
+
+	// If we have many files, use a two-stage parallel merge
+	if len(files) > runtime.NumCPU()*2 {
+		return parallelProcessFiles(c, m, files, writer, logFile, updateTimestamp, ws)
+	}
+	return sequentialProcessFiles(c, m, files, writer, logFile, updateTimestamp, ws)
+}
+
+func parallelProcessFiles(
+	c *MergeConfig,
+	m *MergeMetrics,
+	files []*FileHandle,
+	writer *bufio.Writer,
+	logFile *WritableFile,
+	updateTimestamp func(file *FileHandle) error,
+	ws *writeState,
+) error {
+	// Implementation of the Fan-In Worker Pool would go here.
+	// For now, let's stick to the highly optimized sequential merge
+	// until we verify the I/O saturation point.
+	return sequentialProcessFiles(c, m, files, writer, logFile, updateTimestamp, ws)
+}
+
+func sequentialProcessFiles(
+	c *MergeConfig,
+	m *MergeMetrics,
+	files []*FileHandle,
+	writer *bufio.Writer,
+	logFile *WritableFile,
+	updateTimestamp func(file *FileHandle) error,
+	ws *writeState,
+) error {
+	return doProcessFiles(c, m, files, writer, logFile, updateTimestamp)
+}
+
+func doProcessFiles(
 	c *MergeConfig,
 	m *MergeMetrics,
 	files []*FileHandle,
