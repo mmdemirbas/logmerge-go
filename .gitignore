@@ -3,7 +3,9 @@
 *.out
 *.test
 /.idea/
+/.task/
 /build/
+/dist/
+/examples/application*
 /log/
 /out/
-/examples/application*

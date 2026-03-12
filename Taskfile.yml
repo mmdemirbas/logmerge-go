@@ -3,6 +3,7 @@ version: '3'
 vars:
   BINARY_NAME: logmerge
   BIN_DIR: build
+  DIST_DIR: dist
   OUT_DIR: out
   CPU_PROF_FILE: cpu.prof
   MEM_PROF_FILE: mem.prof
@@ -29,6 +30,7 @@ tasks:
     desc: "Clean build artifacts and profiling data"
     cmds:
       - rm -rf {{.BIN_DIR}} {{.OUT_DIR}}
+      - rm -rf {{.DIST_DIR}} {{.OUT_DIR}}
 
   build:
     desc: "Build the binary for the current OS"
@@ -58,8 +60,8 @@ tasks:
     desc: "Cross-compile binaries with PGO for all target platforms"
     deps: [ check-pgo ]
     cmds:
-      - mkdir -p {{.BIN_DIR}}
-      - GOOS={{.ITEM.os}} GOARCH={{.ITEM.arch}} go build -pgo={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}}-pgo-{{.ITEM.os}}-{{.ITEM.arch}}{{if eq .ITEM.os "windows"}}.exe{{end}} ./cmd/logmerge
+      - mkdir -p {{.DIST_DIR}}
+      - GOOS={{.ITEM.os}} GOARCH={{.ITEM.arch}} go build -pgo={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -ldflags="-s -w" -o {{.DIST_DIR}}/{{.BINARY_NAME}}-pgo-{{.ITEM.os}}-{{.ITEM.arch}}{{if eq .ITEM.os "windows"}}.exe{{end}} ./cmd/logmerge
     matrix:
       os: [ darwin, linux, windows ]
       arch: [ amd64, arm64 ]
