@@ -1,7 +1,7 @@
-package main_test
+package logmerge_test
 
 import (
-	. "github.com/mmdemirbas/logmerge"
+	. "github.com/mmdemirbas/logmerge/internal/logmerge"
 	"testing"
 )
 

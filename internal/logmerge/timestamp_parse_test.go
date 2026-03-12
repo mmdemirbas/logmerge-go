@@ -1,10 +1,10 @@
-package main_test
+package logmerge_test
 
 import (
 	"strings"
 	"testing"
 
-	. "github.com/mmdemirbas/logmerge"
+	. "github.com/mmdemirbas/logmerge/internal/logmerge"
 )
 
 func TestParseTimestamp(t *testing.T) {

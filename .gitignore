@@ -3,7 +3,7 @@
 *.out
 *.test
 /.idea/
-/bin/
+/build/
 /log/
 /out/
 /examples/application*

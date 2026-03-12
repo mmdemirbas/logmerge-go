@@ -40,11 +40,11 @@ tasks:
       - "{{.BIN_DIR}}/{{.BINARY_NAME}}{{exeExt}}"
     cmds:
       - mkdir -p {{.BIN_DIR}}
-      - go build -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}}{{exeExt}} *.go
+      - go build -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}}{{exeExt}} ./cmd/logmerge
 
   build-pgo:
     desc: "Build the binary for the current OS with PGO"
-    deps: [check-pgo]
+    deps: [ check-pgo ]
     sources:
       - "**/*.go"
       - "{{.OUT_DIR}}/{{.CPU_PROF_FILE}}"
@@ -52,17 +52,17 @@ tasks:
       - "{{.BIN_DIR}}/{{.BINARY_NAME}}-pgo{{exeExt}}"
     cmds:
       - mkdir -p {{.BIN_DIR}}
-      - go build -pgo={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}}-pgo{{exeExt}} *.go
+      - go build -pgo={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}}-pgo{{exeExt}} ./cmd/logmerge
 
   dist:
     desc: "Cross-compile binaries with PGO for all target platforms"
-    deps: [check-pgo]
+    deps: [ check-pgo ]
     cmds:
       - mkdir -p {{.BIN_DIR}}
-      - GOOS={{.ITEM.os}} GOARCH={{.ITEM.arch}} go build -pgo={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}}-pgo-{{.ITEM.os}}-{{.ITEM.arch}}{{if eq .ITEM.os "windows"}}.exe{{end}} *.go
+      - GOOS={{.ITEM.os}} GOARCH={{.ITEM.arch}} go build -pgo={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}}-pgo-{{.ITEM.os}}-{{.ITEM.arch}}{{if eq .ITEM.os "windows"}}.exe{{end}} ./cmd/logmerge
     matrix:
-      os: [darwin, linux, windows]
-      arch: [amd64, arm64]
+      os: [ darwin, linux, windows ]
+      arch: [ amd64, arm64 ]
 
   test:
     desc: "Run unit tests"
@@ -73,7 +73,7 @@ tasks:
     desc: "Run benchmark tests and capture CPU and memory profiles"
     cmds:
       - mkdir -p {{.OUT_DIR}}
-      - go test -bench=. -benchmem ./... -run=^$ -benchtime=5s -cpuprofile={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -memprofile={{.OUT_DIR}}/{{.MEM_PROF_FILE}} -trace={{.OUT_DIR}}/{{.TRACE_FILE}}
+      - go test -bench=. -benchmem ./internal/logmerge -run=^$ -benchtime=5s -cpuprofile={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -memprofile={{.OUT_DIR}}/{{.MEM_PROF_FILE}} -trace={{.OUT_DIR}}/{{.TRACE_FILE}}
       - mv logmerge.test {{.OUT_DIR}}/logmerge.test || true
 
   run:
@@ -82,8 +82,8 @@ tasks:
       CONF_FILE: '{{default "conf/default.yaml" .CONF_FILE}}'
     cmds:
       - mkdir -p {{.BIN_DIR}}
-      - go build -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}}{{exeExt}} *.go
-      - {{.BIN_DIR}}/{{.BINARY_NAME}}{{exeExt}} {{.CONF_FILE}}
+      - go build -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}}{{exeExt}} ./cmd/logmerge
+      - "{{.BIN_DIR}}/{{.BINARY_NAME}}{{exeExt}} {{.CONF_FILE}}"
 
   trace:
     desc: "Run the application with GC tracing enabled"
@@ -92,7 +92,9 @@ tasks:
     env:
       GODEBUG: gctrace=1
     cmds:
-      - task: run CONF_FILE={{.CONF_FILE}}
+      - task: run
+        vars:
+          CONF_FILE: '{{.CONF_FILE}}'
 
   inspect-cpu:
     desc: "Browse captured CPU profile in a web browser"

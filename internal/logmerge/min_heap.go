@@ -1,4 +1,4 @@
-package main
+package logmerge
 
 // MinHeap is a specialized priority queue for FileHandle
 type MinHeap struct {

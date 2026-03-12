@@ -1,4 +1,4 @@
-package main
+package logmerge
 
 import (
 	"bufio"
@@ -54,16 +54,8 @@ var GlobalMetricsTree = NewMetricsTree()
 
 // TODO: Catch interrupt signal during merge process and do the post-work anyway
 
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Fatal error: %v\n", err)
-		os.Exit(1)
-	}
-}
-
-func run() error {
+func Run() error {
 	// Print usage if used incorrectly
-	//goland:noinspection GoUnhandledErrorResult,
 	if len(os.Args) != 2 {
 		fmt.Fprintf(os.Stderr, "logmerge\n")
 		fmt.Fprintf(os.Stderr, "  Merge multiple log files into a single file while preserving the chronological order of log lines.\n")
@@ -90,12 +82,10 @@ func run() error {
 		// Start CPU profiling
 		cpuFile, err := os.Create("out/cpu.prof")
 		if err != nil {
-			//goland:noinspection GoUnhandledErrorResult
 			fmt.Fprintf(config.LogFile, "could not create CPU profile: %v\n", err)
 		} else {
 			defer cpuFile.Close()
 			if err := pprof.StartCPUProfile(cpuFile); err != nil {
-				//goland:noinspection GoUnhandledErrorResult
 				fmt.Fprintf(config.LogFile, "could not start CPU profile: %v\n", err)
 			} else {
 				defer pprof.StopCPUProfile()
@@ -149,12 +139,10 @@ func run() error {
 		// Capture memory profile
 		memFile, err := os.Create("out/mem.prof")
 		if err != nil {
-			//goland:noinspection GoUnhandledErrorResult
 			fmt.Fprintf(config.LogFile, "could not create memory profile: %v\n", err)
 		} else {
 			defer memFile.Close()
 			if err := pprof.WriteHeapProfile(memFile); err != nil {
-				//goland:noinspection GoUnhandledErrorResult
 				fmt.Fprintf(config.LogFile, "could not write memory profile: %v\n", err)
 			}
 		}
