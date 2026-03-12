@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // TODO: Consider bitwise operation to multiply with 1e9 = 2^9 * 5^9 => *5 = x << 2 + x
@@ -150,11 +151,11 @@ func epochDaysIncludingYear(y int) int {
 }
 
 func isLeapYear(y int) int {
-	y4 := y >> 2
-	return ((y&0x03 - 1) & ((y4&0x03 - 1) | (^(y4%25 - 1)))) >> 31
+	if y%4 == 0 && (y%100 != 0 || y%400 == 0) {
+		return -1
+	}
+	return 0
 }
-
-// endregion: String
 
 // region: YAML
 

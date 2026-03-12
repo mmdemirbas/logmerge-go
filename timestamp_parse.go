@@ -106,7 +106,9 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 	b := buffer[i]
 
 	// if b == '-' || b == '/' { i++ }
-	i -= ((int(b)^int('-'))*(int(b)^int('/')) - 1) >> 31
+	if b == '-' || b == '/' {
+		i++
+	}
 
 	month, mcount := parseMax2Digits(buffer, n, i)
 	if mcount == 0 {
@@ -120,7 +122,9 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 	b = buffer[i]
 
 	// if b == '-' || b == '/' { i++ }
-	i -= ((int(b)^int('-'))&(int(b)^int('/')) - 1) >> 31
+	if b == '-' || b == '/' {
+		i++
+	}
 
 	day, dcount := parseMax2Digits(buffer, n, i)
 	if dcount == 0 {
@@ -257,22 +261,19 @@ func parseDigits(buffer []byte, n int, i int, maxCount int) (val int, count int)
 }
 
 func parseMax2Digits(buffer []byte, n int, i int) (int, int) {
+	if i >= n {
+		return 0, 0
+	}
+	b1 := buffer[i]
+	if b1 < '0' || b1 > '9' {
+		return 0, 0
+	}
+	v := int(b1 - '0')
 	if i+1 < n {
-		b1 := int(buffer[i])
-		b2 := int(buffer[i+1])
-
-		isDigit1 := ((47 - b1) >> 31) & ((b1 - 58) >> 31)
-		isDigit2 := ((47 - b2) >> 31) & ((b2 - 58) >> 31)
-
-		oneDigit := isDigit1 & ^isDigit2
-		twoDigits := isDigit1 & isDigit2
-
-		return twoDigits&(10*b1+b2-528) | oneDigit&(b1-48), twoDigits&2 | oneDigit&1
+		b2 := buffer[i+1]
+		if b2 >= '0' && b2 <= '9' {
+			return v*10 + int(b2-'0'), 2
+		}
 	}
-	if i < n {
-		b1 := int(buffer[i])
-		isDigit := ((47 - b1) >> 31) & ((b1 - 58) >> 31)
-		return isDigit&(b1-48) | ^isDigit, isDigit
-	}
-	return 0, 0
+	return v, 1
 }
