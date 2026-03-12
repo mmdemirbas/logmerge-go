@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -84,7 +85,7 @@ func (r *FileHandle) SkipLine() (bytesCount int, eolLength int, err error) {
 	return
 }
 
-func (r *FileHandle) WriteLine(m *MergeMetrics, writer *BufferedWriter) error {
+func (r *FileHandle) WriteLine(m *MergeMetrics, writer *bufio.Writer) error {
 	var (
 		count           = 0
 		latestCharWasCR = false

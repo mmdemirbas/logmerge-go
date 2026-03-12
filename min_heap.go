@@ -56,6 +56,7 @@ func (h *MinHeap) Pop() *FileHandle {
 
 	n--                   // length decreased by 1
 	last := h.items[n]    // last item which will be re-located
+	h.items[n] = nil      // Prevent memory leak by clearing the pointer
 	h.items = h.items[:n] // shorten slice by 1
 
 	index := 0               // start at the root

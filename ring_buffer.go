@@ -217,7 +217,7 @@ func (r *RingBuffer) PeekSlice(buffer []byte) []byte {
 	readIndex := r.readIndex
 	capacity := r.cap
 
-	outLen := FastMin(cap(buffer), r.Len())
+	outLen := min(cap(buffer), r.Len())
 	tailLen := readIndex + outLen - capacity
 	if tailLen <= 0 {
 		return r.buf[readIndex : readIndex+outLen]

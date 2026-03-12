@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"runtime/pprof"
@@ -129,8 +130,11 @@ func run() error {
 		}
 	}()
 
-	writer := NewBufferedWriter(outputFile, config.MergeConfig.BufferSizeForWrite)
-	defer writer.Close()
+	writer := bufio.NewWriterSize(outputFile, config.MergeConfig.BufferSizeForWrite)
+	defer func() {
+		writer.Flush()
+		outputFile.Close()
+	}()
 
 	// Process files
 	err = ProcessFiles(

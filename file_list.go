@@ -42,7 +42,7 @@ func ListFiles(c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, min
 		return nil, fmt.Errorf("no files found")
 	}
 
-	perFileBufferSize := FastMax(minBufferSizePerFile, totalBufferSize/len(fileList))
+	perFileBufferSize := max(minBufferSizePerFile, totalBufferSize/len(fileList))
 	maxAliasLen := 0
 
 	files = make([]*FileHandle, len(fileList))

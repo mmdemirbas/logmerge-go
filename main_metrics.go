@@ -151,8 +151,8 @@ func (b *BucketMetric) UpdateBucketCount(n int) {
 			break
 		}
 	}
-	b.min = FastMin64(b.min, int64(n))
-	b.max = FastMax64(b.max, int64(n))
+	b.min = min(b.min, int64(n))
+	b.max = max(b.max, int64(n))
 	b.sum += int64(n)
 	b.count++
 }

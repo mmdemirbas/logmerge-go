@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	bytes2 "bytes"
 	"fmt"
 )
@@ -60,7 +61,7 @@ func ProcessFiles(
 	c *MergeConfig,
 	m *MergeMetrics,
 	files []*FileHandle,
-	writer *BufferedWriter,
+	writer *bufio.Writer,
 	logFile *WritableFile,
 	updateTimestamp func(file *FileHandle) error,
 ) error {
@@ -205,7 +206,7 @@ func doUpdateTimestamp(file *FileHandle, m *MergeMetrics, updateTimestamp func(f
 	return err
 }
 
-func writeLine(c *MergeConfig, m *MergeMetrics, writer *BufferedWriter, file *FileHandle) error {
+func writeLine(c *MergeConfig, m *MergeMetrics, writer *bufio.Writer, file *FileHandle) error {
 	if c.WriteTimestampPerLine {
 		startTime := GlobalMetricsTree.Start("WriteTimestamp")
 		timestampToLog := file.BlockTimestamp

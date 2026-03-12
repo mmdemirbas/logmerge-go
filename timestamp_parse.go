@@ -102,7 +102,7 @@ func UpdateTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, file *Fi
 }
 
 func ParseTimestamp(c *ParseTimestampConfig, m *ParseTimestampMetrics, buffer []byte) Timestamp {
-	n := FastMin(len(buffer), c.TimestampSearchEndIndex)
+	n := min(len(buffer), c.TimestampSearchEndIndex)
 
 	var timestamp Timestamp
 	for i := 0; timestamp == ZeroTimestamp && i < n; {
