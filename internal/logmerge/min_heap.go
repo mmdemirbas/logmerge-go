@@ -1,63 +1,70 @@
 package logmerge
 
+type heapEntry struct {
+	timestamp Timestamp
+	file      *FileHandle
+}
+
 // MinHeap is a specialized priority queue for FileHandle
 type MinHeap struct {
-	items []*FileHandle
+	entries []heapEntry
 }
 
 func NewMinHeap(capacity int) *MinHeap {
 	return &MinHeap{
-		items: make([]*FileHandle, 0, capacity),
+		entries: make([]heapEntry, 0, capacity),
 	}
 }
 
 func (h *MinHeap) Len() int {
-	return len(h.items)
+	return len(h.entries)
 }
 
 func (h *MinHeap) Peek() *FileHandle {
-	if len(h.items) == 0 {
+	if len(h.entries) == 0 {
 		return nil
 	}
-	return h.items[0]
+	return h.entries[0].file
 }
 
 // Push inserts a FileHandle into the heap
 func (h *MinHeap) Push(file *FileHandle) {
-	h.items = append(h.items, file) // grow slice by 1
+	ts := file.LineTimestamp
+	h.entries = append(h.entries, heapEntry{timestamp: ts, file: file})
 
-	index := len(h.items) - 1 // start at the end
+	index := len(h.entries) - 1
 	for index > 0 {
 		parent := (index - 1) >> 1
-		if file.LineTimestamp >= h.items[parent].LineTimestamp {
+		if ts >= h.entries[parent].timestamp {
 			// new item is in correct place (not smaller than parent)
 			break
 		}
 
-		h.items[index] = h.items[parent] // shift parent down
-		index = parent                   // move up one level
+		h.entries[index] = h.entries[parent] // shift parent down
+		index = parent                       // move up one level
 	}
 
-	h.items[index] = file
+	h.entries[index] = heapEntry{timestamp: ts, file: file}
 }
 
 // Pop removes and returns the smallest Timestamp FileHandle
 func (h *MinHeap) Pop() *FileHandle {
-	n := len(h.items)
+	n := len(h.entries)
 	if n == 0 {
 		return nil // empty heap
 	}
 
-	root := h.items[0] // smallest item is at root
+	root := h.entries[0].file // smallest item is at root
 	if n == 1 {
-		h.items = h.items[:0] // clear slice
+		h.entries = h.entries[:0] // clear slice
 		return root
 	}
 
-	n--                   // length decreased by 1
-	last := h.items[n]    // last item which will be re-located
-	h.items[n] = nil      // Prevent memory leak by clearing the pointer
-	h.items = h.items[:n] // shorten slice by 1
+	n--                        // length decreased by 1
+	last := h.entries[n]       // last item which will be re-located
+	h.entries[n] = heapEntry{} // Prevent memory leak by clearing the pointer
+	h.entries = h.entries[:n]  // shorten slice by 1
+	h.entries = h.entries[:n]
 
 	index := 0               // start at the root
 	firstLeafIndex := n >> 1 // index of first leaf node
@@ -66,19 +73,19 @@ func (h *MinHeap) Pop() *FileHandle {
 		left := (index << 1) + 1
 		right := left + 1
 
-		smallestChild, indexOfSmallestChild := h.items[left], left
-		if right < n && h.items[right].LineTimestamp < smallestChild.LineTimestamp {
-			smallestChild, indexOfSmallestChild = h.items[right], right
+		smallestChild, indexOfSmallestChild := h.entries[left], left
+		if right < n && h.entries[right].timestamp < smallestChild.timestamp {
+			smallestChild, indexOfSmallestChild = h.entries[right], right
 		}
 
-		if last.LineTimestamp <= smallestChild.LineTimestamp {
+		if last.timestamp <= smallestChild.timestamp {
 			break
 		}
 
-		h.items[index] = smallestChild
+		h.entries[index] = smallestChild
 		index = indexOfSmallestChild
 	}
 
-	h.items[index] = last
+	h.entries[index] = last
 	return root
 }
