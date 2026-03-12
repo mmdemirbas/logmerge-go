@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -100,11 +101,11 @@ func listFilePaths(c *ListFilesConfig, m *ListFilesMetrics) (files []string, err
 		return nil, fmt.Errorf("could not stat %s: %v", basePath, err)
 
 	case stat.IsDir():
-		err = filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
+		err = filepath.WalkDir(basePath, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return fmt.Errorf("could not walk %s: %v", path, err)
 			}
-			if info.IsDir() {
+			if d.IsDir() {
 				m.DirsScanned++
 			} else {
 				visitFile(c, m, path, &files)
