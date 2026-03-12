@@ -1,6 +1,7 @@
 package logmerge
 
 import (
+	bytes2 "bytes"
 	"io"
 )
 
@@ -142,15 +143,13 @@ func (r *RingBuffer) SkipNextLineSlice(latestCharWasCR *bool) (int, EOLType) {
 	// (readIndex < writeIndex) ? writeIndex : cap (we are sure that readIndex != writeIndex)
 	searchUntil := ((readIndex-writeIndex)>>31)&writeIndex | ((writeIndex-readIndex)>>31)&r.cap
 
-	// skip until EOL
-	i := readIndex
-	for ; i < searchUntil && buf[i] != '\r' && buf[i] != '\n'; i++ {
-	}
-
-	if i == searchUntil {
+	idx := bytes2.IndexAny(buf[readIndex:searchUntil], "\r\n")
+	if idx == -1 {
 		r.Skip(searchUntil - readIndex)
 		return searchUntil - readIndex, None
 	}
+
+	i := readIndex + idx
 	if buf[i] == '\r' {
 		if i+1 == searchUntil {
 			*latestCharWasCR = true
@@ -193,14 +192,12 @@ func (r *RingBuffer) PeekNextLineSlice(latestCharWasCR *bool) ([]byte, EOLType) 
 	// (readIndex < writeIndex) ? writeIndex : cap (we are sure that readIndex != writeIndex)
 	searchUntil := ((readIndex-writeIndex)>>31)&writeIndex | ((writeIndex-readIndex)>>31)&r.cap
 
-	// find EOL
-	i := readIndex
-	for ; i < searchUntil && buf[i] != '\r' && buf[i] != '\n'; i++ {
-	}
-
-	if i == searchUntil {
+	idx := bytes2.IndexAny(buf[readIndex:searchUntil], "\r\n")
+	if idx == -1 {
 		return buf[readIndex:searchUntil], None
 	}
+
+	i := readIndex + idx
 	if buf[i] == '\r' {
 		*latestCharWasCR = i+1 == searchUntil
 		if *latestCharWasCR {
