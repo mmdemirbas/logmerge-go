@@ -1,0 +1,130 @@
+version: '3'
+
+vars:
+  BINARY_NAME: logmerge
+  BIN_DIR: build
+  OUT_DIR: out
+  CPU_PROF_FILE: cpu.prof
+  MEM_PROF_FILE: mem.prof
+  TRACE_FILE: trace.out
+
+env:
+  # Statically link binaries globally
+  CGO_ENABLED: '0'
+
+tasks:
+  default:
+    desc: "List all available tasks"
+    cmds:
+      - task -l
+
+  all:
+    desc: "Clean, test, and build the project"
+    cmds:
+      - task: clean
+      - task: test
+      - task: build
+
+  clean:
+    desc: "Clean build artifacts and profiling data"
+    cmds:
+      - rm -rf {{.BIN_DIR}} {{.OUT_DIR}}
+
+  build:
+    desc: "Build the binary for the current OS"
+    sources:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+    generates:
+      - "{{.BIN_DIR}}/{{.BINARY_NAME}}{{exeExt}}"
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - go build -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}}{{exeExt}} *.go
+
+  build-pgo:
+    desc: "Build the binary for the current OS with PGO"
+    deps: [check-pgo]
+    sources:
+      - "**/*.go"
+      - "{{.OUT_DIR}}/{{.CPU_PROF_FILE}}"
+    generates:
+      - "{{.BIN_DIR}}/{{.BINARY_NAME}}-pgo{{exeExt}}"
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - go build -pgo={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}}-pgo{{exeExt}} *.go
+
+  dist:
+    desc: "Cross-compile binaries with PGO for all target platforms"
+    deps: [check-pgo]
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - GOOS={{.ITEM.os}} GOARCH={{.ITEM.arch}} go build -pgo={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}}-pgo-{{.ITEM.os}}-{{.ITEM.arch}}{{if eq .ITEM.os "windows"}}.exe{{end}} *.go
+    matrix:
+      os: [darwin, linux, windows]
+      arch: [amd64, arm64]
+
+  test:
+    desc: "Run unit tests"
+    cmds:
+      - go test -v ./...
+
+  benchmark:
+    desc: "Run benchmark tests and capture CPU and memory profiles"
+    cmds:
+      - mkdir -p {{.OUT_DIR}}
+      - go test -bench=. -benchmem ./... -run=^$ -benchtime=5s -cpuprofile={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -memprofile={{.OUT_DIR}}/{{.MEM_PROF_FILE}} -trace={{.OUT_DIR}}/{{.TRACE_FILE}}
+      - mv logmerge.test {{.OUT_DIR}}/logmerge.test || true
+
+  run:
+    desc: "Run the application locally"
+    vars:
+      CONF_FILE: '{{default "conf/default.yaml" .CONF_FILE}}'
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - go build -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}}{{exeExt}} *.go
+      - {{.BIN_DIR}}/{{.BINARY_NAME}}{{exeExt}} {{.CONF_FILE}}
+
+  trace:
+    desc: "Run the application with GC tracing enabled"
+    vars:
+      CONF_FILE: '{{default "conf/default.yaml" .CONF_FILE}}'
+    env:
+      GODEBUG: gctrace=1
+    cmds:
+      - task: run CONF_FILE={{.CONF_FILE}}
+
+  inspect-cpu:
+    desc: "Browse captured CPU profile in a web browser"
+    cmds:
+      - go tool pprof -http=:8080 {{.OUT_DIR}}/{{.CPU_PROF_FILE}}
+
+  inspect-mem:
+    desc: "Browse captured memory profile in a web browser"
+    cmds:
+      - go tool pprof -http=:8080 {{.OUT_DIR}}/{{.MEM_PROF_FILE}}
+
+  inspect-trace:
+    desc: "View execution trace"
+    cmds:
+      - echo "Launching trace viewer..."
+      - go tool trace {{.OUT_DIR}}/{{.TRACE_FILE}}
+
+  inspect-cpu-interactive:
+    desc: "Browse captured CPU profile in an interactive shell"
+    cmds:
+      - go tool pprof {{.OUT_DIR}}/{{.CPU_PROF_FILE}}
+
+  inspect-mem-interactive:
+    desc: "Browse captured memory profile in an interactive shell"
+    cmds:
+      - go tool pprof {{.OUT_DIR}}/{{.MEM_PROF_FILE}}
+
+  check-pgo:
+    internal: true
+    cmds:
+      - |
+        if [ ! -f {{.OUT_DIR}}/{{.CPU_PROF_FILE}} ]; then
+          echo "Error: {{.OUT_DIR}}/{{.CPU_PROF_FILE}} not found. Run 'task benchmark' first."
+          exit 1
+        fi

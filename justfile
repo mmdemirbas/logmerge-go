@@ -42,6 +42,20 @@ build:
         done \
     done
 
+# Build binaries with Profile-Guided Optimization (PGO)
+[group("common")]
+build-pgo:
+	@if [ ! -f {{ OUT_DIR }}/{{ CPU_PROF_FILE }} ]; then echo "Error: {{ OUT_DIR }}/{{ CPU_PROF_FILE }} not found. Run 'just benchmark' first."; exit 1; fi
+	mkdir -p {{ BIN_DIR }}
+	for goos in darwin windows linux; do \
+		[ $goos = windows ] && ext=".exe" || ext=""; \
+		for goarch in amd64 arm64; do \
+			CGO_ENABLED=0 GOOS=$goos GOARCH=$goarch go build -pgo={{ OUT_DIR }}/{{ CPU_PROF_FILE }} -ldflags="-s -w" -o {{ BIN_DIR }}/{{ BINARY_NAME }}-pgo-$goos-$goarch$ext *.go && \
+				echo "[ OK ] Built with PGO: {{ BINARY_NAME }}-pgo-$goos-$goarch$ext" || \
+				echo "[FAIL] Failed to build: {{ BINARY_NAME }}-pgo-$goos-$goarch$ext"; \
+		done \
+	done
+
 # Run unit tests
 [group("test")]
 test:
