@@ -64,18 +64,10 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 		return ZeroTimestamp, n
 	}
 
-	// Skip until the first digit
-	for i < n {
-		b := buffer[i]
-		c := int(b - '0')
-		if 0 <= c && c <= 9 {
-			break
-		}
-
-		i++
-		if b == '\r' || b == '\n' {
-			return ZeroTimestamp, i
-		}
+	var hitNewline bool
+	i, hitNewline = skipToFirstDigit(buffer, n, i)
+	if hitNewline {
+		return ZeroTimestamp, i
 	}
 
 	if i >= n || n < i+c.ShortestTimestampLen {
@@ -201,44 +193,55 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 		}
 	}
 
-	tzSign := 0
-	tzHour := 0
-	tzMin := 0
+	tzSign, tzHour, tzMin, i := parseTimezone(c, buffer, n, i)
 
-	if !c.IgnoreTimezoneInfo && i < n {
-		b = buffer[i]
+	return NewTimestamp(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin), i
+}
+
+func skipToFirstDigit(buffer []byte, n, i int) (int, bool) {
+	for i < n {
+		b := buffer[i]
+		if b >= '0' && b <= '9' {
+			break
+		}
 		i++
+		if b == '\r' || b == '\n' {
+			return i, true
+		}
+	}
+	return i, false
+}
 
-		switch b {
-		case 'Z':
-			// Already using UTC
+func parseTimezone(c *ParseTimestampConfig, buffer []byte, n int, i int) (tzSign, tzHour, tzMin, nextI int) {
+	nextI = i
+	if c.IgnoreTimezoneInfo || nextI >= n {
+		return 0, 0, 0, nextI
+	}
+	b := buffer[nextI]
+	nextI++
 
-		case '+', '-':
-			tzSign = int(',') - int(b)
-
-			if i+2 > n {
-				break
-			}
-
-			tzHour, hcount = parseMax2Digits(buffer, n, i)
-			if hcount == 0 {
-				break
-			}
-			if tzHour > 23 {
-				break
-			}
-
-			tzMin = 0
-			if i < n && buffer[i] == ':' {
-				i++
-				if i+2 <= n {
-					tzMin, _ = parseMax2Digits(buffer, n, i)
-				}
+	switch b {
+	case 'Z':
+		// Already using UTC
+	case '+', '-':
+		tzSign = int(',') - int(b)
+		if nextI+2 > n {
+			break
+		}
+		var hcount int
+		tzHour, hcount = parseMax2Digits(buffer, n, nextI)
+		if hcount == 0 || tzHour > 23 {
+			break
+		}
+		nextI += hcount // Fix: correctly advance over the timezone hours
+		if nextI < n && buffer[nextI] == ':' {
+			nextI++
+			if nextI+2 <= n {
+				tzMin, _ = parseMax2Digits(buffer, n, nextI)
 			}
 		}
 	}
-
-	return NewTimestamp(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin), i
+	return tzSign, tzHour, tzMin, nextI
 }
 
 func parseDigits(buffer []byte, n int, i int, maxCount int) (val int, count int) {
