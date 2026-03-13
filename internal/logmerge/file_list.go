@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 )
 
 type ListFilesConfig struct {
@@ -190,22 +191,33 @@ func openGzFile(path string) (VirtualFile, error) {
 	return &gzFile{reader: gr, file: f, name: path, size: size}, nil
 }
 
+// sharedZipReader manages the lifecycle of the underlying zip file.
+// The zip.ReadCloser is only closed when all entries have been closed.
+type sharedZipReader struct {
+	zr    *zip.ReadCloser
+	count int32
+}
+
+func (s *sharedZipReader) release() error {
+	if atomic.AddInt32(&s.count, -1) == 0 {
+		return s.zr.Close()
+	}
+	return nil
+}
+
 // zipEntryFile wraps a zip entry as a VirtualFile.
 type zipEntryFile struct {
-	reader    io.ReadCloser
-	zipReader *zip.ReadCloser
-	name      string
-	size      int64
-	lastEntry bool // true if this is the last entry; closing it also closes the zip reader
+	reader io.ReadCloser
+	shared *sharedZipReader
+	name   string
+	size   int64
 }
 
 func (z *zipEntryFile) Read(p []byte) (int, error) { return z.reader.Read(p) }
 func (z *zipEntryFile) Close() error {
 	err := z.reader.Close()
-	if z.lastEntry {
-		if err2 := z.zipReader.Close(); err == nil {
-			err = err2
-		}
+	if err2 := z.shared.release(); err == nil {
+		err = err2
 	}
 	return err
 }
@@ -236,20 +248,22 @@ func openZipFile(path string, matcher *Matcher, m *ListFilesMetrics) ([]VirtualF
 		return nil, nil
 	}
 
-	for i, f := range included {
+	shared := &sharedZipReader{zr: zr, count: int32(len(included))}
+
+	for _, f := range included {
 		virtualPath := path + "!/" + f.Name
 		rc, err := f.Open()
 		if err != nil {
+			shared.release() // decrement if we fail to open one
 			continue
 		}
 		m.FilesMatched++
 		m.MatchedFiles = append(m.MatchedFiles, virtualPath)
 		entries = append(entries, &zipEntryFile{
-			reader:    rc,
-			zipReader: zr,
-			name:      virtualPath,
-			size:      int64(f.UncompressedSize64),
-			lastEntry: i == len(included)-1,
+			reader: rc,
+			shared: shared,
+			name:   virtualPath,
+			size:   int64(f.UncompressedSize64),
 		})
 	}
 
