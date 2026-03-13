@@ -35,10 +35,9 @@ func TestGetAliasPatternMatching(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &ListFilesConfig{
-				InputPaths:  []string{"."},
 				FileAliases: tt.aliases,
 			}
-			actual := GetAlias(c, tt.filePath)
+			actual := GetAlias([]string{"."}, c, tt.filePath)
 			if actual != tt.expected {
 				t.Errorf(expectedFormat, tt.expected, tt.expected, actual, actual)
 			}

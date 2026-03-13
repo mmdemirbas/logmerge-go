@@ -1,0 +1,97 @@
+# yaml-language-server: $schema=schema.json
+#
+# logmerge configuration example
+# Copy this file and adjust to your needs.
+# All fields are optional unless noted. CLI flags override values set here.
+
+# Directories or files to scan for log files (required).
+# Can also be passed as positional CLI arguments.
+InputPaths:
+  - /var/log/myapp
+  - /var/log/myapp-worker
+
+# Merged output destination. Omit or leave empty for stdout.
+OutputFile: /tmp/merged.log
+
+# Stats and diagnostics destination. Omit or leave empty for stderr.
+LogFile: /tmp/stats.log
+
+# Write CPU and memory profiles to out/cpu.prof and out/mem.prof.
+ProfilingEnabled: false
+
+# --- File discovery and filtering ---
+ListFilesConfig:
+
+  # Path to an external file containing ignore patterns (one per line).
+  # Lines starting with # are comments. Empty lines are skipped.
+  # IgnoreFile: /path/to/.logmergeignore
+
+  # Gitignore-style glob patterns for filtering discovered files.
+  # A matching pattern excludes the file. Prefix with ! to negate (re-include).
+  # Rules are evaluated in order; the last matching rule wins.
+  IgnorePatterns:
+    - "*temp*"        # exclude files containing "temp"
+    - "*.bak"         # exclude backup files
+    - "!important.bak" # but keep this specific one
+
+  # Shorthand: automatically ignore common archive extensions
+  # (.zip, .tar, .gz, .rar, .7z, .tgz, .bz2, .tbz2, .xz, .txz).
+  IgnoreArchives: true
+
+  # Map glob patterns or relative paths to short display names.
+  # Used in block separators (--write-block-alias) and per-line prefixes (--write-line-alias).
+  FileAliases:
+    "console.log": "driver"
+    "*/worker/*.log": "worker"
+    "status.log": "status"
+
+# --- Timestamp parsing ---
+ParseTimestampConfig:
+
+  # Ignore timezone offsets in parsed timestamps (treat everything as UTC).
+  IgnoreTimezoneInfo: false
+
+  # Minimum number of characters for a string to be considered a timestamp.
+  ShortestTimestampLen: 15
+
+  # How far into each line (in bytes) to search for a timestamp.
+  # Increase if timestamps appear deep in structured log lines.
+  TimestampSearchEndIndex: 250
+
+# --- Merge behavior ---
+MergeConfig:
+
+  # Collect detailed hierarchical call-timing metrics (printed in stats).
+  MetricsTreeEnabled: false
+
+  # Insert a "--- filename ---" separator when the source file changes.
+  WriteAliasPerBlock: true
+
+  # Prepend the file alias to every output line.
+  WriteAliasPerLine: false
+
+  # Prepend the normalized timestamp to every output line.
+  WriteTimestampPerLine: true
+
+  # Only include lines within this time window (RFC3339 format).
+  # Omit either to leave that side unbounded.
+  MinTimestamp: "2025-01-17T00:00:00Z"
+  MaxTimestamp: "2025-01-18T00:00:00Z"
+
+  # I/O buffer sizes in bytes.
+  # Read buffer is divided equally among all discovered files.
+  BufferSizeForRead: 104857600   # 100 MB
+  BufferSizeForWrite: 104857600  # 100 MB
+
+# --- Progress display ---
+PrintProgressConfig:
+
+  # Show a progress bar on stderr during merge.
+  PrintProgressEnabled: true
+
+  # Wait this many milliseconds before showing the first progress update.
+  # Useful to avoid flicker on fast merges.
+  InitialDelayMillis: 1000
+
+  # Milliseconds between progress updates.
+  PeriodMillis: 1000

@@ -12,7 +12,6 @@ import (
 )
 
 type ListFilesConfig struct {
-	InputPaths     []string          `yaml:"InputPaths"`
 	IgnoreFile     string            `yaml:"IgnoreFile"`
 	IgnorePatterns []string          `yaml:"IgnorePatterns"`
 	IgnoreArchives bool              `yaml:"IgnoreArchives"`
@@ -35,10 +34,10 @@ func NewListFilesMetrics() *ListFilesMetrics {
 	}
 }
 
-func ListFiles(c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, minBufferSizePerFile int, logFile *WritableFile) (files []*FileHandle, err error) {
+func ListFiles(inputPaths []string, c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, minBufferSizePerFile int, logFile *WritableFile) (files []*FileHandle, err error) {
 	matcher := NewMatcher(c.IgnorePatterns)
 
-	vfiles, err := listVirtualFiles(c, m, matcher, logFile)
+	vfiles, err := listVirtualFiles(inputPaths, m, matcher, logFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list files: %v", err)
 	}
@@ -53,7 +52,7 @@ func ListFiles(c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, min
 	files = make([]*FileHandle, 0, len(vfiles))
 
 	for _, vf := range vfiles {
-		alias := GetAlias(c, vf.Name())
+		alias := GetAlias(inputPaths, c, vf.Name())
 
 		fh, err := NewFileHandle(vf, alias, perFileBufferSize)
 		if err != nil {
@@ -81,14 +80,14 @@ func ListFiles(c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, min
 	return files, nil
 }
 
-func listVirtualFiles(c *ListFilesConfig, m *ListFilesMetrics, matcher *Matcher, logFile *WritableFile) ([]VirtualFile, error) {
-	if len(c.InputPaths) == 0 {
+func listVirtualFiles(inputPaths []string, m *ListFilesMetrics, matcher *Matcher, logFile *WritableFile) ([]VirtualFile, error) {
+	if len(inputPaths) == 0 {
 		return nil, fmt.Errorf("no input paths specified")
 	}
 
 	var vfiles []VirtualFile
 
-	for _, basePath := range c.InputPaths {
+	for _, basePath := range inputPaths {
 		stat, statErr := os.Stat(basePath)
 
 		switch {
@@ -257,7 +256,7 @@ func openZipFile(path string, matcher *Matcher, m *ListFilesMetrics) ([]VirtualF
 	return entries, nil
 }
 
-func GetAlias(c *ListFilesConfig, virtualPath string) string {
+func GetAlias(inputPaths []string, c *ListFilesConfig, virtualPath string) string {
 	// Try pattern-based matching from FileAliases
 	for pattern, alias := range c.FileAliases {
 		matched, _ := filepath.Match(pattern, virtualPath)
@@ -273,16 +272,14 @@ func GetAlias(c *ListFilesConfig, virtualPath string) string {
 	}
 
 	// Fall back: try to make it relative to the first input path
-	if len(c.InputPaths) > 0 {
-		for _, inputPath := range c.InputPaths {
-			relative, err := filepath.Rel(inputPath, virtualPath)
-			if err == nil {
-				// Check for exact match in aliases
-				if alias, ok := c.FileAliases[relative]; ok {
-					return alias
-				}
-				return relative
+	for _, inputPath := range inputPaths {
+		relative, err := filepath.Rel(inputPath, virtualPath)
+		if err == nil {
+			// Check for exact match in aliases
+			if alias, ok := c.FileAliases[relative]; ok {
+				return alias
 			}
+			return relative
 		}
 	}
 	return virtualPath

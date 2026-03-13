@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mmdemirbas/logmerge/conf/schema.json",
+  "title": "logmerge configuration",
+  "description": "Configuration file schema for logmerge, a high-performance sequential log aggregator.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "InputPaths": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Directories or files to scan for log files."
+    },
+    "OutputFile": {
+      "type": "string",
+      "description": "Output file path. Defaults to stdout if omitted."
+    },
+    "LogFile": {
+      "type": "string",
+      "description": "Log/stats file path. Defaults to stderr if omitted."
+    },
+    "ProfilingEnabled": {
+      "type": "boolean",
+      "description": "Enable CPU and memory profiling to out/cpu.prof and out/mem.prof.",
+      "default": false
+    },
+    "ListFilesConfig": {
+      "type": "object",
+      "description": "File discovery and filtering configuration.",
+      "additionalProperties": false,
+      "properties": {
+        "IgnoreFile": {
+          "type": "string",
+          "description": "Path to a file containing ignore patterns (one per line, # for comments)."
+        },
+        "IgnorePatterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Gitignore-style glob patterns. Matched files are excluded. Prefix with ! to negate (include). Last matching rule wins.",
+          "examples": [["*.gz", "!important.gz", "*temp*"]]
+        },
+        "IgnoreArchives": {
+          "type": "boolean",
+          "description": "If true, automatically ignore common archive extensions: .zip, .tar, .gz, .rar, .7z, .tgz, .bz2, .tbz2, .xz, .txz.",
+          "default": false
+        },
+        "FileAliases": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Map of glob pattern or relative path to display alias. Matched via filepath.Match against the virtual file path."
+        }
+      }
+    },
+    "ParseTimestampConfig": {
+      "type": "object",
+      "description": "Timestamp detection and parsing settings.",
+      "additionalProperties": false,
+      "properties": {
+        "IgnoreTimezoneInfo": {
+          "type": "boolean",
+          "description": "Strip timezone data from parsed timestamps.",
+          "default": false
+        },
+        "ShortestTimestampLen": {
+          "type": "integer",
+          "description": "Minimum expected timestamp length in characters.",
+          "default": 15
+        },
+        "TimestampSearchEndIndex": {
+          "type": "integer",
+          "description": "How many bytes into each line to search for a timestamp.",
+          "default": 250
+        }
+      }
+    },
+    "MergeConfig": {
+      "type": "object",
+      "description": "Merge behavior and output formatting.",
+      "additionalProperties": false,
+      "properties": {
+        "MetricsTreeEnabled": {
+          "type": "boolean",
+          "description": "Enable hierarchical call-timing metrics.",
+          "default": false
+        },
+        "WriteAliasPerBlock": {
+          "type": "boolean",
+          "description": "Insert a --- filename --- separator line when the source file changes.",
+          "default": false
+        },
+        "WriteAliasPerLine": {
+          "type": "boolean",
+          "description": "Prepend the file alias to every output line.",
+          "default": false
+        },
+        "WriteTimestampPerLine": {
+          "type": "boolean",
+          "description": "Prepend the normalized timestamp to every output line.",
+          "default": false
+        },
+        "MinTimestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Only include lines with timestamps >= this value. RFC3339 format (e.g. 2025-01-17T13:12:00Z)."
+        },
+        "MaxTimestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Only include lines with timestamps <= this value. RFC3339 format."
+        },
+        "BufferSizeForRead": {
+          "type": "integer",
+          "description": "Total read buffer size in bytes, divided among all files.",
+          "default": 104857600
+        },
+        "BufferSizeForWrite": {
+          "type": "integer",
+          "description": "Write buffer size in bytes.",
+          "default": 104857600
+        }
+      }
+    },
+    "PrintProgressConfig": {
+      "type": "object",
+      "description": "Progress display settings.",
+      "additionalProperties": false,
+      "properties": {
+        "PrintProgressEnabled": {
+          "type": "boolean",
+          "description": "Show a progress bar on stderr.",
+          "default": true
+        },
+        "InitialDelayMillis": {
+          "type": "integer",
+          "description": "Milliseconds to wait before showing the first progress update.",
+          "default": 1000
+        },
+        "PeriodMillis": {
+          "type": "integer",
+          "description": "Milliseconds between progress updates.",
+          "default": 1000
+        }
+      }
+    }
+  }
+}

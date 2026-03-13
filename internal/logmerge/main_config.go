@@ -9,6 +9,7 @@ import (
 )
 
 type MainConfig struct {
+	InputPaths           []string              `yaml:"InputPaths"`
 	OutputFile           *WritableFile         `yaml:"OutputFile"`
 	LogFile              *WritableFile         `yaml:"LogFile"`
 	ProfilingEnabled     bool                  `yaml:"ProfilingEnabled"`

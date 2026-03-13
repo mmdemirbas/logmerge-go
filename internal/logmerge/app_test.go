@@ -14,9 +14,10 @@ func TestHydrationPipelineCLIOverridesYAML(t *testing.T) {
 	yamlPath := filepath.Join(tmpDir, "test.yaml")
 
 	yamlContent := `
+InputPaths:
+  - "/some/yaml/path"
+
 ListFilesConfig:
-  InputPaths:
-    - "/some/yaml/path"
   IgnorePatterns:
     - "*.zip"
   FileAliases:
@@ -58,8 +59,8 @@ PrintProgressConfig:
 	}
 
 	// Verify YAML values loaded correctly
-	if len(cfg.ListFilesConfig.InputPaths) != 1 || cfg.ListFilesConfig.InputPaths[0] != "/some/yaml/path" {
-		t.Errorf("expected InputPaths from YAML, got %v", cfg.ListFilesConfig.InputPaths)
+	if len(cfg.InputPaths) != 1 || cfg.InputPaths[0] != "/some/yaml/path" {
+		t.Errorf("expected InputPaths from YAML, got %v", cfg.InputPaths)
 	}
 	if len(cfg.ListFilesConfig.IgnorePatterns) != 1 || cfg.ListFilesConfig.IgnorePatterns[0] != "*.zip" {
 		t.Errorf("expected IgnorePatterns from YAML, got %v", cfg.ListFilesConfig.IgnorePatterns)

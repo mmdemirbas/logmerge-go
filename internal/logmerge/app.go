@@ -27,7 +27,6 @@ var config = &MainConfig{
 	ProfilingEnabled: false,
 
 	ListFilesConfig: &ListFilesConfig{
-		InputPaths:     []string{},
 		IgnorePatterns: []string{},
 		FileAliases:    map[string]string{},
 	},
@@ -248,7 +247,7 @@ func Run() error {
 
 	// Positional args become input paths
 	if args := flag.Args(); len(args) > 0 {
-		config.ListFilesConfig.InputPaths = args
+		config.InputPaths = args
 	}
 
 	// Read ignore file if provided (from CLI or YAML)
@@ -268,7 +267,7 @@ func Run() error {
 		config.ListFilesConfig.IgnorePatterns = append(config.ListFilesConfig.IgnorePatterns, archiveGlobs...)
 	}
 
-	if len(config.ListFilesConfig.InputPaths) == 0 {
+	if len(config.InputPaths) == 0 {
 		flag.Usage()
 		return fmt.Errorf("no input paths specified")
 	}
@@ -296,6 +295,7 @@ func Run() error {
 	metrics.Tree.Enabled = config.MergeConfig.MetricsTreeEnabled
 
 	files, err := ListFiles(
+		config.InputPaths,
 		config.ListFilesConfig,
 		metrics.ListFilesMetrics,
 		config.MergeConfig.BufferSizeForRead,

@@ -1,14 +1,15 @@
+# yaml-language-server: $schema=schema.json
+InputPaths:
+  - "/Users/md/dev/mmdemirbas/logmerge-go/examples/application_1766646997565_0051"
+
 OutputFile: "/Users/md/dev/mmdemirbas/logmerge-go/out/merged.log"
 LogFile: "/Users/md/dev/mmdemirbas/logmerge-go/out/stats.log"
 
 ProfilingEnabled: false
 
 ListFilesConfig:
-  InputPaths:
-    - "/Users/md/dev/mmdemirbas/logmerge-go/examples/application_1766646997565_0051"
-
   IgnoreArchives: true
-  IgnorePatterns:
+  IgnorePatterns: []
 
   FileAliases:
     "172.16.0.240/memartscc/cc-worker/ccworker.INFO.20250115-172150.3239354": "cc"
@@ -49,6 +50,6 @@ MergeConfig:
   BufferSizeForWrite: 104857600 # 100 MB
 
 PrintProgressConfig:
-    PrintProgressEnabled: true
-    InitialDelayMillis: 0
-    PeriodMillis: 1000
+  PrintProgressEnabled: true
+  InitialDelayMillis: 0
+  PeriodMillis: 1000
