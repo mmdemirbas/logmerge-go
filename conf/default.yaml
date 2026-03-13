@@ -4,12 +4,20 @@ LogFile: "/Users/md/dev/mmdemirbas/logmerge-go/out/stats.log"
 ProfilingEnabled: false
 
 ListFilesConfig:
-  InputPath: "/Users/md/dev/mmdemirbas/logmerge-go/examples/application_1766646997565_0051"
+  InputPaths:
+    - "/Users/md/dev/mmdemirbas/logmerge-go/examples/application_1766646997565_0051"
 
-  ExcludedSuffixes: [ ".zip", ".tar", ".gz", ".rar", ".7z", ".tgz", ".bz2", ".tbz2", ".xz", ".txz" ]
-  IncludedSuffixes: [ ]
-  ExcludedSubstrings: [ ]
-  IncludedSubstrings: [ ".log", ".err", ".error", ".warn", ".warning", ".info", ".out", ".debug", ".trace" ]
+  IgnorePatterns:
+    - "*.zip"
+    - "*.tar"
+    - "*.gz"
+    - "*.rar"
+    - "*.7z"
+    - "*.tgz"
+    - "*.bz2"
+    - "*.tbz2"
+    - "*.xz"
+    - "*.txz"
 
   FileAliases:
     "172.16.0.240/memartscc/cc-worker/ccworker.INFO.20250115-172150.3239354": "cc"
@@ -43,8 +51,8 @@ MergeConfig:
   WriteAliasPerLine: false
   WriteTimestampPerLine: true
 
-  #MinTimestamp: "2025-01-17T13:12:41.434816Z"
-  #MaxTimestamp: "2025-01-17T13:14:12.863Z"
+  MinTimestamp: "2025-01-17T13:12:41.434816Z"
+  MaxTimestamp: "2025-01-17T13:14:12.863Z"
 
   BufferSizeForRead: 104857600 # 100 MB
   BufferSizeForWrite: 104857600 # 100 MB

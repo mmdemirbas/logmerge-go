@@ -5,16 +5,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 type ListFilesConfig struct {
-	InputPath          string            `yaml:"InputPath"`
-	ExcludedSuffixes   []string          `yaml:"ExcludedSuffixes"`
-	IncludedSuffixes   []string          `yaml:"IncludedSuffixes"`
-	ExcludedSubstrings []string          `yaml:"ExcludedSubstrings"`
-	IncludedSubstrings []string          `yaml:"IncludedSubstrings"`
-	FileAliases        map[string]string `yaml:"FileAliases"`
+	InputPaths     []string          `yaml:"InputPaths"`
+	IgnorePatterns []string          `yaml:"IgnorePatterns"`
+	FileAliases    map[string]string `yaml:"FileAliases"`
 }
 
 type ListFilesMetrics struct {
@@ -34,9 +30,9 @@ func NewListFilesMetrics() *ListFilesMetrics {
 }
 
 func ListFiles(c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, minBufferSizePerFile int, logFile *WritableFile) (files []*FileHandle, err error) {
-	c.normalize()
+	matcher := NewMatcher(c.IgnorePatterns)
 
-	fileList, err := listFilePaths(c, m)
+	fileList, err := listFilePaths(c, m, matcher)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list files: %v", err)
 	}
@@ -48,38 +44,34 @@ func ListFiles(c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, min
 	perFileBufferSize := max(minBufferSizePerFile, totalBufferSize/len(fileList))
 	maxAliasLen := 0
 
-	files = make([]*FileHandle, len(fileList))
-	files = files[:0]
+	files = make([]*FileHandle, 0, len(fileList))
 
-	for _, file := range fileList {
-		alias, err := getAlias(c, file)
-		if err != nil {
-			return nil, err
-		}
+	for _, filePath := range fileList {
+		alias := GetAlias(c, filePath)
 
-		f, err := os.Open(file)
+		f, err := os.Open(filePath)
 		if err != nil {
 			//goland:noinspection GoUnhandledErrorResult
-			fmt.Fprintf(logFile, "failed to open file %s: %v\n", file, err)
+			fmt.Fprintf(logFile, "failed to open file %s: %v\n", filePath, err)
 			continue
 		}
 
-		file, err := NewFileHandle(f, alias, perFileBufferSize)
+		fh, err := NewFileHandle(f, alias, perFileBufferSize)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create handle for file %v: %v", file, err)
+			return nil, fmt.Errorf("failed to create handle for file %v: %v", filePath, err)
 		}
 
-		file.AliasForBlock = []byte(fmt.Sprintf("\n--- %s ---\n", file.Alias))
-		aliasLen := len(file.Alias)
+		fh.AliasForBlock = []byte(fmt.Sprintf("\n--- %s ---\n", fh.Alias))
+		aliasLen := len(fh.Alias)
 		if maxAliasLen < aliasLen {
 			maxAliasLen = aliasLen
 		}
 
-		files = append(files, file)
+		files = append(files, fh)
 	}
 
 	if len(files) == 0 {
-		return nil, fmt.Errorf("no fileList to merge")
+		return nil, fmt.Errorf("no files to merge")
 	}
 
 	// pad source names to max length
@@ -90,129 +82,82 @@ func ListFiles(c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, min
 	return files, nil
 }
 
-func listFilePaths(c *ListFilesConfig, m *ListFilesMetrics) (files []string, err error) {
-	basePath := c.InputPath
-	if basePath == "" {
-		return nil, fmt.Errorf("input path is empty")
+func listFilePaths(c *ListFilesConfig, m *ListFilesMetrics, matcher *Matcher) (files []string, err error) {
+	if len(c.InputPaths) == 0 {
+		return nil, fmt.Errorf("no input paths specified")
 	}
 
-	stat, err := os.Stat(basePath)
+	for _, basePath := range c.InputPaths {
+		stat, statErr := os.Stat(basePath)
 
-	switch {
-	case err != nil:
-		return nil, fmt.Errorf("could not stat %s: %v", basePath, err)
+		switch {
+		case statErr != nil:
+			return nil, fmt.Errorf("could not stat %s: %v", basePath, statErr)
 
-	case stat.IsDir():
-		err = filepath.WalkDir(basePath, func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return fmt.Errorf("could not walk %s: %v", path, err)
+		case stat.IsDir():
+			walkErr := filepath.WalkDir(basePath, func(path string, d fs.DirEntry, err error) error {
+				if err != nil {
+					return fmt.Errorf("could not walk %s: %v", path, err)
+				}
+				if d.IsDir() {
+					m.DirsScanned++
+				} else {
+					visitFile(matcher, m, path, &files)
+				}
+				return nil
+			})
+			if walkErr != nil {
+				return nil, walkErr
 			}
-			if d.IsDir() {
-				m.DirsScanned++
-			} else {
-				visitFile(c, m, path, &files)
-			}
-			return nil
-		})
-	default:
-		visitFile(c, m, basePath, &files)
+
+		default:
+			visitFile(matcher, m, basePath, &files)
+		}
 	}
-	return files, err
+	return files, nil
 }
 
-func visitFile(c *ListFilesConfig, m *ListFilesMetrics, path string, files *[]string) {
+func visitFile(matcher *Matcher, m *ListFilesMetrics, path string, files *[]string) {
 	m.FilesScanned++
-	if ShouldIncludeFile(c, path) {
+	if matcher.ShouldInclude(path) {
 		m.FilesMatched++
 		m.MatchedFiles = append(m.MatchedFiles, path)
 		*files = append(*files, path)
 	}
 }
 
-func getAlias(c *ListFilesConfig, file string) (string, error) {
-	relative, err := filepath.Rel(c.InputPath, file)
-	if err != nil {
-		return "", fmt.Errorf("failed to calculate relative path for file %s: %v", file, err)
-	}
-
-	mappedAlias, ok := (c.FileAliases)[relative]
-	if ok {
-		return mappedAlias, nil
-	} else {
-		return relative, nil
-	}
-}
-
-func (c *ListFilesConfig) normalize() {
-	for i, s := range c.ExcludedSuffixes {
-		c.ExcludedSuffixes[i] = strings.ToLower(s)
-	}
-	for i, s := range c.IncludedSuffixes {
-		c.IncludedSuffixes[i] = strings.ToLower(s)
-	}
-	for i, s := range c.ExcludedSubstrings {
-		c.ExcludedSubstrings[i] = strings.ToLower(s)
-	}
-	for i, s := range c.IncludedSubstrings {
-		c.IncludedSubstrings[i] = strings.ToLower(s)
-	}
-}
-
-func ShouldIncludeFile(c *ListFilesConfig, filePath string) bool {
-	_, fileName := filepath.Split(filePath)
-	return !hasSuffixFold(fileName, c.ExcludedSuffixes...) &&
-		(len(c.IncludedSuffixes) == 0 || hasSuffixFold(fileName, c.IncludedSuffixes...)) &&
-		!hasSubstringFold(fileName, c.ExcludedSubstrings...) &&
-		(len(c.IncludedSubstrings) == 0 || hasSubstringFold(fileName, c.IncludedSubstrings...))
-}
-
-func hasSubstringFold(s string, substrings ...string) bool {
-	for _, sub := range substrings {
-		n := len(sub)
-		if n == 0 || len(s) < n {
-			continue
+func GetAlias(c *ListFilesConfig, file string) string {
+	// Try pattern-based matching from FileAliases
+	for pattern, alias := range c.FileAliases {
+		matched, _ := filepath.Match(pattern, file)
+		if matched {
+			return alias
 		}
-		for i := 0; i <= len(s)-n; i++ {
-			match := true
-			for j := 0; j < n; j++ {
-				c := s[i+j]
-				if 'A' <= c && c <= 'Z' {
-					c += 'a' - 'A'
+		// Also try matching against just the filename
+		_, name := filepath.Split(file)
+		matched, _ = filepath.Match(pattern, name)
+		if matched {
+			return alias
+		}
+		// Try matching against relative path segments
+		if pattern == file {
+			return alias
+		}
+	}
+
+	// Fall back to the file path itself
+	// Try to make it relative to the first input path
+	if len(c.InputPaths) > 0 {
+		for _, inputPath := range c.InputPaths {
+			relative, err := filepath.Rel(inputPath, file)
+			if err == nil {
+				// Check for exact match in aliases
+				if alias, ok := c.FileAliases[relative]; ok {
+					return alias
 				}
-				if c != sub[j] {
-					match = false
-					break
-				}
-			}
-			if match {
-				return true
+				return relative
 			}
 		}
 	}
-	return false
-}
-
-func hasSuffixFold(s string, suffixes ...string) bool {
-	for _, suf := range suffixes {
-		n := len(suf)
-		if len(s) < n {
-			continue
-		}
-		match := true
-		offset := len(s) - n
-		for i := 0; i < n; i++ {
-			c := s[offset+i]
-			if 'A' <= c && c <= 'Z' {
-				c += 'a' - 'A'
-			}
-			if c != suf[i] {
-				match = false
-				break
-			}
-		}
-		if match {
-			return true
-		}
-	}
-	return false
+	return file
 }

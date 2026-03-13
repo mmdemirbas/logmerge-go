@@ -2,7 +2,6 @@
     - Support: Include timestamp-less entries always regardless of the MinTimestamp setting
     - Support: Use the file modification time as the timestamp if no timestamp is present in the line.
     - Support: Included / excluded paths
-    - Support CLI flags for all customizations. CLI flags will be more prioritized than config file.
 - Code tidy up
     - Aggressively simplify the code so we can easily implement advanced algorithms and features in the future.
     - Add method comments
@@ -35,3 +34,6 @@
   - Create an alternative solution with sort and awk to compare performance.
   - Implement an alternative in Rust.
   - 'sort' and 'awk': Algorithms are optimized for CPU cache by working on small, contiguous chunks of data that fit in the L1/L2 cache.
+
+
+SHORTEN PROJECT NAME
