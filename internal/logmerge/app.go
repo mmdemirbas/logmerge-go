@@ -70,11 +70,12 @@ func Run() error {
 
 	configFlag := flag.String("config", "", "")
 
-	var filterFlags stringSliceFlag
-	flag.Var(&filterFlags, "filter", "")
-	flag.Var(&filterFlags, "f", "")
+	var ignoreFlags stringSliceFlag
+	flag.Var(&ignoreFlags, "ignore", "")
+	flag.Var(&ignoreFlags, "i", "")
 
-	filterFileFlag := flag.String("filter-file", "", "")
+	ignoreFileFlag := flag.String("ignore-file", "", "")
+	ignoreArchivesFlag := flag.Bool("ignore-archives", false, "")
 
 	var aliasFlags stringSliceFlag
 	flag.Var(&aliasFlags, "alias", "")
@@ -111,8 +112,9 @@ func Run() error {
 		fmt.Fprintf(w, "  -o, --out <path>          Output file path (default: stdout)\n")
 		fmt.Fprintf(w, "  -l, --log <path>          Log/stats file path (default: stderr)\n")
 		fmt.Fprintf(w, "\nFiltering:\n")
-		fmt.Fprintf(w, "  -f, --filter <pattern>    Gitignore-style filter pattern (repeatable)\n")
-		fmt.Fprintf(w, "      --filter-file <path>  File containing filter patterns (one per line)\n")
+		fmt.Fprintf(w, "  -i, --ignore <pattern>    Gitignore-style ignore pattern (repeatable)\n")
+		fmt.Fprintf(w, "      --ignore-file <path>  File containing ignore patterns (one per line)\n")
+		fmt.Fprintf(w, "      --ignore-archives     Auto-ignore archive files (.zip, .gz, .tar, etc.)\n")
 		fmt.Fprintf(w, "      --alias <pat>=<name>  File alias mapping (repeatable)\n")
 		fmt.Fprintf(w, "\nFormatting:\n")
 		fmt.Fprintf(w, "  -t, --write-timestamp     Prepend normalized timestamp to each line\n")
@@ -224,8 +226,16 @@ func Run() error {
 		config.PrintProgressConfig.PrintProgressEnabled = *progressFlag
 	}
 
-	// Append --filter flags to IgnorePatterns
-	config.ListFilesConfig.IgnorePatterns = append(config.ListFilesConfig.IgnorePatterns, filterFlags...)
+	// Override ignore-file and ignore-archives from CLI
+	if explicitlySet["ignore-file"] {
+		config.ListFilesConfig.IgnoreFile = *ignoreFileFlag
+	}
+	if explicitlySet["ignore-archives"] {
+		config.ListFilesConfig.IgnoreArchives = *ignoreArchivesFlag
+	}
+
+	// Append --ignore flags to IgnorePatterns
+	config.ListFilesConfig.IgnorePatterns = append(config.ListFilesConfig.IgnorePatterns, ignoreFlags...)
 
 	// Parse --alias flags (pattern=alias)
 	for _, a := range aliasFlags {
@@ -241,14 +251,21 @@ func Run() error {
 		config.ListFilesConfig.InputPaths = args
 	}
 
-	// Read filter file if provided
-	if *filterFileFlag != "" {
-		lines, err := readFilterFile(*filterFileFlag)
+	// Read ignore file if provided (from CLI or YAML)
+	ignoreFile := config.ListFilesConfig.IgnoreFile
+	if ignoreFile != "" {
+		lines, err := readFilterFile(ignoreFile)
 		if err != nil {
 			return err
 		}
-		// Prepend filter-file patterns before CLI filter patterns
+		// Prepend ignore-file patterns before CLI ignore patterns
 		config.ListFilesConfig.IgnorePatterns = append(lines, config.ListFilesConfig.IgnorePatterns...)
+	}
+
+	// Expand --ignore-archives into standard archive globs
+	if config.ListFilesConfig.IgnoreArchives {
+		archiveGlobs := []string{"*.zip", "*.tar", "*.gz", "*.rar", "*.7z", "*.tgz", "*.bz2", "*.tbz2", "*.xz", "*.txz"}
+		config.ListFilesConfig.IgnorePatterns = append(config.ListFilesConfig.IgnorePatterns, archiveGlobs...)
 	}
 
 	if len(config.ListFilesConfig.InputPaths) == 0 {

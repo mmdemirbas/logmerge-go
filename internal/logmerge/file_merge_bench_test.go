@@ -26,6 +26,7 @@ func BenchmarkProcessFiles_Saturation(b *testing.B) {
 	defer os.RemoveAll(tmpDir)
 
 	var files []*logmerge.FileHandle
+	var osFiles []*os.File // keep references for seeking
 	var totalBytes int64
 
 	for i := 0; i < numFiles; i++ {
@@ -43,8 +44,9 @@ func BenchmarkProcessFiles_Saturation(b *testing.B) {
 		writer.Flush()
 		f.Seek(0, 0)
 
-		handle, _ := logmerge.NewFileHandle(f, fmt.Sprintf("file-%d", i), 1024*1024)
+		handle, _ := logmerge.NewFileHandle(&logmerge.OsFile{F: f}, fmt.Sprintf("file-%d", i), 1024*1024)
 		files = append(files, handle)
+		osFiles = append(osFiles, f)
 	}
 
 	config := &logmerge.MergeConfig{
@@ -55,8 +57,8 @@ func BenchmarkProcessFiles_Saturation(b *testing.B) {
 	b.SetBytes(totalBytes) // This enables MB/s reporting
 	for i := 0; i < b.N; i++ {
 		// Reset handles for each iteration
-		for _, h := range files {
-			h.File.Seek(0, 0)
+		for j, h := range files {
+			osFiles[j].Seek(0, 0)
 			h.Done = false
 			h.BytesRead = 0
 			h.LineTimestampParsed = false

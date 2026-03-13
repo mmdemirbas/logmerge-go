@@ -1,15 +1,21 @@
 package logmerge
 
 import (
+	"archive/zip"
+	"compress/gzip"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type ListFilesConfig struct {
 	InputPaths     []string          `yaml:"InputPaths"`
+	IgnoreFile     string            `yaml:"IgnoreFile"`
 	IgnorePatterns []string          `yaml:"IgnorePatterns"`
+	IgnoreArchives bool              `yaml:"IgnoreArchives"`
 	FileAliases    map[string]string `yaml:"FileAliases"`
 }
 
@@ -32,33 +38,26 @@ func NewListFilesMetrics() *ListFilesMetrics {
 func ListFiles(c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, minBufferSizePerFile int, logFile *WritableFile) (files []*FileHandle, err error) {
 	matcher := NewMatcher(c.IgnorePatterns)
 
-	fileList, err := listFilePaths(c, m, matcher)
+	vfiles, err := listVirtualFiles(c, m, matcher, logFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list files: %v", err)
 	}
 
-	if len(fileList) == 0 {
+	if len(vfiles) == 0 {
 		return nil, fmt.Errorf("no files found")
 	}
 
-	perFileBufferSize := max(minBufferSizePerFile, totalBufferSize/len(fileList))
+	perFileBufferSize := max(minBufferSizePerFile, totalBufferSize/len(vfiles))
 	maxAliasLen := 0
 
-	files = make([]*FileHandle, 0, len(fileList))
+	files = make([]*FileHandle, 0, len(vfiles))
 
-	for _, filePath := range fileList {
-		alias := GetAlias(c, filePath)
+	for _, vf := range vfiles {
+		alias := GetAlias(c, vf.Name())
 
-		f, err := os.Open(filePath)
+		fh, err := NewFileHandle(vf, alias, perFileBufferSize)
 		if err != nil {
-			//goland:noinspection GoUnhandledErrorResult
-			fmt.Fprintf(logFile, "failed to open file %s: %v\n", filePath, err)
-			continue
-		}
-
-		fh, err := NewFileHandle(f, alias, perFileBufferSize)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create handle for file %v: %v", filePath, err)
+			return nil, fmt.Errorf("failed to create handle for file %v: %v", vf.Name(), err)
 		}
 
 		fh.AliasForBlock = []byte(fmt.Sprintf("\n--- %s ---\n", fh.Alias))
@@ -82,10 +81,12 @@ func ListFiles(c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, min
 	return files, nil
 }
 
-func listFilePaths(c *ListFilesConfig, m *ListFilesMetrics, matcher *Matcher) (files []string, err error) {
+func listVirtualFiles(c *ListFilesConfig, m *ListFilesMetrics, matcher *Matcher, logFile *WritableFile) ([]VirtualFile, error) {
 	if len(c.InputPaths) == 0 {
 		return nil, fmt.Errorf("no input paths specified")
 	}
+
+	var vfiles []VirtualFile
 
 	for _, basePath := range c.InputPaths {
 		stat, statErr := os.Stat(basePath)
@@ -102,7 +103,7 @@ func listFilePaths(c *ListFilesConfig, m *ListFilesMetrics, matcher *Matcher) (f
 				if d.IsDir() {
 					m.DirsScanned++
 				} else {
-					visitFile(matcher, m, path, &files)
+					visitVirtualFile(matcher, m, path, &vfiles, logFile)
 				}
 				return nil
 			})
@@ -111,45 +112,170 @@ func listFilePaths(c *ListFilesConfig, m *ListFilesMetrics, matcher *Matcher) (f
 			}
 
 		default:
-			visitFile(matcher, m, basePath, &files)
+			visitVirtualFile(matcher, m, basePath, &vfiles, logFile)
 		}
 	}
-	return files, nil
+	return vfiles, nil
 }
 
-func visitFile(matcher *Matcher, m *ListFilesMetrics, path string, files *[]string) {
+func visitVirtualFile(matcher *Matcher, m *ListFilesMetrics, path string, vfiles *[]VirtualFile, logFile *WritableFile) {
 	m.FilesScanned++
-	if matcher.ShouldInclude(path) {
+	if !matcher.ShouldInclude(path) {
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(path))
+
+	switch ext {
+	case ".gz":
+		vf, err := openGzFile(path)
+		if err != nil {
+			fmt.Fprintf(logFile, "failed to open gz file %s: %v\n", path, err)
+			return
+		}
 		m.FilesMatched++
 		m.MatchedFiles = append(m.MatchedFiles, path)
-		*files = append(*files, path)
+		*vfiles = append(*vfiles, vf)
+
+	case ".zip":
+		entries, err := openZipFile(path, matcher, m)
+		if err != nil {
+			fmt.Fprintf(logFile, "failed to open zip file %s: %v\n", path, err)
+			return
+		}
+		*vfiles = append(*vfiles, entries...)
+
+	default:
+		f, err := os.Open(path)
+		if err != nil {
+			fmt.Fprintf(logFile, "failed to open file %s: %v\n", path, err)
+			return
+		}
+		m.FilesMatched++
+		m.MatchedFiles = append(m.MatchedFiles, path)
+		*vfiles = append(*vfiles, &OsFile{F: f})
 	}
 }
 
-func GetAlias(c *ListFilesConfig, file string) string {
+// gzFile wraps a gzip reader as a VirtualFile.
+type gzFile struct {
+	reader *gzip.Reader
+	file   *os.File
+	name   string
+	size   int64 // compressed size
+}
+
+func (g *gzFile) Read(p []byte) (int, error) { return g.reader.Read(p) }
+func (g *gzFile) Close() error {
+	g.reader.Close()
+	return g.file.Close()
+}
+func (g *gzFile) Name() string { return g.name }
+func (g *gzFile) Size() int64  { return g.size }
+
+func openGzFile(path string) (VirtualFile, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	gr, err := gzip.NewReader(f)
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	info, _ := f.Stat()
+	var size int64
+	if info != nil {
+		size = info.Size()
+	}
+	return &gzFile{reader: gr, file: f, name: path, size: size}, nil
+}
+
+// zipEntryFile wraps a zip entry as a VirtualFile.
+type zipEntryFile struct {
+	reader    io.ReadCloser
+	zipReader *zip.ReadCloser
+	name      string
+	size      int64
+	lastEntry bool // true if this is the last entry; closing it also closes the zip reader
+}
+
+func (z *zipEntryFile) Read(p []byte) (int, error) { return z.reader.Read(p) }
+func (z *zipEntryFile) Close() error {
+	err := z.reader.Close()
+	if z.lastEntry {
+		if err2 := z.zipReader.Close(); err == nil {
+			err = err2
+		}
+	}
+	return err
+}
+func (z *zipEntryFile) Name() string { return z.name }
+func (z *zipEntryFile) Size() int64  { return z.size }
+
+func openZipFile(path string, matcher *Matcher, m *ListFilesMetrics) ([]VirtualFile, error) {
+	zr, err := zip.OpenReader(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var entries []VirtualFile
+	// First pass: find which entries are included
+	var included []*zip.File
+	for _, f := range zr.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		virtualPath := path + "!/" + f.Name
+		if matcher.ShouldInclude(virtualPath) {
+			included = append(included, f)
+		}
+	}
+
+	if len(included) == 0 {
+		zr.Close()
+		return nil, nil
+	}
+
+	for i, f := range included {
+		virtualPath := path + "!/" + f.Name
+		rc, err := f.Open()
+		if err != nil {
+			continue
+		}
+		m.FilesMatched++
+		m.MatchedFiles = append(m.MatchedFiles, virtualPath)
+		entries = append(entries, &zipEntryFile{
+			reader:    rc,
+			zipReader: zr,
+			name:      virtualPath,
+			size:      int64(f.UncompressedSize64),
+			lastEntry: i == len(included)-1,
+		})
+	}
+
+	return entries, nil
+}
+
+func GetAlias(c *ListFilesConfig, virtualPath string) string {
 	// Try pattern-based matching from FileAliases
 	for pattern, alias := range c.FileAliases {
-		matched, _ := filepath.Match(pattern, file)
+		matched, _ := filepath.Match(pattern, virtualPath)
 		if matched {
 			return alias
 		}
 		// Also try matching against just the filename
-		_, name := filepath.Split(file)
+		_, name := filepath.Split(virtualPath)
 		matched, _ = filepath.Match(pattern, name)
 		if matched {
 			return alias
 		}
-		// Try matching against relative path segments
-		if pattern == file {
-			return alias
-		}
 	}
 
-	// Fall back to the file path itself
-	// Try to make it relative to the first input path
+	// Fall back: try to make it relative to the first input path
 	if len(c.InputPaths) > 0 {
 		for _, inputPath := range c.InputPaths {
-			relative, err := filepath.Rel(inputPath, file)
+			relative, err := filepath.Rel(inputPath, virtualPath)
 			if err == nil {
 				// Check for exact match in aliases
 				if alias, ok := c.FileAliases[relative]; ok {
@@ -159,5 +285,5 @@ func GetAlias(c *ListFilesConfig, file string) string {
 			}
 		}
 	}
-	return file
+	return virtualPath
 }

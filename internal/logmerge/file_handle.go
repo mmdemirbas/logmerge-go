@@ -7,13 +7,36 @@ import (
 	"os"
 )
 
+// VirtualFile abstracts a readable file, supporting transparent decompression.
+type VirtualFile interface {
+	io.ReadCloser
+	Name() string
+	Size() int64
+}
+
+// OsFile wraps a standard *os.File as a VirtualFile.
+type OsFile struct {
+	F *os.File
+}
+
+func (f *OsFile) Read(p []byte) (int, error) { return f.F.Read(p) }
+func (f *OsFile) Close() error               { return f.F.Close() }
+func (f *OsFile) Name() string               { return f.F.Name() }
+func (f *OsFile) Size() int64 {
+	info, err := f.F.Stat()
+	if err != nil {
+		return 0
+	}
+	return info.Size()
+}
+
 type FileHandle struct {
-	File                *os.File
+	File                VirtualFile
 	Alias               []byte
 	AliasForBlock       []byte
 	AliasForLine        []byte
-	Size                int         // Size of the file in bytes
-	BytesRead           int         // Number of bytes read from the file
+	Size                int64       // Size of the file in bytes
+	BytesRead           int64       // Number of bytes read from the file
 	Done                bool        // Whether the file has been fully read
 	Buffer              *RingBuffer // Buffer for reading the file
 	LineTimestampParsed bool        // Whether the timestamp for the current line has been parsed
@@ -23,16 +46,11 @@ type FileHandle struct {
 	MergeMetrics        *MergeMetrics
 }
 
-func NewFileHandle(file *os.File, alias string, bufferSize int) (*FileHandle, error) {
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get file info for %s: %v", alias, err)
-	}
-	fileSize := int(fileInfo.Size())
+func NewFileHandle(file VirtualFile, alias string, bufferSize int) (*FileHandle, error) {
 	return &FileHandle{
 		File:                file,
 		Alias:               []byte(alias),
-		Size:                fileSize,
+		Size:                file.Size(),
 		BytesRead:           0,
 		Buffer:              NewRingBuffer(bufferSize),
 		Done:                false,
@@ -50,7 +68,7 @@ func (r *FileHandle) FillBuffer() error {
 		return nil
 	}
 
-	r.BytesRead += n
+	r.BytesRead += int64(n)
 	return err
 }
 

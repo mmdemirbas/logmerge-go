@@ -7,17 +7,8 @@ ListFilesConfig:
   InputPaths:
     - "/Users/md/dev/mmdemirbas/logmerge-go/examples/application_1766646997565_0051"
 
+  IgnoreArchives: true
   IgnorePatterns:
-    - "*.zip"
-    - "*.tar"
-    - "*.gz"
-    - "*.rar"
-    - "*.7z"
-    - "*.tgz"
-    - "*.bz2"
-    - "*.tbz2"
-    - "*.xz"
-    - "*.txz"
 
   FileAliases:
     "172.16.0.240/memartscc/cc-worker/ccworker.INFO.20250115-172150.3239354": "cc"

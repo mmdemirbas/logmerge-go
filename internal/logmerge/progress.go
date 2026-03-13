@@ -34,10 +34,10 @@ func PrintProgress(c *PrintProgressConfig, files []*FileHandle, programStartTime
 		return
 	}
 
-	completedSize := 0
+	var completedSize int64
 	completedCount := 0
 
-	totalSize := 0
+	var totalSize int64
 	totalCount := len(files)
 
 	for _, file := range files {
@@ -57,7 +57,7 @@ func PrintProgress(c *PrintProgressConfig, files []*FileHandle, programStartTime
 
 	//goland:noinspection GoUnhandledErrorResult
 	fmt.Fprintf(os.Stderr, "Progress: %6.2f %% of data (%12s / %12s) - %6.2f %% of files (%5d / %5d) - Elapsed: %s\r",
-		float64(completedSize)/(float64(totalSize)/100), bytes(int64(completedSize)), bytes(int64(totalSize)),
+		float64(completedSize)/(float64(totalSize)/100), bytes(completedSize), bytes(totalSize),
 		float64(completedCount)/(float64(totalCount)/100), int64(completedCount), int64(totalCount),
 		elapsedTime.Round(time.Millisecond).String(),
 	)
