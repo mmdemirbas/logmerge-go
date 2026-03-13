@@ -1,7 +1,6 @@
 - Usability
   - Include timestamp-less entries always regardless of the MinTimestamp setting
   - Use the file modification time as the fallback timestamp if no timestamp is present in the line
-  - Support .tar/.tar.gz archive files (currently only .gz and .zip are supported)
   - Dry-run mode (list matched files without merging)
   - Including / excluding symlinks during directory traversal
 

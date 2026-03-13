@@ -86,25 +86,33 @@ MergeConfig:
 
 ### 5. Key Flags
 
-* **`-i, --ignore <pattern>`**: Gitignore-style glob patterns to exclude files. Repeatable. Prefix with `!` to negate.
-* **`--ignore-archives`**: Shorthand to ignore `.zip`, `.gz`, `.tar`, `.rar`, `.7z`, `.tgz`, `.bz2`, `.tbz2`, `.xz`, `.txz`.
+* **`-i, --ignore <pattern>`**: Gitignore-style glob patterns to exclude files. Repeatable. Prefix
+  with `!` to negate.
+* **`--ignore-archives`**: Shorthand to ignore `.zip`, `.gz`, `.tar`, `.rar`, `.7z`, `.tgz`, `.bz2`,
+  `.tbz2`, `.xz`, `.txz`.
 * **`--config <path>`**: Load a YAML configuration file as base. CLI flags override YAML values.
 * **`--buf-read <bytes>`**: Increase for high-latency storage (network mounts). Default: 100 MB.
 
 ## 📦 Transparent Decompression
 
-LogMerge automatically handles compressed files during file discovery:
+LogMerge automatically handles compressed and archived files during file discovery:
 
-- **`.gz` files**: Decompressed on-the-fly using Go's `compress/gzip` reader.
-- **`.zip` files**: Each entry inside the archive is treated as an individual log file. Entries are
-  filtered through the same ignore patterns, and a reference-counted reader ensures safe concurrent
-  access.
+| Format    | Extensions          | Description                                        |
+|-----------|---------------------|----------------------------------------------------|
+| gzip      | `.gz`               | Single compressed file, streamed on-the-fly        |
+| bzip2     | `.bz2`              | Single compressed file, streamed on-the-fly        |
+| xz        | `.xz`               | Single compressed file, streamed on-the-fly        |
+| zip       | `.zip`              | Multi-entry archive, each entry as a separate file |
+| tar       | `.tar`              | Multi-entry archive, entries buffered into memory  |
+| tar+gzip  | `.tar.gz`, `.tgz`   | Compressed tar archive                             |
+| tar+bzip2 | `.tar.bz2`, `.tbz2` | Compressed tar archive                             |
+| tar+xz    | `.tar.xz`, `.txz`   | Compressed tar archive                             |
 
-Archive files are processed transparently — no extraction step is needed. Virtual paths for zip
-entries use the format `path/to/archive.zip!/entry/name.log`, which also works with `--alias` and
-`--ignore` patterns.
+Archive files are processed transparently — no extraction step is needed. Virtual paths for
+multi-entry archives use the format `path/to/archive.tar.gz!/entry/name.log`, which also works
+with `--alias` and `--ignore` patterns.
 
-To skip compressed files entirely, use `--ignore-archives`.
+To skip all archive/compressed files entirely, use `--ignore-archives`.
 
 ## 📝 Output Preview
 

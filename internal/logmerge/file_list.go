@@ -1,7 +1,10 @@
 package logmerge
 
 import (
+	"archive/tar"
 	"archive/zip"
+	bytespkg "bytes"
+	"compress/bzip2"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -10,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+
+	"github.com/ulikunitz/xz"
 )
 
 type ListFilesConfig struct {
@@ -124,36 +129,94 @@ func visitVirtualFile(matcher *Matcher, m *ListFilesMetrics, path string, vfiles
 		return
 	}
 
-	ext := strings.ToLower(filepath.Ext(path))
+	lower := strings.ToLower(path)
 
-	switch ext {
-	case ".gz":
-		vf, err := openGzFile(path)
+	// Check compound extensions first (tar.gz, tar.bz2, tar.xz)
+	switch {
+	case strings.HasSuffix(lower, ".tar.gz") || strings.HasSuffix(lower, ".tgz"):
+		entries, err := openTarFile(path, matcher, m, decompressGzip)
 		if err != nil {
-			fmt.Fprintf(logFile, "failed to open gz file %s: %v\n", path, err)
+			fmt.Fprintf(logFile, "failed to open tar.gz file %s: %v\n", path, err)
 			return
 		}
-		m.FilesMatched++
-		m.MatchedFiles = append(m.MatchedFiles, path)
-		*vfiles = append(*vfiles, vf)
+		*vfiles = append(*vfiles, entries...)
 
-	case ".zip":
-		entries, err := openZipFile(path, matcher, m)
+	case strings.HasSuffix(lower, ".tar.bz2") || strings.HasSuffix(lower, ".tbz2"):
+		entries, err := openTarFile(path, matcher, m, decompressBzip2)
 		if err != nil {
-			fmt.Fprintf(logFile, "failed to open zip file %s: %v\n", path, err)
+			fmt.Fprintf(logFile, "failed to open tar.bz2 file %s: %v\n", path, err)
+			return
+		}
+		*vfiles = append(*vfiles, entries...)
+
+	case strings.HasSuffix(lower, ".tar.xz") || strings.HasSuffix(lower, ".txz"):
+		entries, err := openTarFile(path, matcher, m, decompressXz)
+		if err != nil {
+			fmt.Fprintf(logFile, "failed to open tar.xz file %s: %v\n", path, err)
 			return
 		}
 		*vfiles = append(*vfiles, entries...)
 
 	default:
-		f, err := os.Open(path)
-		if err != nil {
-			fmt.Fprintf(logFile, "failed to open file %s: %v\n", path, err)
-			return
+		// Single extension
+		ext := strings.ToLower(filepath.Ext(path))
+		switch ext {
+		case ".gz":
+			vf, err := openGzFile(path)
+			if err != nil {
+				fmt.Fprintf(logFile, "failed to open gz file %s: %v\n", path, err)
+				return
+			}
+			m.FilesMatched++
+			m.MatchedFiles = append(m.MatchedFiles, path)
+			*vfiles = append(*vfiles, vf)
+
+		case ".bz2":
+			vf, err := openBz2File(path)
+			if err != nil {
+				fmt.Fprintf(logFile, "failed to open bz2 file %s: %v\n", path, err)
+				return
+			}
+			m.FilesMatched++
+			m.MatchedFiles = append(m.MatchedFiles, path)
+			*vfiles = append(*vfiles, vf)
+
+		case ".xz":
+			vf, err := openXzFile(path)
+			if err != nil {
+				fmt.Fprintf(logFile, "failed to open xz file %s: %v\n", path, err)
+				return
+			}
+			m.FilesMatched++
+			m.MatchedFiles = append(m.MatchedFiles, path)
+			*vfiles = append(*vfiles, vf)
+
+		case ".tar":
+			entries, err := openTarFile(path, matcher, m, nil)
+			if err != nil {
+				fmt.Fprintf(logFile, "failed to open tar file %s: %v\n", path, err)
+				return
+			}
+			*vfiles = append(*vfiles, entries...)
+
+		case ".zip":
+			entries, err := openZipFile(path, matcher, m)
+			if err != nil {
+				fmt.Fprintf(logFile, "failed to open zip file %s: %v\n", path, err)
+				return
+			}
+			*vfiles = append(*vfiles, entries...)
+
+		default:
+			f, err := os.Open(path)
+			if err != nil {
+				fmt.Fprintf(logFile, "failed to open file %s: %v\n", path, err)
+				return
+			}
+			m.FilesMatched++
+			m.MatchedFiles = append(m.MatchedFiles, path)
+			*vfiles = append(*vfiles, &OsFile{F: f})
 		}
-		m.FilesMatched++
-		m.MatchedFiles = append(m.MatchedFiles, path)
-		*vfiles = append(*vfiles, &OsFile{F: f})
 	}
 }
 
@@ -264,6 +327,134 @@ func openZipFile(path string, matcher *Matcher, m *ListFilesMetrics) ([]VirtualF
 			shared: shared,
 			name:   virtualPath,
 			size:   int64(f.UncompressedSize64),
+		})
+	}
+
+	return entries, nil
+}
+
+// bz2File wraps a bzip2 reader as a VirtualFile.
+type bz2File struct {
+	reader io.Reader
+	file   *os.File
+	name   string
+	size   int64 // compressed size
+}
+
+func (b *bz2File) Read(p []byte) (int, error) { return b.reader.Read(p) }
+func (b *bz2File) Close() error               { return b.file.Close() }
+func (b *bz2File) Name() string               { return b.name }
+func (b *bz2File) Size() int64                { return b.size }
+
+func openBz2File(path string) (VirtualFile, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	info, _ := f.Stat()
+	var size int64
+	if info != nil {
+		size = info.Size()
+	}
+	return &bz2File{reader: bzip2.NewReader(f), file: f, name: path, size: size}, nil
+}
+
+// xzFile wraps an xz reader as a VirtualFile.
+type xzFile struct {
+	reader io.Reader
+	file   *os.File
+	name   string
+	size   int64 // compressed size
+}
+
+func (x *xzFile) Read(p []byte) (int, error) { return x.reader.Read(p) }
+func (x *xzFile) Close() error               { return x.file.Close() }
+func (x *xzFile) Name() string               { return x.name }
+func (x *xzFile) Size() int64                { return x.size }
+
+func openXzFile(path string) (VirtualFile, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	xr, err := xz.NewReader(f)
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	info, _ := f.Stat()
+	var size int64
+	if info != nil {
+		size = info.Size()
+	}
+	return &xzFile{reader: xr, file: f, name: path, size: size}, nil
+}
+
+// tarEntryFile wraps an in-memory tar entry as a VirtualFile.
+type tarEntryFile struct {
+	reader *bytespkg.Reader
+	name   string
+	size   int64
+}
+
+func (t *tarEntryFile) Read(p []byte) (int, error) { return t.reader.Read(p) }
+func (t *tarEntryFile) Close() error               { return nil }
+func (t *tarEntryFile) Name() string               { return t.name }
+func (t *tarEntryFile) Size() int64                { return t.size }
+
+// decompressor creates a decompressing reader wrapping the given file.
+type decompressor func(*os.File) (io.Reader, error)
+
+func decompressGzip(f *os.File) (io.Reader, error)  { return gzip.NewReader(f) }
+func decompressBzip2(f *os.File) (io.Reader, error) { return bzip2.NewReader(f), nil }
+func decompressXz(f *os.File) (io.Reader, error)    { return xz.NewReader(f) }
+
+func openTarFile(path string, matcher *Matcher, m *ListFilesMetrics, decomp decompressor) ([]VirtualFile, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var r io.Reader = f
+	if decomp != nil {
+		r, err = decomp(f)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	tr := tar.NewReader(r)
+	var entries []VirtualFile
+
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read tar entry: %v", err)
+		}
+		if hdr.Typeflag != tar.TypeReg {
+			continue
+		}
+
+		virtualPath := path + "!/" + hdr.Name
+		if !matcher.ShouldInclude(virtualPath) {
+			continue
+		}
+
+		data, err := io.ReadAll(tr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read tar entry %s: %v", hdr.Name, err)
+		}
+
+		m.FilesMatched++
+		m.MatchedFiles = append(m.MatchedFiles, virtualPath)
+		entries = append(entries, &tarEntryFile{
+			reader: bytespkg.NewReader(data),
+			name:   virtualPath,
+			size:   hdr.Size,
 		})
 	}
 
