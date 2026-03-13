@@ -16,7 +16,6 @@
 
 - Code quality
   - Aggressively simplify the code so we can easily implement advanced algorithms and features in the future
-  - Complete unit tests (notably: no tests for core merge logic in file_merge.go)
 
 - Performance
   - Read files concurrently during merge (prefetch exists, but the merge loop itself is sequential)
