@@ -4,4 +4,4 @@ go 1.23.4
 
 require gopkg.in/yaml.v3 v3.0.1
 
-require github.com/ulikunitz/xz v0.5.15 // indirect
+require github.com/ulikunitz/xz v0.5.15
