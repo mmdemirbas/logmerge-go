@@ -62,46 +62,79 @@ var metrics *MainMetrics
 
 func Run() error {
 	// Define CLI flags
-	outputFlag := flag.String("output", "", "Output file path (default: stdout)")
-	flag.StringVar(outputFlag, "o", "", "Output file path (default: stdout)")
+	outputFlag := flag.String("out", "", "")
+	flag.StringVar(outputFlag, "o", "", "")
 
-	logFlag := flag.String("log", "", "Log file path (default: stderr)")
-	flag.StringVar(logFlag, "l", "", "Log file path (default: stderr)")
+	logFlag := flag.String("log", "", "")
+	flag.StringVar(logFlag, "l", "", "")
 
-	configFlag := flag.String("config", "", "Path to base YAML configuration file")
+	configFlag := flag.String("config", "", "")
 
 	var filterFlags stringSliceFlag
-	flag.Var(&filterFlags, "filter", "Filter pattern (repeatable)")
-	flag.Var(&filterFlags, "f", "Filter pattern (repeatable)")
+	flag.Var(&filterFlags, "filter", "")
+	flag.Var(&filterFlags, "f", "")
 
-	filterFileFlag := flag.String("filter-file", "", "Path to file containing filter patterns")
+	filterFileFlag := flag.String("filter-file", "", "")
 
 	var aliasFlags stringSliceFlag
-	flag.Var(&aliasFlags, "alias", "File alias in pattern=alias format (repeatable)")
+	flag.Var(&aliasFlags, "alias", "")
 
-	writeTimestamp := flag.Bool("write-timestamp", false, "Write timestamp per line")
-	flag.BoolVar(writeTimestamp, "t", false, "Write timestamp per line")
+	writeTimestamp := flag.Bool("write-timestamp", false, "")
+	flag.BoolVar(writeTimestamp, "t", false, "")
 
-	writeBlockAlias := flag.Bool("write-block-alias", false, "Write alias per block")
-	flag.BoolVar(writeBlockAlias, "b", false, "Write alias per block")
+	writeBlockAlias := flag.Bool("write-block-alias", false, "")
+	flag.BoolVar(writeBlockAlias, "b", false, "")
 
-	writeLineAlias := flag.Bool("write-line-alias", false, "Write alias per line")
-	flag.BoolVar(writeLineAlias, "a", false, "Write alias per line")
+	writeLineAlias := flag.Bool("write-line-alias", false, "")
+	flag.BoolVar(writeLineAlias, "a", false, "")
 
-	sinceFlag := flag.String("since", "", "Minimum timestamp (RFC3339)")
-	untilFlag := flag.String("until", "", "Maximum timestamp (RFC3339)")
+	sinceFlag := flag.String("since", "", "")
+	untilFlag := flag.String("until", "", "")
 
-	ignoreTimezone := flag.Bool("ignore-timezone", false, "Ignore timezone info in timestamps")
-	minTsLen := flag.Int("min-ts-len", 0, "Shortest timestamp length")
-	tsSearchLimit := flag.Int("ts-search-limit", 0, "Timestamp search end index")
+	ignoreTimezone := flag.Bool("ignore-timezone", false, "")
+	minTsLen := flag.Int("min-ts-len", 0, "")
+	tsSearchLimit := flag.Int("ts-search-limit", 0, "")
 
-	bufRead := flag.Int("buf-read", 0, "Read buffer size in bytes")
-	bufWrite := flag.Int("buf-write", 0, "Write buffer size in bytes")
-	metricsFlag := flag.Bool("metrics", false, "Enable metrics tree")
-	profileFlag := flag.Bool("profile", false, "Enable CPU/memory profiling")
+	bufRead := flag.Int("buf-read", 0, "")
+	bufWrite := flag.Int("buf-write", 0, "")
+	metricsFlag := flag.Bool("metrics", false, "")
+	profileFlag := flag.Bool("profile", false, "")
 
-	progressFlag := flag.Bool("progress", false, "Enable progress display")
-	flag.BoolVar(progressFlag, "p", false, "Enable progress display")
+	progressFlag := flag.Bool("progress", false, "")
+	flag.BoolVar(progressFlag, "p", false, "")
+
+	flag.Usage = func() {
+		w := flag.CommandLine.Output()
+		fmt.Fprintf(w, "Usage: %s [flags] <path>...\n", os.Args[0])
+		fmt.Fprintf(w, "\nMerge multiple log files into a single chronologically-ordered stream.\n")
+		fmt.Fprintf(w, "\nI/O:\n")
+		fmt.Fprintf(w, "  -o, --out <path>          Output file path (default: stdout)\n")
+		fmt.Fprintf(w, "  -l, --log <path>          Log/stats file path (default: stderr)\n")
+		fmt.Fprintf(w, "\nFiltering:\n")
+		fmt.Fprintf(w, "  -f, --filter <pattern>    Gitignore-style filter pattern (repeatable)\n")
+		fmt.Fprintf(w, "      --filter-file <path>  File containing filter patterns (one per line)\n")
+		fmt.Fprintf(w, "      --alias <pat>=<name>  File alias mapping (repeatable)\n")
+		fmt.Fprintf(w, "\nFormatting:\n")
+		fmt.Fprintf(w, "  -t, --write-timestamp     Prepend normalized timestamp to each line\n")
+		fmt.Fprintf(w, "  -b, --write-block-alias   Insert separator when file source changes\n")
+		fmt.Fprintf(w, "  -a, --write-line-alias    Prepend file alias to each line\n")
+		fmt.Fprintf(w, "\nTime range:\n")
+		fmt.Fprintf(w, "      --since <timestamp>   Minimum timestamp, RFC3339 (e.g. 2025-01-17T13:12:00Z)\n")
+		fmt.Fprintf(w, "      --until <timestamp>   Maximum timestamp, RFC3339\n")
+		fmt.Fprintf(w, "\nParsing:\n")
+		fmt.Fprintf(w, "      --ignore-timezone     Ignore timezone info in log timestamps\n")
+		fmt.Fprintf(w, "      --min-ts-len <n>      Shortest timestamp length (default: 15)\n")
+		fmt.Fprintf(w, "      --ts-search-limit <n> How far into each line to search for timestamps (default: 250)\n")
+		fmt.Fprintf(w, "\nPerformance:\n")
+		fmt.Fprintf(w, "      --buf-read <bytes>    Read buffer size (default: 100 MB)\n")
+		fmt.Fprintf(w, "      --buf-write <bytes>   Write buffer size (default: 100 MB)\n")
+		fmt.Fprintf(w, "      --metrics             Enable detailed metrics tree\n")
+		fmt.Fprintf(w, "      --profile             Enable CPU/memory profiling\n")
+		fmt.Fprintf(w, "\nDisplay:\n")
+		fmt.Fprintf(w, "  -p, --progress            Show progress bar\n")
+		fmt.Fprintf(w, "\nSystem:\n")
+		fmt.Fprintf(w, "      --config <path>       Base YAML configuration file (flags override YAML values)\n")
+	}
 
 	flag.Parse()
 
