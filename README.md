@@ -6,46 +6,99 @@ architectures and Go's concurrency primitives.
 
 ## 📖 Usage
 
-LogMerge is driven by a YAML configuration file. This allows for precise control over I/O buffers
-and timestamp discovery.
+LogMerge supports both CLI flags and an optional YAML configuration file. CLI flags override YAML
+values, and input paths are passed as positional arguments.
 
 ### 1. Basic Execution
 
 ```bash
-./logmerge config.yaml
+# Merge all log files in a directory
+./logmerge /var/log/myapp
 
+# Merge multiple paths, output to file
+./logmerge -o merged.log /var/log/app1 /var/log/app2
+
+# Use a YAML config as a base, override with flags
+./logmerge --config config.yaml -o merged.log /var/log/myapp
 ```
 
-### 2. Configuration Example (`config.yaml`)
+### 2. Filtering Examples
+
+```bash
+# Ignore backup and temp files using gitignore-style patterns
+./logmerge -i "*.bak" -i "*temp*" /var/log/myapp
+
+# Auto-ignore all archive files (.zip, .gz, .tar, etc.)
+./logmerge --ignore-archives /var/log/myapp
+
+# Load ignore patterns from a file
+./logmerge --ignore-file .logmergeignore /var/log/myapp
+
+# Combine: ignore archives + custom patterns
+./logmerge --ignore-archives -i "*.old" /var/log/myapp
+```
+
+### 3. Formatting Examples
+
+```bash
+# Prepend timestamps and show file separators
+./logmerge -t -b /var/log/myapp
+
+# Prepend file alias to every line
+./logmerge -a --alias "console.log=driver" --alias "*/worker/*.log=worker" /var/log/myapp
+
+# Filter by time range
+./logmerge --since 2025-01-17T13:00:00Z --until 2025-01-17T14:00:00Z /var/log/myapp
+```
+
+### 4. YAML Configuration
+
+For complex setups, use a YAML config file. See `conf/example.yaml` for all available fields.
 
 ```yaml
-OutputFile:
-  Path: "out/merged.log"
-LogFile:
-  Path: "out/process.log"
+InputPaths:
+  - /var/log/myapp
+  - /var/log/myapp-worker
+
+OutputFile: /tmp/merged.log
 
 ListFilesConfig:
-  InputPath: "/var/logs/app-cluster"
-  IncludedSubstrings: [ ".log" ]
-  ExcludedSuffixes: [ ".gz", ".zip" ]
+  IgnoreArchives: true
+  IgnorePatterns:
+    - "*temp*"
+    - "*.bak"
+  FileAliases:
+    "console.log": "driver"
+    "*/worker/*.log": "worker"
 
 MergeConfig:
-  BufferSizeForRead: 104857600  # 100MB per file
-  BufferSizeForWrite: 104857600 # 100MB output buffer
   WriteTimestampPerLine: true
   WriteAliasPerBlock: true
-
-ParseTimestampConfig:
-  ShortestTimestampLen: 15
-  TimestampSearchEndIndex: 250
-
+  MinTimestamp: "2025-01-17T00:00:00Z"
+  MaxTimestamp: "2025-01-18T00:00:00Z"
 ```
 
-### 3. Key Parameters
+### 5. Key Flags
 
-* **InputPath:** Directory containing the logs to be merged.
-* **BufferSizeForRead:** Increase this for high-latency storage (network mounts).
-* **WriteAliasPerBlock:** Prepends the source filename whenever the stream switches between files.
+* **`-i, --ignore <pattern>`**: Gitignore-style glob patterns to exclude files. Repeatable. Prefix with `!` to negate.
+* **`--ignore-archives`**: Shorthand to ignore `.zip`, `.gz`, `.tar`, `.rar`, `.7z`, `.tgz`, `.bz2`, `.tbz2`, `.xz`, `.txz`.
+* **`--config <path>`**: Load a YAML configuration file as base. CLI flags override YAML values.
+* **`--buf-read <bytes>`**: Increase for high-latency storage (network mounts). Default: 100 MB.
+
+## 📦 Transparent Decompression
+
+LogMerge automatically handles compressed files during file discovery:
+
+- **`.gz` files**: Decompressed on-the-fly using Go's `compress/gzip` reader.
+- **`.zip` files**: Each entry inside the archive is treated as an individual log file. Entries are
+  filtered through the same ignore patterns, and a reference-counted reader ensures safe concurrent
+  access.
+
+Archive files are processed transparently — no extraction step is needed. Virtual paths for zip
+entries use the format `path/to/archive.zip!/entry/name.log`, which also works with `--alias` and
+`--ignore` patterns.
+
+To skip compressed files entirely, use `--ignore-archives`.
 
 ## 📝 Output Preview
 
