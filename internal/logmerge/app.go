@@ -157,7 +157,7 @@ func Run() error {
 	}
 
 	// Override config with explicitly set flags
-	if explicitlySet["output"] || explicitlySet["o"] {
+	if explicitlySet["out"] || explicitlySet["o"] {
 		if *outputFlag != "" {
 			config.OutputFile = &WritableFile{Path: *outputFlag}
 			if err := config.OutputFile.Initialize(); err != nil {

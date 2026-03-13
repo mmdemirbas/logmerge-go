@@ -4,6 +4,12 @@ LogMerge is a specialized systems tool designed to merge multiple, massive log f
 chronologically ordered stream. It is engineered for extreme throughput, leveraging modern CPU
 architectures and Go's concurrency primitives.
 
+## ⚡ Quick Start
+
+```bash
+logmerge ./logs -o merged.log
+```
+
 ## 📖 Usage
 
 LogMerge supports both CLI flags and an optional YAML configuration file. CLI flags override YAML
