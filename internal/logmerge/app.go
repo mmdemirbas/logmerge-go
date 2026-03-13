@@ -103,6 +103,8 @@ func Run() error {
 	progressFlag := flag.Bool("progress", false, "")
 	flag.BoolVar(progressFlag, "p", false, "")
 
+	completionsFlag := flag.String("completions", "", "")
+
 	flag.Usage = func() {
 		w := flag.CommandLine.Output()
 		fmt.Fprintf(w, "Usage: %s [flags] <path>...\n", os.Args[0])
@@ -135,9 +137,27 @@ func Run() error {
 		fmt.Fprintf(w, "  -p, --progress            Show progress bar\n")
 		fmt.Fprintf(w, "\nSystem:\n")
 		fmt.Fprintf(w, "      --config <path>       Base YAML configuration file (flags override YAML values)\n")
+		fmt.Fprintf(w, "      --completions <shell> Generate shell completion script (bash, zsh, fish, powershell)\n")
 	}
 
 	flag.Parse()
+
+	// Handle --completions early exit
+	if *completionsFlag != "" {
+		switch *completionsFlag {
+		case "bash":
+			generateBashCompletion(os.Stdout)
+		case "zsh":
+			generateZshCompletion(os.Stdout)
+		case "fish":
+			generateFishCompletion(os.Stdout)
+		case "powershell":
+			generatePowershellCompletion(os.Stdout)
+		default:
+			return fmt.Errorf("unknown shell %q for --completions (supported: bash, zsh, fish, powershell)", *completionsFlag)
+		}
+		return nil
+	}
 
 	// Track which flags were explicitly set
 	explicitlySet := make(map[string]bool)

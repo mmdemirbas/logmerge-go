@@ -132,6 +132,58 @@ tasks:
     cmds:
       - go tool pprof {{.OUT_DIR}}/{{.MEM_PROF_FILE}}
 
+  install-completions:
+    desc: "Install shell completions for the current shell (bash, zsh, fish, or powershell)"
+    deps: [ build ]
+    cmds:
+      - |
+        SHELL_NAME=$(basename "$SHELL")
+        case "$SHELL_NAME" in
+          bash)
+            DIR="${BASH_COMPLETION_USER_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions}"
+            mkdir -p "$DIR"
+            {{.BIN_DIR}}/{{.BINARY_NAME}} --completions bash > "$DIR/logmerge"
+            echo "Installed bash completions to $DIR/logmerge"
+            echo "Restart your shell or run: source $DIR/logmerge"
+            ;;
+          zsh)
+            DIR="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/site-functions"
+            mkdir -p "$DIR"
+            {{.BIN_DIR}}/{{.BINARY_NAME}} --completions zsh > "$DIR/_logmerge"
+            echo "Installed zsh completions to $DIR/_logmerge"
+            echo "Add $DIR to your fpath in .zshrc if not already:"
+            echo "  fpath=($DIR \$fpath)"
+            echo "Then restart your shell or run: autoload -Uz compinit && compinit"
+            ;;
+          fish)
+            DIR="${XDG_CONFIG_HOME:-$HOME/.config}/fish/completions"
+            mkdir -p "$DIR"
+            {{.BIN_DIR}}/{{.BINARY_NAME}} --completions fish > "$DIR/logmerge.fish"
+            echo "Installed fish completions to $DIR/logmerge.fish"
+            ;;
+          *)
+            echo "Unsupported shell: $SHELL_NAME (supported: bash, zsh, fish)"
+            echo "For PowerShell, run: task install-completions-powershell"
+            exit 1
+            ;;
+        esac
+
+  install-completions-powershell:
+    desc: "Install PowerShell completions for logmerge"
+    deps: [ build ]
+    platforms: [ windows, darwin, linux ]
+    cmds:
+      - |
+        {{.BIN_DIR}}/{{.BINARY_NAME}} --completions powershell > "{{.BIN_DIR}}/logmerge.ps1"
+        echo "Generated PowerShell completions to {{.BIN_DIR}}/logmerge.ps1"
+        echo ""
+        echo "To load in the current session:"
+        echo "  . {{.BIN_DIR}}/logmerge.ps1"
+        echo ""
+        echo "To load automatically, add this line to your PowerShell profile"
+        echo "(\$PROFILE, typically ~\\Documents\\PowerShell\\Microsoft.PowerShell_profile.ps1):"
+        echo "  . $(pwd)/{{.BIN_DIR}}/logmerge.ps1"
+
   check-pgo:
     internal: true
     cmds:
