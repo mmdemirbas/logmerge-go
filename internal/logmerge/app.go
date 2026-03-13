@@ -59,6 +59,7 @@ var metrics *MainMetrics
 
 // TODO: Catch interrupt signal during merge process and do the post-work anyway
 
+// Run parses CLI flags, loads configuration, and executes the log merge pipeline.
 func Run() error {
 	// Define CLI flags
 	outputFlag := flag.String("out", "", "")

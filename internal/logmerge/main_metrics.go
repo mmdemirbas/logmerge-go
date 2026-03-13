@@ -52,6 +52,7 @@ type BucketMetric struct {
 	count  int64
 }
 
+// NewMetrics returns a MainMetrics with zero-valued sub-metrics.
 func NewMetrics() *MainMetrics {
 	return &MainMetrics{
 		ListFilesMetrics: NewListFilesMetrics(),
@@ -59,6 +60,7 @@ func NewMetrics() *MainMetrics {
 	}
 }
 
+// NewMetricsTree creates a MetricsTree with an initialized root node.
 func NewMetricsTree() *MetricsTree {
 	tree := &MetricsTree{}
 	root := NewMetricsTreeNode(tree, nil, "MetricsTree")
@@ -85,6 +87,7 @@ func NewCallMetric(name string, metricsTree *MetricsTree) *CallMetric {
 	}
 }
 
+// NewBucketMetric creates a histogram-style metric with the given bucket boundaries.
 func NewBucketMetric(name string, levels ...int) *BucketMetric {
 	return &BucketMetric{
 		name:   name,
@@ -97,6 +100,7 @@ func NewBucketMetric(name string, levels ...int) *BucketMetric {
 	}
 }
 
+// Start enters a named timing context and returns the start time. Call Stop to record duration.
 func (m *MetricsTree) Start(name string) time.Time {
 	if !m.Enabled {
 		return time.Time{}
@@ -123,12 +127,13 @@ func (m *MetricsTree) Start(name string) time.Time {
 	return time.Now()
 }
 
-func (m *MetricsTree) Stop(startNanos time.Time) int64 {
+// Stop records the elapsed duration since startNanos and exits the current timing context.
+func (m *MetricsTree) Stop(startNanos time.Time) (elapsed int64) {
 	if !m.Enabled {
 		return 0
 	}
 
-	elapsed := time.Since(startNanos).Nanoseconds()
+	elapsed = time.Since(startNanos).Nanoseconds()
 
 	// exit context
 	m.Current.Metric.CallCount++
@@ -143,6 +148,7 @@ func (c *CallMetric) Stop(startNanos time.Time) {
 	c.CallCount++
 }
 
+// Merge combines another MetricsTree's nodes and durations into this one.
 func (m *MetricsTree) Merge(other *MetricsTree) {
 	if other == nil || other.Root == nil {
 		return
@@ -176,6 +182,7 @@ func (c *CallMetric) merge(other *CallMetric) {
 	c.Duration += other.Duration
 }
 
+// UpdateBucketCount increments the bucket that n falls into and updates min/max/sum.
 func (b *BucketMetric) UpdateBucketCount(n int) {
 	for i, level := range b.levels {
 		if n <= level {
@@ -189,6 +196,7 @@ func (b *BucketMetric) UpdateBucketCount(n int) {
 	b.count++
 }
 
+// Merge aggregates another BucketMetric's counts into this one.
 func (b *BucketMetric) Merge(other *BucketMetric) {
 	for i := range b.values {
 		b.values[i] += other.values[i]
@@ -199,6 +207,9 @@ func (b *BucketMetric) Merge(other *BucketMetric) {
 	b.count += other.count
 }
 
+// PrintMetrics writes a full diagnostic report (byte counts, line counts, memory stats,
+// timing tree) to the configured log file.
+//
 //goland:noinspection GoUnhandledErrorResult
 func (m *MainMetrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTime time.Duration, err error) {
 	inputBytes := m.MergeMetrics.BytesRead + m.MergeMetrics.BytesNotRead

@@ -10,16 +10,19 @@ type MinHeap struct {
 	entries []heapEntry
 }
 
+// NewMinHeap creates a MinHeap pre-allocated for the given capacity.
 func NewMinHeap(capacity int) *MinHeap {
 	return &MinHeap{
 		entries: make([]heapEntry, 0, capacity),
 	}
 }
 
+// Len returns the number of entries in the heap.
 func (h *MinHeap) Len() int {
 	return len(h.entries)
 }
 
+// Peek returns the FileHandle with the smallest timestamp without removing it.
 func (h *MinHeap) Peek() *FileHandle {
 	if len(h.entries) == 0 {
 		return nil

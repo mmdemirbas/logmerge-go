@@ -133,6 +133,7 @@ const (
 
 var newline = []byte{'\n'}
 
+// SkipNextLineSlice advances past the next line in the buffer, returning bytes skipped and EOL type.
 func (r *RingBuffer) SkipNextLineSlice(latestCharWasCR *bool) (int, EOLType) {
 	readIndex := r.readIndex
 	writeIndex := r.writeIndex
@@ -221,6 +222,7 @@ func (r *RingBuffer) PeekNextLineSlice(latestCharWasCR *bool) ([]byte, EOLType) 
 	return buf[readIndex : i+1], LF
 }
 
+// PeekSlice copies up to cap(buffer) bytes from the buffer into a contiguous slice.
 func (r *RingBuffer) PeekSlice(buffer []byte) []byte {
 	readIndex := r.readIndex
 	capacity := r.cap

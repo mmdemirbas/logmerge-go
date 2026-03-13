@@ -46,7 +46,9 @@ type FileHandle struct {
 	MergeMetrics        *MergeMetrics
 }
 
-func NewFileHandle(file VirtualFile, alias string, bufferSize int) (*FileHandle, error) {
+// NewFileHandle creates a FileHandle wrapping the given VirtualFile with its own
+// read buffer and per-file metrics.
+func NewFileHandle(file VirtualFile, alias string, bufferSize int) (fh *FileHandle, err error) {
 	return &FileHandle{
 		File:                file,
 		Alias:               []byte(alias),
@@ -62,6 +64,7 @@ func NewFileHandle(file VirtualFile, alias string, bufferSize int) (*FileHandle,
 	}, nil
 }
 
+// FillBuffer reads data from the underlying file into the ring buffer.
 func (r *FileHandle) FillBuffer() error {
 	n, err := r.Buffer.Fill(r.File)
 	if err == io.EOF {
@@ -72,6 +75,8 @@ func (r *FileHandle) FillBuffer() error {
 	return err
 }
 
+// SkipLine advances past the current line in the buffer without writing it,
+// returning the number of bytes skipped and the EOL length.
 func (r *FileHandle) SkipLine() (bytesCount int, eolLength int, err error) {
 	var (
 		n               = 0
@@ -107,6 +112,8 @@ func (r *FileHandle) SkipLine() (bytesCount int, eolLength int, err error) {
 	return
 }
 
+// WriteLine writes the current line from the buffer to the writer, ensuring
+// it ends with a newline. Updates byte and line-length metrics.
 func (r *FileHandle) WriteLine(m *MergeMetrics, writer *bufio.Writer) error {
 	var (
 		count           = 0
@@ -179,6 +186,7 @@ func (r *FileHandle) WriteLine(m *MergeMetrics, writer *bufio.Writer) error {
 	return nil
 }
 
+// Close closes the underlying VirtualFile.
 func (r *FileHandle) Close() error {
 	return r.File.Close()
 }

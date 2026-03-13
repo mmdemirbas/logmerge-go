@@ -34,6 +34,7 @@ var daysAfter = [13]int{
 	31,
 }
 
+// NewTimestamp constructs a Timestamp from date/time components and timezone offset.
 func NewTimestamp(y, M, d, H, m, s, ns, tzSgn, tzH, tzM int) Timestamp {
 	leapDay := -isLeapYear(y) & ((M - 3) >> 31)
 	ed := epochDaysIncludingYear(y) - daysFrom1970 - 1 - daysAfter[M] + d - leapDay
@@ -71,12 +72,14 @@ func init() {
 	}
 }
 
+// String returns the timestamp formatted as "YYYY-MM-DD HH:MM:SS.nnnnnnnnn ".
 func (t Timestamp) String() string {
 	var buf [30]byte
 	t.FormatTo(buf[:])
 	return string(buf[:])
 }
 
+// FormatTo writes the formatted timestamp into b (must be at least 30 bytes).
 func (t Timestamp) FormatTo(b []byte) {
 	nano := int64(t)
 

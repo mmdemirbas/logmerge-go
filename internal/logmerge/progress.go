@@ -12,6 +12,8 @@ type PrintProgressConfig struct {
 	PeriodMillis         int  `yaml:"PeriodMillis"`
 }
 
+// PrintProgressPeriodically prints a progress bar to stderr at regular intervals.
+// It blocks forever and is intended to run in a goroutine.
 func PrintProgressPeriodically(c *PrintProgressConfig, files []*FileHandle, programStartTime time.Time) {
 	if !c.PrintProgressEnabled {
 		return
@@ -29,6 +31,7 @@ func PrintProgressPeriodically(c *PrintProgressConfig, files []*FileHandle, prog
 	}
 }
 
+// PrintProgress prints a single progress line to stderr showing bytes and file completion.
 func PrintProgress(c *PrintProgressConfig, files []*FileHandle, programStartTime time.Time) {
 	if !c.PrintProgressEnabled {
 		return

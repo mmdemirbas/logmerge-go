@@ -16,8 +16,6 @@
 
 - Code quality
   - Aggressively simplify the code so we can easily implement advanced algorithms and features in the future
-  - Add doc comments to exported functions (especially ProcessFiles, ListFiles, Run)
-  - Use named return values consistently to document code better and improve autocomplete
   - Complete unit tests (notably: no tests for core merge logic in file_merge.go)
 
 - Performance

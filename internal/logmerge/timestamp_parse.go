@@ -10,6 +10,8 @@ type ParseTimestampConfig struct {
 	TimestampSearchEndIndex int  `yaml:"TimestampSearchEndIndex"`
 }
 
+// UpdateTimestamp reads the next line's prefix from file's buffer and parses
+// a timestamp, setting file.LineTimestamp and file.LineTimestampParsed.
 func UpdateTimestamp(c *ParseTimestampConfig, file *FileHandle) error {
 	bufLen := file.Buffer.Len()
 	if bufLen < c.TimestampSearchEndIndex {
@@ -40,6 +42,8 @@ func UpdateTimestamp(c *ParseTimestampConfig, file *FileHandle) error {
 	return nil
 }
 
+// ParseTimestamp scans the first TimestampSearchEndIndex bytes of buffer for a
+// recognizable timestamp pattern and returns it, or ZeroTimestamp if none found.
 func ParseTimestamp(c *ParseTimestampConfig, buffer []byte) Timestamp {
 	n := min(len(buffer), c.TimestampSearchEndIndex)
 

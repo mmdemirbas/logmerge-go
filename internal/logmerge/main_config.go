@@ -19,6 +19,8 @@ type MainConfig struct {
 	PrintProgressConfig  *PrintProgressConfig  `yaml:"PrintProgressConfig"`
 }
 
+// LoadYAML reads a YAML configuration file and unmarshals it into c,
+// initializing output and log file handles.
 func (c *MainConfig) LoadYAML(yamlPath string) error {
 	file, err := os.ReadFile(yamlPath)
 	if err != nil {
@@ -40,7 +42,8 @@ func (c *MainConfig) LoadYAML(yamlPath string) error {
 	return nil
 }
 
-func (c *MainConfig) ToYAML() (string, error) {
+// ToYAML serializes the configuration to a YAML string.
+func (c *MainConfig) ToYAML() (yamlStr string, err error) {
 	data, err := yaml.Marshal(c)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal YAML: %w", err)
@@ -77,6 +80,8 @@ func (f *WritableFile) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
+// Initialize creates the file at Path (and its parent directories). If Path is
+// empty, the existing File handle (e.g. os.Stdout) is left unchanged.
 func (f *WritableFile) Initialize() error {
 	if f.Path == "" {
 		// leave default value (e.g., os.Stdout/os.Stderr)

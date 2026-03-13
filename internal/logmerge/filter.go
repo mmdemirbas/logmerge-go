@@ -14,6 +14,8 @@ type Matcher struct {
 	rules []patternRule
 }
 
+// NewMatcher creates a Matcher from gitignore-style glob patterns. Empty lines
+// and comments (starting with #) are skipped. Patterns prefixed with ! are negations.
 func NewMatcher(patterns []string) *Matcher {
 	rules := make([]patternRule, 0, len(patterns))
 	for _, p := range patterns {
@@ -31,9 +33,11 @@ func NewMatcher(patterns []string) *Matcher {
 	return &Matcher{rules: rules}
 }
 
-func (m *Matcher) ShouldInclude(filePath string) bool {
+// ShouldInclude returns whether filePath passes the filter rules. Rules are
+// evaluated in order; the last matching rule wins. Default is include.
+func (m *Matcher) ShouldInclude(filePath string) (included bool) {
 	_, name := filepath.Split(filePath)
-	included := true // default: include if no rules match
+	included = true // default: include if no rules match
 	for _, rule := range m.rules {
 		nameMatched, _ := filepath.Match(rule.pattern, name)
 		pathMatched, _ := filepath.Match(rule.pattern, filePath)

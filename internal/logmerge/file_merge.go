@@ -47,6 +47,7 @@ type MergeMetrics struct {
 	BlockLineCounts        *BucketMetric
 }
 
+// Merge aggregates counters from another MergeMetrics into this one.
 func (m *MergeMetrics) Merge(other *MergeMetrics) {
 	m.BytesRead += other.BytesRead
 	m.BytesReadAndSkipped += other.BytesReadAndSkipped
@@ -80,6 +81,10 @@ type writeState struct {
 	cachedTimestampString []byte
 }
 
+// ProcessFiles merges the given files into a single chronologically-ordered stream.
+// It uses a min-heap to interleave lines by timestamp, with parallel prefetch for
+// initial timestamp parsing. The updateTimestamp callback is called to parse the
+// timestamp of each new line before it enters the heap.
 func ProcessFiles(
 	c *MergeConfig,
 	m *MergeMetrics,

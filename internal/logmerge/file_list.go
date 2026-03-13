@@ -31,6 +31,7 @@ type ListFilesMetrics struct {
 	MatchedFiles []string
 }
 
+// NewListFilesMetrics returns a zero-valued ListFilesMetrics ready for use.
 func NewListFilesMetrics() *ListFilesMetrics {
 	return &ListFilesMetrics{
 		DirsScanned:  0,
@@ -40,6 +41,8 @@ func NewListFilesMetrics() *ListFilesMetrics {
 	}
 }
 
+// ListFiles discovers files from inputPaths (files or directories), applies ignore
+// patterns, transparently opens archives, and returns a FileHandle per discovered file.
 func ListFiles(inputPaths []string, c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, minBufferSizePerFile int, logFile *WritableFile) (files []*FileHandle, err error) {
 	matcher := NewMatcher(c.IgnorePatterns)
 
@@ -461,6 +464,8 @@ func openTarFile(path string, matcher *Matcher, m *ListFilesMetrics, decomp deco
 	return entries, nil
 }
 
+// GetAlias returns the display alias for a file. It checks FileAliases glob patterns
+// first, then falls back to the path relative to the first matching input path.
 func GetAlias(inputPaths []string, c *ListFilesConfig, virtualPath string) string {
 	// Try pattern-based matching from FileAliases
 	for pattern, alias := range c.FileAliases {
