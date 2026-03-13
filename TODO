@@ -1,39 +1,27 @@
 - Usability
-    - Support: Include timestamp-less entries always regardless of the MinTimestamp setting
-    - Support: Use the file modification time as the timestamp if no timestamp is present in the line.
-    - Support: Included / excluded paths
-- Code tidy up
-    - Aggressively simplify the code so we can easily implement advanced algorithms and features in the future.
-    - Add method comments
-    - Use named return values to document code better and enjoy better autocomplete.
-- Other
-    - Complete unit tests
-    - Allow breaking strict line ordering in favor of keeping logs from same source together, like up to a certain threshold (not exceeding 1sec for example)
-    - Add unified log level support to format output logs in IDE better (print log level just like timestamp)
-    - Support merging log files from withing archive files (zip, tar etc)
+  - Include timestamp-less entries always regardless of the MinTimestamp setting
+  - Use the file modification time as the fallback timestamp if no timestamp is present in the line
+  - Support .tar/.tar.gz archive files (currently only .gz and .zip are supported)
+  - Dry-run mode (list matched files without merging)
+  - Including / excluding symlinks during directory traversal
 
-- Customizations
-  - Support: Multiple input paths
-  - Support: Dry-run
-  - Support: Including / excluding symlinks
-  - Support: Opt in to add standardized log level to the output
-  - Support: Opt in to remove timestamp from raw line
-  - Support: Opt in to remove log level from raw line
-  - Support: Custom source name format
-  - Support: Custom timestamp format
-  - Support: Default local timezone if no timezone information in the timestamp
+- Output formatting
+  - Add unified log level support to format output logs in IDE better (print log level just like timestamp)
+  - Opt in to add standardized log level to the output
+  - Opt in to remove timestamp from raw line
+  - Opt in to remove log level from raw line
+  - Custom source name format template (beyond simple --alias pat=name)
+  - Custom timestamp output format
+  - Default local timezone if no timezone information in the timestamp
+  - Allow breaking strict line ordering in favor of keeping logs from same source together, up to a configurable threshold (e.g. 1 second)
+
+- Code quality
+  - Aggressively simplify the code so we can easily implement advanced algorithms and features in the future
+  - Add doc comments to exported functions (especially ProcessFiles, ListFiles, Run)
+  - Use named return values consistently to document code better and improve autocomplete
+  - Complete unit tests (notably: no tests for core merge logic in file_merge.go)
+
 - Performance
-  - Consider adaptive sorting like Timsort just like 'sort' command in Unix.
-    Depending on input size and distribution, tools dynamically choose between sorting algorithms
-    like quicksort, mergesort, or insertion sort.
-  - Experiment splitting files into chunks and sorting and merging in multiple steps.
-  - Read files concurrently -> Fill the read buffer while other parts of the program are processing the lines.
-  - Take max open file descriptor limit into account. If there are too many files, we couldn't open all of them simultaneously.
-    Consider using temporary intermediate files to store the sorted lines and merge them later using efficient algorithms
-    like merge sort.
-  - Create an alternative solution with sort and awk to compare performance.
-  - Implement an alternative in Rust.
-  - 'sort' and 'awk': Algorithms are optimized for CPU cache by working on small, contiguous chunks of data that fit in the L1/L2 cache.
-
-
-SHORTEN PROJECT NAME
+  - Read files concurrently during merge (prefetch exists, but the merge loop itself is sequential)
+  - Experiment with splitting files into chunks and processing in parallel (stub code exists but is unused)
+  - Take max open file descriptor limit into account; fall back to intermediate merge files when too many inputs
