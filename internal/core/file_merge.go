@@ -7,6 +7,7 @@ import (
 	"io"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/mmdemirbas/logmerge/internal/fsutil"
 	"github.com/mmdemirbas/logmerge/internal/logtime"
@@ -181,10 +182,15 @@ func sequentialProcessFiles(
 			if shouldWriteAlias {
 				shouldWriteAlias = false
 				lastPrintedAlias = file.Alias
-				wsStartTime := file.Metrics.Start("WriteAliasPerBlock")
+				var wsStartTime time.Time
+				if file.Metrics != nil {
+					wsStartTime = file.Metrics.Start("WriteAliasPerBlock")
+				}
 				n, err := writer.Write(file.AliasForBlock)
 				m.BytesWrittenForAliasPerBlock += int64(n)
-				file.Metrics.Stop(wsStartTime)
+				if file.Metrics != nil {
+					file.Metrics.Stop(wsStartTime)
+				}
 				if err != nil {
 					return fmt.Errorf("failed to write alias: %v", err)
 				}
@@ -252,8 +258,13 @@ func doUpdateTimestamp(file *fsutil.FileHandle, m *metrics.MergeMetrics, updateT
 }
 
 func writeLine(c *MergeConfig, m *metrics.MergeMetrics, ws *writeState, writer *bufio.Writer, file *fsutil.FileHandle) error {
+	mt := file.Metrics // cache nil check
+
 	if c.WriteTimestampPerLine {
-		startTime := file.Metrics.Start("WriteTimestamp")
+		var startTime time.Time
+		if mt != nil {
+			startTime = mt.Start("WriteTimestamp")
+		}
 		timestampToLog := file.BlockTimestamp
 
 		var toWrite []byte
@@ -268,21 +279,31 @@ func writeLine(c *MergeConfig, m *metrics.MergeMetrics, ws *writeState, writer *
 			return fmt.Errorf("failed to write timestamp: %v", err)
 		}
 		m.BytesWrittenForTimestamps += int64(n)
-		file.Metrics.Stop(startTime)
+		if mt != nil {
+			mt.Stop(startTime)
+		}
 	}
 	if c.WriteAliasPerLine {
-		startTime := file.Metrics.Start("WriteAliasPerLine")
+		var startTime time.Time
+		if mt != nil {
+			startTime = mt.Start("WriteAliasPerLine")
+		}
 		n, err := writer.Write(file.AliasForLine)
 		m.BytesWrittenForAliasPerLine += int64(n)
 		if err != nil {
 			return fmt.Errorf("failed to write alias: %v", err)
 		}
-		file.Metrics.Stop(startTime)
+		if mt != nil {
+			mt.Stop(startTime)
+		}
 	}
 
 	// Strip the original timestamp from the line if configured
 	if c.StripOriginalTimestamp && file.LineTimestampEnd > 0 {
-		startTime := file.Metrics.Start("StripTimestamp")
+		var startTime time.Time
+		if mt != nil {
+			startTime = mt.Start("StripTimestamp")
+		}
 
 		// Write prefix bytes before the timestamp section
 		var lastPrefixByte byte
@@ -299,7 +320,6 @@ func writeLine(c *MergeConfig, m *metrics.MergeMetrics, ws *writeState, writer *
 			lastPrefixByte = prefix[len(prefix)-1]
 			n, err := writer.Write(prefix)
 			if err != nil {
-				file.Metrics.Stop(startTime)
 				return fmt.Errorf("failed to write prefix: %v", err)
 			}
 			m.BytesWrittenForRawData += int64(n)
@@ -316,14 +336,15 @@ func writeLine(c *MergeConfig, m *metrics.MergeMetrics, ws *writeState, writer *
 				nextByte != ' ' && nextByte != '\t' && nextByte != '\n' && nextByte != '\r' {
 				_, err := writer.Write([]byte{' '})
 				if err != nil {
-					file.Metrics.Stop(startTime)
 					return fmt.Errorf("failed to write separator: %v", err)
 				}
 				m.BytesWrittenForRawData++
 			}
 		}
 
-		file.Metrics.Stop(startTime)
+		if mt != nil {
+			mt.Stop(startTime)
+		}
 	}
 
 	// Write rest of the line including the new line character

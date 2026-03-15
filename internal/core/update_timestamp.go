@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/mmdemirbas/logmerge/internal/fsutil"
 	"github.com/mmdemirbas/logmerge/internal/logtime"
@@ -12,16 +13,23 @@ import (
 // When computeStripPositions is true, it also computes the prefix/trailing
 // delimiter boundaries for timestamp stripping.
 func UpdateTimestamp(c *logtime.ParseTimestampConfig, file *fsutil.FileHandle, computeStripPositions bool) error {
+	mt := file.Metrics // cache nil check
+
 	bufLen := file.Buffer.Len()
 	if bufLen < c.TimestampSearchEndIndex {
-		startTime := file.Metrics.Start("FillBuffer")
+		var startTime time.Time
+		if mt != nil {
+			startTime = mt.Start("FillBuffer")
+		}
 		err := file.FillBuffer()
 		if err != nil {
 			file.LineTimestampParsed = false
 			file.LineTimestamp = logtime.ZeroTimestamp
 			return fmt.Errorf("failed to fill buffer: %v", err)
 		}
-		file.Metrics.Stop(startTime)
+		if mt != nil {
+			mt.Stop(startTime)
+		}
 
 		if bufLen == 0 && file.Buffer.IsEmpty() {
 			file.LineTimestampParsed = false
@@ -31,14 +39,17 @@ func UpdateTimestamp(c *logtime.ParseTimestampConfig, file *fsutil.FileHandle, c
 	}
 
 	// Use PeekSlice to get a contiguous view of the buffer data.
-	// PeekNextLineSlice only returns the first contiguous segment, which
-	// can miss the timestamp when the line spans the ring buffer wrap boundary.
 	// Stack-allocated array avoids heap allocation; 250 bytes covers all
 	// real-world timestamp formats (timestamps are at the start of lines).
-	startTime := file.Metrics.Start("BufferAsSlice")
+	var startTime time.Time
+	if mt != nil {
+		startTime = mt.Start("BufferAsSlice")
+	}
 	var peekBuf [250]byte
 	buf := file.Buffer.PeekSlice(peekBuf[:])
-	file.Metrics.Stop(startTime)
+	if mt != nil {
+		mt.Stop(startTime)
+	}
 
 	var timestamp logtime.Timestamp
 	if computeStripPositions {

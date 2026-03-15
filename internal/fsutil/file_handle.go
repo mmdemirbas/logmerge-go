@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/mmdemirbas/logmerge/internal/container"
 	"github.com/mmdemirbas/logmerge/internal/logtime"
@@ -95,6 +96,7 @@ func (r *FileHandle) SkipLine() (bytesCount int, eolLength int, err error) {
 		latestCharWasCR = false
 		eol             = container.None
 	)
+	mt := r.Metrics // cache nil check
 
 	for !r.Buffer.IsEmpty() {
 		n, eol = r.Buffer.SkipNextLineSlice(&latestCharWasCR)
@@ -104,13 +106,18 @@ func (r *FileHandle) SkipLine() (bytesCount int, eolLength int, err error) {
 		}
 
 		if r.Buffer.IsEmpty() {
-			startTime := r.Metrics.Start("FillBuffer")
+			var startTime time.Time
+			if mt != nil {
+				startTime = mt.Start("FillBuffer")
+			}
 			err = r.FillBuffer()
 			if err != nil {
 				err = fmt.Errorf("failed to fill buffer: %v", err)
 				return
 			}
-			r.Metrics.Stop(startTime)
+			if mt != nil {
+				mt.Stop(startTime)
+			}
 		}
 	}
 
@@ -134,28 +141,35 @@ func (r *FileHandle) WriteLine(m *metrics.MergeMetrics, writer *bufio.Writer) er
 		chunk           []byte
 		err             error = nil
 	)
+	mt := r.Metrics // cache nil check — avoids 10 method calls per line when nil
 
 	for !r.Buffer.IsEmpty() || latestCharWasCR {
-		startTime := r.Metrics.Start("PeekNextLineSlice")
+		var startTime time.Time
+		if mt != nil {
+			startTime = mt.Start("PeekNextLineSlice")
+		}
 		chunk, eol = r.Buffer.PeekNextLineSlice(&latestCharWasCR)
-		r.Metrics.Stop(startTime)
+		if mt != nil {
+			mt.Stop(startTime)
+		}
 
 		if chunk != nil {
-			startTime = r.Metrics.Start("WriteLinePartial")
+			if mt != nil {
+				startTime = mt.Start("WriteLinePartial")
+			}
 			var n int
 			n, err = writer.Write(chunk)
 			if err == nil {
 				if eol == container.CRLF && len(chunk) == 1 && chunk[0] == '\n' {
-					// This chunk is the '\n' part of a split CRLF.
-					// The '\n' was returned by PeekNextLineSlice but not
-					// consumed — skip it so it doesn't leak into the next line.
 					r.Buffer.Skip(1)
 				} else {
 					r.Buffer.Skip(n)
 				}
 				count += n
 			}
-			r.Metrics.Stop(startTime)
+			if mt != nil {
+				mt.Stop(startTime)
+			}
 		}
 
 		if err != nil {
@@ -166,24 +180,33 @@ func (r *FileHandle) WriteLine(m *metrics.MergeMetrics, writer *bufio.Writer) er
 		}
 
 		if r.Buffer.IsEmpty() && !latestCharWasCR {
-			startTime := r.Metrics.Start("FillBuffer")
+			if mt != nil {
+				startTime = mt.Start("FillBuffer")
+			}
 			err = r.FillBuffer()
 			if err != nil {
 				return fmt.Errorf("failed to fill buffer: %v", err)
 			}
-			r.Metrics.Stop(startTime)
+			if mt != nil {
+				mt.Stop(startTime)
+			}
 		}
 	}
 
 	// Ensure \n is written at the end of the line
 	if eol != container.LF && eol != container.CRLF {
-		startTime := r.Metrics.Start("WriteMissingNewline")
+		var startTime time.Time
+		if mt != nil {
+			startTime = mt.Start("WriteMissingNewline")
+		}
 		_, err = writer.Write(newline)
 		m.BytesWrittenForMissingNewlines++
 		if err != nil {
 			return fmt.Errorf("failed to write newline: %v", err)
 		}
-		r.Metrics.Stop(startTime)
+		if mt != nil {
+			mt.Stop(startTime)
+		}
 	}
 
 	lineLengthWithoutEol := count
