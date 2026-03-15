@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	. "github.com/mmdemirbas/logmerge/internal/core"
 	"github.com/mmdemirbas/logmerge/internal/fsutil"
@@ -481,5 +482,117 @@ func TestProcessFiles_PrefetchError(t *testing.T) {
 	// The bad file should be marked as done
 	if !fhBad.Done {
 		t.Error("expected bad file to be marked as Done")
+	}
+}
+
+func TestProcessFiles_SmallBufferMinTimestamp(t *testing.T) {
+	// Use a very small buffer (32 bytes) with MinTimestamp filtering to exercise
+	// SkipLine's inner fill loop — each line can't fit in one buffer fill.
+	content := "2024-01-15 08:00:00 early1\n2024-01-15 09:00:00 early2\n2024-01-15 11:00:00 ontime\n2024-01-15 13:00:00 late\n"
+	fh := makeHandle("app.log", content, 32)
+
+	c := defaultConfig()
+	c.MinTimestamp = logtime.NewTimestamp(2024, 1, 15, 11, 0, 0, 0, 0, 0, 0)
+
+	got := runMerge(t, c, []*fsutil.FileHandle{fh})
+
+	if strings.Contains(got, "early1") {
+		t.Errorf("early1 should be filtered by MinTimestamp:\n%s", got)
+	}
+	if strings.Contains(got, "early2") {
+		t.Errorf("early2 should be filtered by MinTimestamp:\n%s", got)
+	}
+	if !strings.Contains(got, "ontime") {
+		t.Errorf("expected 'ontime' in output:\n%s", got)
+	}
+	if !strings.Contains(got, "late") {
+		t.Errorf("expected 'late' in output:\n%s", got)
+	}
+}
+
+func TestProcessFiles_FileEndingWithCR(t *testing.T) {
+	// A file ending with \r (no trailing LF). Verify the merge completes
+	// without hanging and the output is correct.
+	content := "2024-01-15 10:00:00 hello\r"
+	fh := makeHandle("cr.log", content, 4096)
+
+	done := make(chan string, 1)
+	go func() {
+		done <- runMerge(t, defaultConfig(), []*fsutil.FileHandle{fh})
+	}()
+
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+	select {
+	case got := <-done:
+		if !strings.Contains(got, "hello") {
+			t.Errorf("expected 'hello' in output:\n%q", got)
+		}
+		if !strings.HasSuffix(got, "\n") {
+			t.Errorf("expected output to end with newline, got: %q", got)
+		}
+	case <-timer.C:
+		t.Fatal("ProcessFiles hung — possible infinite loop on file ending with CR")
+	}
+}
+
+func TestProcessFiles_LineLongerThanBuffer(t *testing.T) {
+	// A single line much longer than the buffer size.
+	longPayload := strings.Repeat("x", 200)
+	content := "2024-01-15 10:00:00 " + longPayload + "\n"
+	fh := makeHandle("long.log", content, 32)
+
+	got := runMerge(t, defaultConfig(), []*fsutil.FileHandle{fh})
+
+	if !strings.Contains(got, longPayload) {
+		t.Errorf("expected full long line in output, got %d chars:\n%s", len(got), got)
+	}
+}
+
+func TestProcessFiles_MaxTimestampExactBoundary(t *testing.T) {
+	// A line whose timestamp exactly equals MaxTimestamp should be included (condition is <=).
+	content := "2024-01-15 10:00:00 first\n2024-01-15 12:00:00 boundary\n2024-01-15 14:00:00 after\n"
+	fh := makeHandle("boundary.log", content, 4096)
+
+	c := defaultConfig()
+	c.MaxTimestamp = logtime.NewTimestamp(2024, 1, 15, 12, 0, 0, 0, 0, 0, 0)
+
+	got := runMerge(t, c, []*fsutil.FileHandle{fh})
+
+	if !strings.Contains(got, "first") {
+		t.Errorf("expected 'first' in output:\n%s", got)
+	}
+	if !strings.Contains(got, "boundary") {
+		t.Errorf("expected 'boundary' (exact MaxTimestamp) in output:\n%s", got)
+	}
+	if strings.Contains(got, "after") {
+		t.Errorf("'after' should be excluded by MaxTimestamp:\n%s", got)
+	}
+}
+
+func TestProcessFiles_MultiFileMinTimestamp(t *testing.T) {
+	// Two files: one starts before MinTimestamp, one starts after.
+	contentA := "2024-01-15 08:00:00 A-early\n2024-01-15 12:00:00 A-late\n"
+	contentB := "2024-01-15 11:00:00 B1\n2024-01-15 13:00:00 B2\n"
+
+	fhA := makeHandle("a.log", contentA, 4096)
+	fhB := makeHandle("b.log", contentB, 4096)
+
+	c := defaultConfig()
+	c.MinTimestamp = logtime.NewTimestamp(2024, 1, 15, 10, 0, 0, 0, 0, 0, 0)
+
+	got := runMerge(t, c, []*fsutil.FileHandle{fhA, fhB})
+
+	if strings.Contains(got, "A-early") {
+		t.Errorf("A-early should be filtered by MinTimestamp:\n%s", got)
+	}
+	if !strings.Contains(got, "A-late") {
+		t.Errorf("expected 'A-late' in output:\n%s", got)
+	}
+	if !strings.Contains(got, "B1") {
+		t.Errorf("expected 'B1' in output:\n%s", got)
+	}
+	if !strings.Contains(got, "B2") {
+		t.Errorf("expected 'B2' in output:\n%s", got)
 	}
 }

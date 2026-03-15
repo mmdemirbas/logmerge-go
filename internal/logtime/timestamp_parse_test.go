@@ -227,3 +227,91 @@ func TestParseTimestamp_ShortTimestampLen(t *testing.T) {
 		})
 	}
 }
+
+func TestParseTimestamp_InvalidDateValues(t *testing.T) {
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"month 13", "2024-13-01 10:00:00"},
+		{"month 0", "2024-00-01 10:00:00"},
+		{"day 32", "2024-01-32 10:00:00"},
+		{"day 0", "2024-01-00 10:00:00"},
+		{"hour 24", "2024-01-15 24:00:00"},
+		{"minute 60", "2024-01-15 10:60:00"},
+		{"second 60", "2024-01-15 10:00:60"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := ParseTimestamp(c, []byte(tt.input))
+			testutil.AssertEquals(t, ZeroTimestamp, ts)
+		})
+	}
+}
+
+func TestParseTimestamp_MultipleTimestampsInLine(t *testing.T) {
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			"text before timestamp",
+			"ERROR at 2024-01-15 10:30:00 something",
+			"2024-01-15 10:30:00.000000000 ",
+		},
+		{
+			"digits prefix before timestamp",
+			"[12345] 2024-01-15 10:30:00",
+			"2024-01-15 10:30:00.000000000 ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := ParseTimestamp(c, []byte(tt.input))
+			testutil.AssertNotEquals(t, ZeroTimestamp, ts)
+			testutil.AssertEquals(t, tt.expected, ts.String())
+		})
+	}
+}
+
+func TestParseTimestamp_YearOutOfRange(t *testing.T) {
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	tests := []struct {
+		name       string
+		input      string
+		expectZero bool
+	}{
+		{"year 2051 above max", "2051-01-15 10:30:00", true},
+		{"year 1968 below min", "1968-01-15 10:30:00", true},
+		{"year 2050 at max", "2050-01-15 10:30:00", false},
+		{"year 1969 at min", "1969-01-15 10:30:00", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := ParseTimestamp(c, []byte(tt.input))
+			if tt.expectZero {
+				testutil.AssertEquals(t, ZeroTimestamp, ts)
+			} else {
+				testutil.AssertNotEquals(t, ZeroTimestamp, ts)
+			}
+		})
+	}
+}

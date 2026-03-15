@@ -252,3 +252,101 @@ func TestClose(t *testing.T) {
 		t.Fatalf("Close failed: %v", err)
 	}
 }
+
+func TestSkipLine_LineLongerThanBuffer(t *testing.T) {
+	// Line is 17 bytes ("abcdefghijklmnop\n"), buffer is 8 bytes.
+	// This exercises the fill-in-the-middle path of SkipLine.
+	content := "abcdefghijklmnop\n"
+	vf := newMemFile("test.log", content)
+	fh, _ := NewFileHandle(vf, "test", 8)
+	fh.FillBuffer()
+
+	bytesCount, eolLen, err := fh.SkipLine()
+	if err != nil {
+		t.Fatalf("SkipLine failed: %v", err)
+	}
+
+	testutil.AssertEquals(t, 17, bytesCount)
+	testutil.AssertEquals(t, 1, eolLen)
+}
+
+func TestSkipLine_CRLFSplitAcrossBufferFill(t *testing.T) {
+	// Buffer size 6, content "abcd\r\nefgh\n" (11 bytes).
+	// The \r\n may split across buffer fills.
+	content := "abcd\r\nefgh\n"
+	vf := newMemFile("test.log", content)
+	fh, _ := NewFileHandle(vf, "test", 6)
+	fh.FillBuffer()
+
+	bytesCount, eolLen, err := fh.SkipLine()
+	if err != nil {
+		t.Fatalf("SkipLine failed: %v", err)
+	}
+
+	// "abcd\r\n" = 6 bytes, eol length = 2 (CRLF)
+	testutil.AssertEquals(t, 6, bytesCount)
+	testutil.AssertEquals(t, 2, eolLen)
+}
+
+func TestWriteLine_LineLongerThanBuffer(t *testing.T) {
+	// Line is 17 bytes, buffer is 8 bytes. Verify full line appears in output.
+	content := "abcdefghijklmnop\n"
+	vf := newMemFile("test.log", content)
+	fh, _ := NewFileHandle(vf, "test", 8)
+	fh.FillBuffer()
+
+	var buf bytes.Buffer
+	writer := bufio.NewWriter(&buf)
+	m := metrics.NewMergeMetrics()
+
+	// Run in goroutine with timeout to detect potential infinite loop
+	done := make(chan error, 1)
+	go func() {
+		done <- fh.WriteLine(m, writer)
+	}()
+
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("WriteLine failed: %v", err)
+		}
+		writer.Flush()
+		testutil.AssertEquals(t, "abcdefghijklmnop\n", buf.String())
+	case <-timer.C:
+		t.Fatal("WriteLine hung — possible infinite loop on line longer than buffer")
+	}
+}
+
+func TestFillBuffer_EofReachedFlag(t *testing.T) {
+	// After the first FillBuffer reads all data, subsequent calls should
+	// return nil immediately (eofReached flag).
+	content := "short\n"
+	vf := newMemFile("test.log", content)
+	fh, _ := NewFileHandle(vf, "test", 4096)
+
+	err := fh.FillBuffer()
+	if err != nil {
+		t.Fatalf("first FillBuffer failed: %v", err)
+	}
+	firstRead := fh.BytesRead
+
+	// Second fill should hit EOF and set the flag
+	err = fh.FillBuffer()
+	if err != nil {
+		t.Fatalf("second FillBuffer failed: %v", err)
+	}
+
+	// Third fill should be a no-op because eofReached is already set
+	err = fh.FillBuffer()
+	if err != nil {
+		t.Fatalf("third FillBuffer failed: %v", err)
+	}
+	thirdRead := fh.BytesRead
+
+	// BytesRead should not increase after EOF is reached
+	if thirdRead != firstRead {
+		t.Errorf("expected BytesRead to stay at %d after EOF, got %d", firstRead, thirdRead)
+	}
+}
