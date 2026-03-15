@@ -44,6 +44,7 @@ type FileHandle struct {
 	BlockTimestamp      Timestamp   // The timestamp for the current block, i.e. the last non-zero timestamp
 	Metrics             *MetricsTree
 	MergeMetrics        *MergeMetrics
+	eofReached          bool // true after the underlying reader returns io.EOF
 }
 
 // NewFileHandle creates a FileHandle wrapping the given VirtualFile with its own
@@ -66,8 +67,12 @@ func NewFileHandle(file VirtualFile, alias string, bufferSize int) (fh *FileHand
 
 // FillBuffer reads data from the underlying file into the ring buffer.
 func (r *FileHandle) FillBuffer() error {
+	if r.eofReached {
+		return nil
+	}
 	n, err := r.Buffer.Fill(r.File)
 	if err == io.EOF {
+		r.eofReached = true
 		return nil
 	}
 

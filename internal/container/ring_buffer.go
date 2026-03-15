@@ -115,7 +115,15 @@ func (r *RingBuffer) Fill(reader io.Reader) (int, error) {
 	if r.readIndex > 0 && (r.IsEmpty() || r.writeIndex < r.readIndex) {
 		n := r.Len()
 		if n > 0 {
-			copy(r.buf, r.String()) // Simplified move; in production use a more efficient shift
+			if r.writeIndex > r.readIndex {
+				// Contiguous: [--R===W--]
+				copy(r.buf, r.buf[r.readIndex:r.writeIndex])
+			} else {
+				// Wrapped: [==W---R==]
+				tailLen := r.cap - r.readIndex
+				copy(r.buf, r.buf[r.readIndex:r.cap])
+				copy(r.buf[tailLen:], r.buf[:r.writeIndex])
+			}
 		}
 		r.readIndex = 0
 		r.writeIndex = n

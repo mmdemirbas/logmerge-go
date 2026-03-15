@@ -184,11 +184,18 @@ func (c *CallMetric) merge(other *CallMetric) {
 
 // UpdateBucketCount increments the bucket that n falls into and updates min/max/sum.
 func (b *BucketMetric) UpdateBucketCount(n int) {
-	for i, level := range b.levels {
-		if n <= level {
-			b.values[i]++
-			break
+	// Binary search for the first level >= n
+	lo, hi := 0, len(b.levels)
+	for lo < hi {
+		mid := (lo + hi) >> 1
+		if b.levels[mid] < n {
+			lo = mid + 1
+		} else {
+			hi = mid
 		}
+	}
+	if lo < len(b.levels) {
+		b.values[lo]++
 	}
 	b.min = min(b.min, int64(n))
 	b.max = max(b.max, int64(n))
