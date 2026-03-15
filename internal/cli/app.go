@@ -339,9 +339,15 @@ func Run() error {
 		return fmt.Errorf("failed to list files: %w", err)
 	}
 
-	// Enable local metrics for each file handle
+	// Configure per-file metrics based on MetricsTreeEnabled
 	for _, f := range files {
-		f.Metrics.Enabled = config.MergeConfig.MetricsTreeEnabled
+		if config.MergeConfig.MetricsTreeEnabled {
+			f.Metrics.Enabled = true
+		} else {
+			// Nil out to eliminate function-call overhead on disabled metrics
+			f.Metrics = nil
+			f.MergeMetrics = metrics.NewMergeMetricsLite()
+		}
 	}
 
 	// Print progress periodically

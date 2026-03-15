@@ -102,8 +102,9 @@ func NewBucketMetric(name string, levels ...int) *BucketMetric {
 }
 
 // Start enters a named timing context and returns the start time. Call Stop to record duration.
+// Nil-safe: returns zero time if m is nil or disabled.
 func (m *MetricsTree) Start(name string) time.Time {
-	if !m.Enabled {
+	if m == nil || !m.Enabled {
 		return time.Time{}
 	}
 
@@ -129,8 +130,9 @@ func (m *MetricsTree) Start(name string) time.Time {
 }
 
 // Stop records the elapsed duration since startNanos and exits the current timing context.
+// Nil-safe: returns 0 if m is nil or disabled.
 func (m *MetricsTree) Stop(startNanos time.Time) (elapsed int64) {
-	if !m.Enabled {
+	if m == nil || !m.Enabled {
 		return 0
 	}
 
@@ -150,8 +152,9 @@ func (c *CallMetric) Stop(startNanos time.Time) {
 }
 
 // Merge combines another MetricsTree's nodes and durations into this one.
+// Nil-safe: returns immediately if either receiver or other is nil.
 func (m *MetricsTree) Merge(other *MetricsTree) {
-	if other == nil || other.Root == nil {
+	if m == nil || other == nil || other.Root == nil {
 		return
 	}
 	m.Enabled = m.Enabled || other.Enabled
@@ -184,7 +187,11 @@ func (c *CallMetric) merge(other *CallMetric) {
 }
 
 // UpdateBucketCount increments the bucket that n falls into and updates min/max/sum.
+// Nil-safe: returns immediately if b is nil.
 func (b *BucketMetric) UpdateBucketCount(n int) {
+	if b == nil {
+		return
+	}
 	// Binary search for the first level >= n
 	lo, hi := 0, len(b.levels)
 	for lo < hi {
@@ -205,7 +212,11 @@ func (b *BucketMetric) UpdateBucketCount(n int) {
 }
 
 // Merge aggregates another BucketMetric's counts into this one.
+// Nil-safe: returns immediately if either receiver or other is nil.
 func (b *BucketMetric) Merge(other *BucketMetric) {
+	if b == nil || other == nil {
+		return
+	}
 	for i := range b.values {
 		b.values[i] += other.values[i]
 	}
@@ -379,6 +390,9 @@ func (c *CallMetric) printCallMetric(logFile io.Writer, extra string) {
 
 //goland:noinspection GoUnhandledErrorResult
 func (b *BucketMetric) printBuckets(logFile io.Writer) {
+	if b == nil {
+		return
+	}
 	minValue := b.min
 	maxValue := b.max
 	total := b.count

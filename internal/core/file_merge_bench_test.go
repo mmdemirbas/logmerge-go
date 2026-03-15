@@ -73,6 +73,8 @@ func BenchmarkProcessFiles_Saturation(b *testing.B) {
 			if err != nil {
 				b.Fatal(err)
 			}
+			files[j].Metrics = nil
+			files[j].MergeMetrics = metrics.NewMergeMetricsLite()
 		}
 
 		out := io.Discard // Bypass actual disk I/O to measure pure CPU/Logic overhead
@@ -80,7 +82,7 @@ func BenchmarkProcessFiles_Saturation(b *testing.B) {
 
 		err := core.ProcessFiles(
 			config,
-			metrics.NewMergeMetrics(),
+			metrics.NewMergeMetricsLite(),
 			files,
 			writer,
 			&fsutil.WritableFile{File: os.Stderr},

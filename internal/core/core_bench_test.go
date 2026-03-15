@@ -80,6 +80,7 @@ func BenchmarkUpdateTimestamp_NumericAtStart(b *testing.B) {
 	content := "2026-03-13 01:21:22.000000000 [INFO] Simulation log line 174182528200\n"
 	vf := newMemFile("test.log", content)
 	fh, _ := fsutil.NewFileHandle(vf, "test", 4096)
+	fh.Metrics = nil
 	c := &logtime.ParseTimestampConfig{
 		ShortestTimestampLen:    15,
 		TimestampSearchEndIndex: 250,
@@ -97,6 +98,7 @@ func BenchmarkUpdateTimestamp_WithStripPositions(b *testing.B) {
 	content := "2026-03-13 01:21:22.000000000 [INFO] Simulation log line 174182528200\n"
 	vf := newMemFile("test.log", content)
 	fh, _ := fsutil.NewFileHandle(vf, "test", 4096)
+	fh.Metrics = nil
 	c := &logtime.ParseTimestampConfig{
 		ShortestTimestampLen:    15,
 		TimestampSearchEndIndex: 250,
@@ -191,10 +193,12 @@ func benchProcessFilesN(b *testing.B, numFiles, linesPerFile int, config *MergeC
 		for j := range files {
 			vf := newMemFile(fmt.Sprintf("file-%d", j), string(contents[j]))
 			files[j], _ = fsutil.NewFileHandle(vf, fmt.Sprintf("file-%d", j), 1024*1024)
+			files[j].Metrics = nil
+			files[j].MergeMetrics = metrics.NewMergeMetricsLite()
 		}
 
 		writer := bufio.NewWriter(io.Discard)
-		m := metrics.NewMergeMetrics()
+		m := metrics.NewMergeMetricsLite()
 		logFile := &bytes.Buffer{}
 
 		strip := config.StripOriginalTimestamp
