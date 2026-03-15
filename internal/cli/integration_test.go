@@ -712,17 +712,59 @@ func TestIntegration_ExamplesSmall_StripWithTimestamp(t *testing.T) {
 	}
 }
 
-func TestIntegration_ExamplesLarger_RunsSuccessfully(t *testing.T) {
+// discoverExampleDirs returns all subdirectories under examples/, excluding "small"
+// which has its own dedicated tests above.
+func discoverExampleDirs(t *testing.T) []string {
+	t.Helper()
+	examples := examplesDir(t)
+	entries, err := os.ReadDir(examples)
+	if err != nil {
+		t.Fatalf("failed to read examples dir: %v", err)
+	}
+	var dirs []string
+	for _, e := range entries {
+		if e.IsDir() && e.Name() != "small" {
+			dirs = append(dirs, e.Name())
+		}
+	}
+	if len(dirs) == 0 {
+		t.Skip("no example directories found (besides small)")
+	}
+	return dirs
+}
+
+func TestIntegration_ExampleDirs_BasicMerge(t *testing.T) {
 	bin := buildBinary(t)
 	examples := examplesDir(t)
 
-	for _, dirName := range []string{"application_1773399255368_0037", "application_1766646997565_0051"} {
-		inputDir := filepath.Join(examples, dirName)
-		if _, err := os.Stat(inputDir); os.IsNotExist(err) {
-			continue
-		}
-
+	for _, dirName := range discoverExampleDirs(t) {
 		t.Run(dirName, func(t *testing.T) {
+			inputDir := filepath.Join(examples, dirName)
+			outPath := filepath.Join(t.TempDir(), "out.log")
+			_, stderr, err := runLogmerge(t, bin,
+				"-o", outPath,
+				"--ignore-archives",
+				inputDir)
+			if err != nil {
+				t.Fatalf("logmerge failed: %v\nstderr: %s", err, stderr)
+			}
+
+			got, _ := os.ReadFile(outPath)
+			lines := strings.Split(strings.TrimRight(string(got), "\n"), "\n")
+			if len(lines) < 10 {
+				t.Fatalf("expected substantial output, got %d lines", len(lines))
+			}
+		})
+	}
+}
+
+func TestIntegration_ExampleDirs_WithTimestamp(t *testing.T) {
+	bin := buildBinary(t)
+	examples := examplesDir(t)
+
+	for _, dirName := range discoverExampleDirs(t) {
+		t.Run(dirName, func(t *testing.T) {
+			inputDir := filepath.Join(examples, dirName)
 			outPath := filepath.Join(t.TempDir(), "out.log")
 			_, stderr, err := runLogmerge(t, bin,
 				"-o", outPath,
@@ -739,7 +781,7 @@ func TestIntegration_ExamplesLarger_RunsSuccessfully(t *testing.T) {
 				t.Fatalf("expected substantial output, got %d lines", len(lines))
 			}
 
-			// Count lines with valid timestamps — most should have one
+			// With -t, most lines should have a unified timestamp prefix
 			withTS := 0
 			for _, line := range lines {
 				if len(line) >= 19 && line[4] == '-' && line[10] == ' ' {
@@ -754,28 +796,107 @@ func TestIntegration_ExamplesLarger_RunsSuccessfully(t *testing.T) {
 	}
 }
 
-func TestIntegration_ExamplesLarger_WithStrip(t *testing.T) {
+func TestIntegration_ExampleDirs_WithStrip(t *testing.T) {
 	bin := buildBinary(t)
 	examples := examplesDir(t)
 
-	inputDir := filepath.Join(examples, "application_1773399255368_0037")
-	if _, err := os.Stat(inputDir); os.IsNotExist(err) {
-		t.Skip("example directory not present")
-	}
+	for _, dirName := range discoverExampleDirs(t) {
+		t.Run(dirName, func(t *testing.T) {
+			inputDir := filepath.Join(examples, dirName)
+			outPath := filepath.Join(t.TempDir(), "out.log")
+			_, stderr, err := runLogmerge(t, bin,
+				"-o", outPath,
+				"-s",
+				"--ignore-archives",
+				inputDir)
+			if err != nil {
+				t.Fatalf("logmerge failed: %v\nstderr: %s", err, stderr)
+			}
 
-	outPath := filepath.Join(t.TempDir(), "out.log")
-	_, stderr, err := runLogmerge(t, bin,
-		"-o", outPath,
-		"-t", "-s",
-		"--ignore-archives",
-		inputDir)
-	if err != nil {
-		t.Fatalf("logmerge failed: %v\nstderr: %s", err, stderr)
+			got, _ := os.ReadFile(outPath)
+			lines := strings.Split(strings.TrimRight(string(got), "\n"), "\n")
+			if len(lines) < 10 {
+				t.Fatalf("expected substantial output, got %d lines", len(lines))
+			}
+		})
 	}
+}
 
-	got, _ := os.ReadFile(outPath)
-	lines := strings.Split(strings.TrimRight(string(got), "\n"), "\n")
-	if len(lines) < 10 {
-		t.Fatalf("expected substantial output, got %d lines", len(lines))
+func TestIntegration_ExampleDirs_WithStripAndTimestamp(t *testing.T) {
+	bin := buildBinary(t)
+	examples := examplesDir(t)
+
+	for _, dirName := range discoverExampleDirs(t) {
+		t.Run(dirName, func(t *testing.T) {
+			inputDir := filepath.Join(examples, dirName)
+			outPath := filepath.Join(t.TempDir(), "out.log")
+			_, stderr, err := runLogmerge(t, bin,
+				"-o", outPath,
+				"-t", "-s",
+				"--ignore-archives",
+				inputDir)
+			if err != nil {
+				t.Fatalf("logmerge failed: %v\nstderr: %s", err, stderr)
+			}
+
+			got, _ := os.ReadFile(outPath)
+			lines := strings.Split(strings.TrimRight(string(got), "\n"), "\n")
+			if len(lines) < 10 {
+				t.Fatalf("expected substantial output, got %d lines", len(lines))
+			}
+		})
+	}
+}
+
+func TestIntegration_ExampleDirs_WithBlockAlias(t *testing.T) {
+	bin := buildBinary(t)
+	examples := examplesDir(t)
+
+	for _, dirName := range discoverExampleDirs(t) {
+		t.Run(dirName, func(t *testing.T) {
+			inputDir := filepath.Join(examples, dirName)
+			outPath := filepath.Join(t.TempDir(), "out.log")
+			_, stderr, err := runLogmerge(t, bin,
+				"-o", outPath,
+				"-b",
+				"--ignore-archives",
+				inputDir)
+			if err != nil {
+				t.Fatalf("logmerge failed: %v\nstderr: %s", err, stderr)
+			}
+
+			got, _ := os.ReadFile(outPath)
+			output := string(got)
+			// Block aliases should produce "---" separators
+			if !strings.Contains(output, "---") {
+				t.Errorf("expected block alias separators in output")
+			}
+		})
+	}
+}
+
+func TestIntegration_ExampleDirs_AllFlagsCombined(t *testing.T) {
+	bin := buildBinary(t)
+	examples := examplesDir(t)
+
+	for _, dirName := range discoverExampleDirs(t) {
+		t.Run(dirName, func(t *testing.T) {
+			inputDir := filepath.Join(examples, dirName)
+			outPath := filepath.Join(t.TempDir(), "out.log")
+			_, stderr, err := runLogmerge(t, bin,
+				"-o", outPath,
+				"-t", "-s", "-a", "-b",
+				"--ignore-archives",
+				inputDir)
+			if err != nil {
+				t.Fatalf("logmerge failed: %v\nstderr: %s", err, stderr)
+			}
+
+			got, _ := os.ReadFile(outPath)
+			lines := strings.Split(strings.TrimRight(string(got), "\n"), "\n")
+			if len(lines) < 10 {
+				t.Fatalf("expected substantial output, got %d lines", len(lines))
+			}
+		})
 	}
 }

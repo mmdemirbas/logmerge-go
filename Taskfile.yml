@@ -76,7 +76,7 @@ tasks:
   test:v:
     desc: "Run all tests with verbose output"
     cmds:
-      - go test -v count=1 ./...
+      - go test -v ./...
 
   bench:
     desc: "Run benchmark tests and capture CPU and memory profiles"
