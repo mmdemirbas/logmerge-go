@@ -146,6 +146,161 @@ func TestParseTimestamp_TimezoneEdgeCases(t *testing.T) {
 	})
 }
 
+func TestParseTimestamp_TimezoneWithSpaceSeparator(t *testing.T) {
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			"space separator -08:00",
+			"2026-03-15 23:29:42-08:00 | INFO",
+			"2026-03-16 07:29:42.000000000 ",
+		},
+		{
+			"space separator +05:30",
+			"2026-03-15 23:29:42+05:30 data",
+			"2026-03-15 17:59:42.000000000 ",
+		},
+		{
+			"space separator -08:00 with fractional",
+			"2026-03-15 23:29:42.123-08:00 | INFO",
+			"2026-03-16 07:29:42.123000000 ",
+		},
+		{
+			"space separator +0800 no colon",
+			"2026-03-15 23:29:42+0800 data",
+			"2026-03-15 15:29:42.000000000 ",
+		},
+		{
+			"T separator -08:00",
+			"2026-03-15T23:29:42-08:00 data",
+			"2026-03-16 07:29:42.000000000 ",
+		},
+		{
+			"space separator Z",
+			"2026-03-15 23:29:42Z data",
+			"2026-03-15 23:29:42.000000000 ",
+		},
+		{
+			"real log line from user",
+			"2026-03-15 23:29:42-08:00 | INFO  | [140228373800512] access_sdk.cpp:549 [ACCESS_SDK][INFO] Check sdk config success",
+			"2026-03-16 07:29:42.000000000 ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := ParseTimestamp(c, []byte(tt.input))
+			if ts == ZeroTimestamp {
+				t.Fatalf("expected valid timestamp for %q, got ZeroTimestamp", tt.input)
+			}
+			testutil.AssertEquals(t, tt.expected, ts.String())
+		})
+	}
+}
+
+func TestParseTimestampForStrip_TimezoneConsumed(t *testing.T) {
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	tests := []struct {
+		name      string
+		input     string
+		wantEnd   int
+		remaining string
+	}{
+		{
+			"tz -08:00 consumed and trailing stripped",
+			"2026-03-15 23:29:42-08:00 | INFO",
+			28, "INFO",
+		},
+		{
+			"tz +05:30 consumed and trailing stripped",
+			"2026-03-15 23:29:42+05:30 data",
+			26, "data",
+		},
+		{
+			"tz Z consumed and trailing stripped",
+			"2026-03-15 23:29:42Z data",
+			21, "data",
+		},
+		{
+			"tz -08:00 with fractional",
+			"2026-03-15 23:29:42.123-08:00 | INFO",
+			32, "INFO",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts, _, tsEnd := ParseTimestampForStrip(c, []byte(tt.input))
+			if ts == ZeroTimestamp {
+				t.Fatalf("expected valid timestamp for %q", tt.input)
+			}
+			testutil.AssertEquals(t, tt.wantEnd, tsEnd)
+			testutil.AssertEquals(t, tt.remaining, tt.input[tsEnd:])
+		})
+	}
+}
+
+func TestParseTimestampForStrip_TimezoneIgnored_StillConsumed(t *testing.T) {
+	// When IgnoreTimezoneInfo=true, the timezone offset should not be applied
+	// to the timestamp value, but the timezone string should still be consumed
+	// so that stripping removes it from the output.
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+		IgnoreTimezoneInfo:      true,
+	}
+
+	tests := []struct {
+		name      string
+		input     string
+		expected  string
+		wantEnd   int
+		remaining string
+	}{
+		{
+			"tz ignored but consumed for stripping",
+			"2026-03-15 23:29:42-08:00 | INFO",
+			"2026-03-15 23:29:42.000000000 ", // no UTC conversion
+			28, "INFO",
+		},
+		{
+			"tz +05:30 ignored but consumed",
+			"2026-03-15 23:29:42+05:30 data",
+			"2026-03-15 23:29:42.000000000 ",
+			26, "data",
+		},
+		{
+			"tz Z ignored but consumed",
+			"2026-03-15 23:29:42Z data",
+			"2026-03-15 23:29:42.000000000 ",
+			21, "data",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts, _, tsEnd := ParseTimestampForStrip(c, []byte(tt.input))
+			if ts == ZeroTimestamp {
+				t.Fatalf("expected valid timestamp for %q", tt.input)
+			}
+			testutil.AssertEquals(t, tt.expected, ts.String())
+			testutil.AssertEquals(t, tt.wantEnd, tsEnd)
+			testutil.AssertEquals(t, tt.remaining, tt.input[tsEnd:])
+		})
+	}
+}
+
 func TestParseTimestamp_FractionalSeconds(t *testing.T) {
 	c := &ParseTimestampConfig{
 		ShortestTimestampLen:    15,

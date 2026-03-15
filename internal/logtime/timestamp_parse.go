@@ -192,19 +192,25 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 				nsec, j = parseSpaceSeparatedMillis(buffer, n, j)
 			}
 
-			// Inline timezone: avoid parseTimezone function call overhead
+			// Inline timezone: always consume timezone characters so they
+			// are included in the strip region. Only apply the offset when
+			// IgnoreTimezoneInfo is false.
 			var tzSign, tzHour, tzMin int
-			if !c.IgnoreTimezoneInfo && j < n {
+			if j < n {
 				switch buffer[j] {
 				case 'Z':
 					j++
 				case '+', '-':
-					tzSign = int(',') - int(buffer[j])
+					if !c.IgnoreTimezoneInfo {
+						tzSign = int(',') - int(buffer[j])
+					}
 					j++
 					if j+2 <= n {
 						h1, h2 := buffer[j]-'0', buffer[j+1]-'0'
 						if h1 <= 9 && h2 <= 9 {
-							tzHour = int(h1)*10 + int(h2)
+							if !c.IgnoreTimezoneInfo {
+								tzHour = int(h1)*10 + int(h2)
+							}
 							j += 2
 							if j < n && buffer[j] == ':' {
 								j++
@@ -212,14 +218,16 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 							if j+2 <= n {
 								m1, m2 := buffer[j]-'0', buffer[j+1]-'0'
 								if m1 <= 9 && m2 <= 9 {
-									tzMin = int(m1)*10 + int(m2)
+									if !c.IgnoreTimezoneInfo {
+										tzMin = int(m1)*10 + int(m2)
+									}
 									j += 2
 								}
 							}
 						}
 					}
 				default:
-					j++ // consume non-timezone byte (matches parseTimezone behavior)
+					j++ // consume non-timezone byte
 				}
 			}
 
@@ -586,7 +594,7 @@ func skipToFirstDigit(buffer []byte, n, i int) (int, bool) {
 
 func parseTimezone(c *ParseTimestampConfig, buffer []byte, n int, i int) (tzSign, tzHour, tzMin, nextI int) {
 	nextI = i
-	if c.IgnoreTimezoneInfo || nextI >= n {
+	if nextI >= n {
 		return 0, 0, 0, nextI
 	}
 	b := buffer[nextI]
@@ -596,21 +604,31 @@ func parseTimezone(c *ParseTimestampConfig, buffer []byte, n int, i int) (tzSign
 	case 'Z':
 		// Already using UTC
 	case '+', '-':
-		tzSign = int(',') - int(b)
+		if !c.IgnoreTimezoneInfo {
+			tzSign = int(',') - int(b)
+		}
 		if nextI+2 > n {
 			break
 		}
 		var hcount int
-		tzHour, hcount = parseMax2Digits(buffer, n, nextI)
-		if hcount == 0 || tzHour > 23 {
+		var h int
+		h, hcount = parseMax2Digits(buffer, n, nextI)
+		if hcount == 0 || h > 23 {
 			break
+		}
+		if !c.IgnoreTimezoneInfo {
+			tzHour = h
 		}
 		nextI += hcount
 		if nextI < n && buffer[nextI] == ':' {
 			nextI++
 		}
 		var mcount int
-		tzMin, mcount = parseMax2Digits(buffer, n, nextI)
+		var m int
+		m, mcount = parseMax2Digits(buffer, n, nextI)
+		if !c.IgnoreTimezoneInfo {
+			tzMin = m
+		}
 		nextI += mcount
 	}
 	return tzSign, tzHour, tzMin, nextI
