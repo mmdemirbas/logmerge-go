@@ -778,3 +778,100 @@ func TestProcessFiles_MultiFileMinTimestamp(t *testing.T) {
 		t.Errorf("expected 'B2' in output:\n%s", got)
 	}
 }
+
+func TestProcessFiles_DataIntegrity_SingleFile(t *testing.T) {
+	// Verify every line of a single file appears in the output exactly once.
+	// This catches any data loss at buffer boundaries or EOF.
+	lines := []string{
+		"2024-01-15 10:00:00 first line",
+		"2024-01-15 10:01:00 second line",
+		"2024-01-15 10:02:00 third line with more content to be longer",
+		"2024-01-15 10:03:00 fourth",
+		"2024-01-15 10:04:00 fifth and final line",
+	}
+	content := strings.Join(lines, "\n") + "\n"
+
+	for _, bufSize := range []int{16, 32, 64, 128, 1024} {
+		t.Run(fmt.Sprintf("buf=%d", bufSize), func(t *testing.T) {
+			fh := makeHandle("test.log", content, bufSize)
+			got := runMerge(t, defaultConfig(), []*fsutil.FileHandle{fh})
+			for _, line := range lines {
+				if !strings.Contains(got, line) {
+					t.Errorf("buf=%d: missing line %q in output:\n%s", bufSize, line, got)
+				}
+			}
+			// Count output lines (should match input)
+			gotLines := strings.Split(strings.TrimRight(got, "\n"), "\n")
+			testutil.AssertEquals(t, len(lines), len(gotLines))
+		})
+	}
+}
+
+func TestProcessFiles_DataIntegrity_NoTrailingNewline(t *testing.T) {
+	// File without a trailing newline — last line must still appear.
+	content := "2024-01-15 10:00:00 line1\n2024-01-15 10:01:00 last line no newline"
+	for _, bufSize := range []int{16, 32, 64, 1024} {
+		t.Run(fmt.Sprintf("buf=%d", bufSize), func(t *testing.T) {
+			fh := makeHandle("test.log", content, bufSize)
+			got := runMerge(t, defaultConfig(), []*fsutil.FileHandle{fh})
+			if !strings.Contains(got, "line1") {
+				t.Errorf("missing 'line1' in output:\n%s", got)
+			}
+			if !strings.Contains(got, "last line no newline") {
+				t.Errorf("missing 'last line no newline' in output:\n%s", got)
+			}
+		})
+	}
+}
+
+func TestProcessFiles_DataIntegrity_MultiFile(t *testing.T) {
+	// Two files interleaved — verify every line from both files appears.
+	contentA := "2024-01-15 10:00:00 A1\n2024-01-15 10:02:00 A2\n2024-01-15 10:04:00 A3\n"
+	contentB := "2024-01-15 10:01:00 B1\n2024-01-15 10:03:00 B2\n2024-01-15 10:05:00 B3\n"
+	expected := []string{"A1", "B1", "A2", "B2", "A3", "B3"}
+
+	for _, bufSize := range []int{16, 32, 64, 1024} {
+		t.Run(fmt.Sprintf("buf=%d", bufSize), func(t *testing.T) {
+			fhA := makeHandle("a.log", contentA, bufSize)
+			fhB := makeHandle("b.log", contentB, bufSize)
+			got := runMerge(t, defaultConfig(), []*fsutil.FileHandle{fhA, fhB})
+			for _, tag := range expected {
+				if !strings.Contains(got, tag) {
+					t.Errorf("buf=%d: missing %q in output:\n%s", bufSize, tag, got)
+				}
+			}
+			gotLines := strings.Split(strings.TrimRight(got, "\n"), "\n")
+			testutil.AssertEquals(t, 6, len(gotLines))
+		})
+	}
+}
+
+func TestProcessFiles_BytesReadMetrics(t *testing.T) {
+	// Verify BytesRead accounts for ALL bytes including the last chunk
+	// returned with io.EOF. This catches the bug where FillBuffer
+	// skipped BytesRead update on EOF.
+	content := "2024-01-15 10:00:00 hello\n"
+	fh := makeHandle("test.log", content, 4096)
+
+	c := defaultConfig()
+	m := metrics.NewMergeMetrics()
+	var buf bytes.Buffer
+	writer := bufio.NewWriter(&buf)
+
+	err := ProcessFiles(c, m, []*fsutil.FileHandle{fh}, writer, &fsutil.WritableFile{File: os.Stderr}, updateTS)
+	if err != nil {
+		t.Fatalf("ProcessFiles failed: %v", err)
+	}
+	writer.Flush()
+
+	// Aggregate per-file metrics
+	m.Merge(fh.MergeMetrics)
+
+	totalBytes := int64(len(content))
+	if m.BytesRead != totalBytes {
+		t.Errorf("BytesRead=%d, want %d (file size). Bytes may have been lost on EOF.", m.BytesRead, totalBytes)
+	}
+	if m.BytesNotRead != 0 {
+		t.Errorf("BytesNotRead=%d, want 0. Some bytes were not counted.", m.BytesNotRead)
+	}
+}

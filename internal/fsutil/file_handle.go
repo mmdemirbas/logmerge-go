@@ -77,12 +77,11 @@ func (r *FileHandle) FillBuffer() error {
 		return nil
 	}
 	n, err := r.Buffer.Fill(r.File)
+	r.BytesRead += int64(n)
 	if err == io.EOF {
 		r.eofReached = true
 		return nil
 	}
-
-	r.BytesRead += int64(n)
 	return err
 }
 
