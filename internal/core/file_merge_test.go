@@ -1020,3 +1020,36 @@ func TestProcessFiles_StripTimestampPreservesPrefix(t *testing.T) {
 		})
 	}
 }
+
+func TestProcessFiles_StripTimestampUserSample(t *testing.T) {
+	content := "2026-03-07 23:59:41 134 INFO Spark Para1\n" +
+		"Sat Mar 07 23:59:43 CST 2026 Error to run option:[-test]\n" +
+		"2026-03-07 23:59:43 779 INFO Spark hdfs is disable\n" +
+		"Sun Mar 08 17:08:11 CST 2026 Error to run option:[-test]\n" +
+		"2026-03-08 17:08:11 256 INFO Spark hdfs is disable\n"
+
+	fh := makeHandle("spark.log", content, 4096)
+	c := defaultConfig()
+	c.StripOriginalTimestamp = true
+
+	got := runMerge(t, c, []*fsutil.FileHandle{fh})
+	t.Logf("Output:\n%s", got)
+
+	lines := strings.Split(strings.TrimRight(got, "\n"), "\n")
+	for i, line := range lines {
+		// No line should contain original timestamps
+		if strings.Contains(line, "2026-03-07") || strings.Contains(line, "2026-03-08") {
+			t.Errorf("line %d still has original date: %q", i, line)
+		}
+		if strings.Contains(line, "Mar 07") || strings.Contains(line, "Mar 08") {
+			t.Errorf("line %d still has ctime date: %q", i, line)
+		}
+	}
+	// Verify content is preserved
+	if !strings.Contains(got, "INFO Spark Para1") {
+		t.Errorf("missing content 'INFO Spark Para1' in:\n%s", got)
+	}
+	if !strings.Contains(got, "Error to run option:[-test]") {
+		t.Errorf("missing content 'Error to run option:[-test]' in:\n%s", got)
+	}
+}

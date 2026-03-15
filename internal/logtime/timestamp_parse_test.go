@@ -704,3 +704,63 @@ func TestParseTimestamp_SpaceSeparatedMillis(t *testing.T) {
 		})
 	}
 }
+
+func TestParseTimestampForStrip_UserSampleData(t *testing.T) {
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	tests := []struct {
+		name      string
+		input     string
+		wantTs    string
+		wantStart int
+		wantEnd   int
+		remaining string
+	}{
+		{
+			"numeric with space millis",
+			"2026-03-07 23:59:41 134 INFO 172-16-148-241 Spark",
+			"2026-03-07 23:59:41.134000000 ",
+			0, 24, "INFO 172-16-148-241 Spark",
+		},
+		{
+			"ctime Sat",
+			"Sat Mar 07 23:59:43 CST 2026 Error to run option:[-test, -d, /]",
+			"2026-03-07 23:59:43.000000000 ",
+			0, 29, "Error to run option:[-test, -d, /]",
+		},
+		{
+			"numeric with space millis 779",
+			"2026-03-07 23:59:43 779 INFO 172-16-148-241 Spark [1092810]  hdfs is disable",
+			"2026-03-07 23:59:43.779000000 ",
+			0, 24, "INFO 172-16-148-241 Spark [1092810]  hdfs is disable",
+		},
+		{
+			"ctime Sun",
+			"Sun Mar 08 17:08:11 CST 2026 Error to run option:[-test, -d, /]",
+			"2026-03-08 17:08:11.000000000 ",
+			0, 29, "Error to run option:[-test, -d, /]",
+		},
+		{
+			"ctime Mon",
+			"Mon Mar 09 20:48:03 CST 2026 Error to run option:[-test, -d, /]",
+			"2026-03-09 20:48:03.000000000 ",
+			0, 29, "Error to run option:[-test, -d, /]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts, start, end := ParseTimestampForStrip(c, []byte(tt.input))
+			if ts == ZeroTimestamp {
+				t.Fatalf("expected valid timestamp for %q", tt.input)
+			}
+			testutil.AssertEquals(t, tt.wantTs, ts.String())
+			testutil.AssertEquals(t, tt.wantStart, start)
+			testutil.AssertEquals(t, tt.wantEnd, end)
+			testutil.AssertEquals(t, tt.remaining, tt.input[end:])
+		})
+	}
+}

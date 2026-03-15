@@ -42,11 +42,18 @@ func ParseTimestampWithEnd(c *ParseTimestampConfig, buffer []byte) (Timestamp, i
 		timestamp, i = tryParseTimestamp(c, buffer, i, n)
 		end = i
 	}
-	// Try ctime format if no numeric timestamp found
-	if timestamp == ZeroTimestamp {
-		timestamp, _, end = tryParseCtimeTimestamp(c, buffer, n)
+	if end > firstNewline {
+		// Timestamp found past the first newline belongs to a later line.
+		if timestamp != ZeroTimestamp {
+			timestamp = ZeroTimestamp
+		}
+		// Try ctime format within the current line
+		timestamp, _, end = tryParseCtimeTimestamp(c, buffer, firstNewline)
+	} else if timestamp == ZeroTimestamp {
+		// No numeric timestamp found at all — try ctime within the current line
+		timestamp, _, end = tryParseCtimeTimestamp(c, buffer, firstNewline)
 	}
-	if timestamp == ZeroTimestamp || end > firstNewline {
+	if timestamp == ZeroTimestamp {
 		return timestamp, 0
 	}
 	return timestamp, end
@@ -76,14 +83,18 @@ func ParseTimestampForStrip(c *ParseTimestampConfig, buffer []byte) (Timestamp, 
 	}
 
 	var tsStart int
-	if timestamp != ZeroTimestamp {
+	if end > firstNewline {
+		if timestamp != ZeroTimestamp {
+			timestamp = ZeroTimestamp
+		}
+		timestamp, tsStart, end = tryParseCtimeTimestamp(c, buffer, firstNewline)
+	} else if timestamp != ZeroTimestamp {
 		tsStart, _ = skipToFirstDigit(buffer, n, lastI)
-	}
-	if timestamp == ZeroTimestamp {
-		timestamp, tsStart, end = tryParseCtimeTimestamp(c, buffer, n)
+	} else {
+		timestamp, tsStart, end = tryParseCtimeTimestamp(c, buffer, firstNewline)
 	}
 
-	if timestamp == ZeroTimestamp || end > firstNewline {
+	if timestamp == ZeroTimestamp {
 		return timestamp, 0, 0
 	}
 
