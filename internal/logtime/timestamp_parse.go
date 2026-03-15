@@ -43,6 +43,11 @@ func ParseTimestampWithEnd(c *ParseTimestampConfig, buffer []byte) (Timestamp, i
 		timestamp, tsStart, i = tryParseTimestamp(c, buffer, i, n)
 		end = i
 	}
+	// If no numeric timestamp found, try ctime format (e.g., "Sat Mar 07 23:59:43 CST 2026")
+	if timestamp == ZeroTimestamp {
+		timestamp, tsStart, end = tryParseCtimeTimestamp(c, buffer, n)
+	}
+
 	if timestamp == ZeroTimestamp || end > firstNewline {
 		return timestamp, 0, 0
 	}
@@ -227,11 +232,201 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 			nsec *= 10
 			ncount++
 		}
+	} else if i+1 < n && buffer[i] == ' ' {
+		// Space-separated milliseconds: "23:59:43 779"
+		frac, fcount := parseDigits(buffer, n, i+1, 3)
+		// Accept only if 1-3 digits followed by non-digit (or end of buffer)
+		if fcount > 0 && (i+1+fcount >= n || buffer[i+1+fcount] < '0' || buffer[i+1+fcount] > '9') {
+			nsec = frac
+			i += 1 + fcount
+			for fcount < 9 {
+				nsec *= 10
+				fcount++
+			}
+		}
 	}
 
 	tzSign, tzHour, tzMin, i := parseTimezone(c, buffer, n, i)
 
 	return NewTimestamp(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin), tsStart, i
+}
+
+// tryParseCtimeTimestamp scans for ctime-style timestamps:
+//
+//	[DayOfWeek ]Mon DD HH:MM:SS[ TZ] YYYY
+//
+// Examples: "Sat Mar 07 23:59:43 CST 2026", "Mar  7 23:59:43 2026"
+func tryParseCtimeTimestamp(c *ParseTimestampConfig, buffer []byte, n int) (Timestamp, int, int) {
+	for scanPos := 0; scanPos+15 <= n; scanPos++ {
+		// Look for a month name
+		month := parseMonthName(buffer, scanPos)
+		if month == 0 {
+			continue
+		}
+		// Validate boundary: month name must be at start or preceded by space
+		if scanPos > 0 && buffer[scanPos-1] != ' ' && buffer[scanPos-1] != '\t' {
+			continue
+		}
+		ts, start, end := parseCtimeFrom(c, buffer, n, scanPos, month)
+		if ts != ZeroTimestamp {
+			return ts, start, end
+		}
+	}
+	return ZeroTimestamp, 0, 0
+}
+
+func parseCtimeFrom(c *ParseTimestampConfig, buffer []byte, n int, monthPos int, month int) (Timestamp, int, int) {
+	i := monthPos + 3
+
+	// Expect space after month name
+	if i >= n || buffer[i] != ' ' {
+		return ZeroTimestamp, 0, 0
+	}
+	i++
+
+	// Parse day (1-2 digits, may be space-padded like "Mar  7")
+	if i < n && buffer[i] == ' ' {
+		i++
+	}
+	day, dcount := parseMax2Digits(buffer, n, i)
+	if dcount == 0 || day < 1 || day > 31 {
+		return ZeroTimestamp, 0, 0
+	}
+	i += dcount
+
+	// Expect space
+	if i >= n || buffer[i] != ' ' {
+		return ZeroTimestamp, 0, 0
+	}
+	i++
+
+	// Parse HH:MM:SS
+	hour, hcount := parseMax2Digits(buffer, n, i)
+	if hcount == 0 || hour > 23 {
+		return ZeroTimestamp, 0, 0
+	}
+	i += hcount
+	if i >= n || buffer[i] != ':' {
+		return ZeroTimestamp, 0, 0
+	}
+	i++
+	minute, mincount := parseMax2Digits(buffer, n, i)
+	if mincount == 0 || minute > 59 {
+		return ZeroTimestamp, 0, 0
+	}
+	i += mincount
+	if i >= n || buffer[i] != ':' {
+		return ZeroTimestamp, 0, 0
+	}
+	i++
+	second, scount := parseMax2Digits(buffer, n, i)
+	if scount == 0 || second > 59 {
+		return ZeroTimestamp, 0, 0
+	}
+	i += scount
+
+	// Expect space
+	if i >= n || buffer[i] != ' ' {
+		return ZeroTimestamp, 0, 0
+	}
+	i++
+
+	// Optional timezone name (2-5 uppercase letters)
+	tzStart := i
+	for i < n && buffer[i] >= 'A' && buffer[i] <= 'Z' {
+		i++
+	}
+	tzLen := i - tzStart
+	if tzLen >= 2 && tzLen <= 5 {
+		// Valid timezone abbreviation — expect space before year
+		if i >= n || buffer[i] != ' ' {
+			return ZeroTimestamp, 0, 0
+		}
+		i++
+	} else if tzLen > 0 {
+		// Not a valid timezone — revert
+		return ZeroTimestamp, 0, 0
+	}
+	// If tzLen == 0, we're already at the year position
+
+	// Parse year (4 digits)
+	year, ycount := parseDigits(buffer, n, i, 4)
+	if ycount != 4 || year < 1969 || year > 2050 {
+		return ZeroTimestamp, 0, 0
+	}
+	i += ycount
+
+	// Determine the start of the timestamp section for stripping.
+	// If preceded by a day-of-week like "Sat ", include it.
+	tsStart := monthPos
+	if monthPos >= 4 && buffer[monthPos-1] == ' ' {
+		dow := monthPos - 4
+		if dow >= 0 && isAlpha(buffer[dow]) && isAlpha(buffer[dow+1]) && isAlpha(buffer[dow+2]) {
+			// Looks like a day-of-week abbreviation
+			if dow == 0 || buffer[dow-1] == ' ' || buffer[dow-1] == '\t' {
+				tsStart = dow
+			}
+		}
+	}
+
+	return NewTimestamp(year, month, day, hour, minute, second, 0, 0, 0, 0), tsStart, i
+}
+
+func parseMonthName(buffer []byte, i int) int {
+	if i+3 > len(buffer) {
+		return 0
+	}
+	switch buffer[i] {
+	case 'J':
+		if buffer[i+1] == 'a' && buffer[i+2] == 'n' {
+			return 1
+		}
+		if buffer[i+1] == 'u' && buffer[i+2] == 'n' {
+			return 6
+		}
+		if buffer[i+1] == 'u' && buffer[i+2] == 'l' {
+			return 7
+		}
+	case 'F':
+		if buffer[i+1] == 'e' && buffer[i+2] == 'b' {
+			return 2
+		}
+	case 'M':
+		if buffer[i+1] == 'a' && buffer[i+2] == 'r' {
+			return 3
+		}
+		if buffer[i+1] == 'a' && buffer[i+2] == 'y' {
+			return 5
+		}
+	case 'A':
+		if buffer[i+1] == 'p' && buffer[i+2] == 'r' {
+			return 4
+		}
+		if buffer[i+1] == 'u' && buffer[i+2] == 'g' {
+			return 8
+		}
+	case 'S':
+		if buffer[i+1] == 'e' && buffer[i+2] == 'p' {
+			return 9
+		}
+	case 'O':
+		if buffer[i+1] == 'c' && buffer[i+2] == 't' {
+			return 10
+		}
+	case 'N':
+		if buffer[i+1] == 'o' && buffer[i+2] == 'v' {
+			return 11
+		}
+	case 'D':
+		if buffer[i+1] == 'e' && buffer[i+2] == 'c' {
+			return 12
+		}
+	}
+	return 0
+}
+
+func isAlpha(b byte) bool {
+	return (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z')
 }
 
 func skipToFirstDigit(buffer []byte, n, i int) (int, bool) {

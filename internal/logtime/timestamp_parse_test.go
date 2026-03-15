@@ -556,3 +556,151 @@ func TestParseTimestampWithEnd_Stripping(t *testing.T) {
 		})
 	}
 }
+
+func TestParseTimestamp_CtimeFormat(t *testing.T) {
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			"full ctime with day-of-week and timezone",
+			"Sat Mar 07 23:59:43 CST 2026",
+			"2026-03-07 23:59:43.000000000 ",
+		},
+		{
+			"ctime without day-of-week",
+			"Mar 07 23:59:43 CST 2026",
+			"2026-03-07 23:59:43.000000000 ",
+		},
+		{
+			"ctime without timezone",
+			"Mar 07 23:59:43 2026",
+			"2026-03-07 23:59:43.000000000 ",
+		},
+		{
+			"ctime with space-padded day",
+			"Mar  7 23:59:43 2026",
+			"2026-03-07 23:59:43.000000000 ",
+		},
+		{
+			"ctime with UTC timezone",
+			"Fri Jan 02 15:04:05 UTC 2026",
+			"2026-01-02 15:04:05.000000000 ",
+		},
+		{
+			"ctime December",
+			"Wed Dec 31 23:59:59 EST 2025",
+			"2025-12-31 23:59:59.000000000 ",
+		},
+		{
+			"ctime with prefix text",
+			"[ERROR] Mar 07 23:59:43 2026 some message",
+			"2026-03-07 23:59:43.000000000 ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := ParseTimestamp(c, []byte(tt.input))
+			if ts == ZeroTimestamp {
+				t.Fatalf("expected valid timestamp for %q, got ZeroTimestamp", tt.input)
+			}
+			testutil.AssertEquals(t, tt.expected, ts.String())
+		})
+	}
+}
+
+func TestParseTimestampWithEnd_CtimeStripping(t *testing.T) {
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	tests := []struct {
+		name      string
+		input     string
+		tsStart   int
+		tsEnd     int
+		remaining string
+	}{
+		{
+			"full ctime stripped",
+			"Sat Mar 07 23:59:43 CST 2026 some message",
+			0, 29, "some message",
+		},
+		{
+			"ctime without dow stripped",
+			"Mar 07 23:59:43 CST 2026 msg",
+			0, 25, "msg",
+		},
+		{
+			"ctime with prefix",
+			"[ERROR] Mar 07 23:59:43 2026 msg",
+			8, 29, "msg",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, tsStart, tsEnd := ParseTimestampWithEnd(c, []byte(tt.input))
+			testutil.AssertEquals(t, tt.tsStart, tsStart)
+			testutil.AssertEquals(t, tt.tsEnd, tsEnd)
+			testutil.AssertEquals(t, tt.remaining, tt.input[tsEnd:])
+		})
+	}
+}
+
+func TestParseTimestamp_SpaceSeparatedMillis(t *testing.T) {
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			"space-separated 3-digit millis",
+			"2026-03-07 23:59:43 779 some message",
+			"2026-03-07 23:59:43.779000000 ",
+		},
+		{
+			"space-separated 1-digit millis",
+			"2026-03-07 23:59:43 5 msg",
+			"2026-03-07 23:59:43.500000000 ",
+		},
+		{
+			"space-separated 2-digit millis",
+			"2026-03-07 23:59:43 42 msg",
+			"2026-03-07 23:59:43.420000000 ",
+		},
+		{
+			"4+ digits is NOT millis (year follows)",
+			"2026-03-07 23:59:43 2026-...",
+			"2026-03-07 23:59:43.000000000 ",
+		},
+		{
+			"no digits after space is NOT millis",
+			"2026-03-07 23:59:43 hello",
+			"2026-03-07 23:59:43.000000000 ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := ParseTimestamp(c, []byte(tt.input))
+			if ts == ZeroTimestamp {
+				t.Fatalf("expected valid timestamp for %q", tt.input)
+			}
+			testutil.AssertEquals(t, tt.expected, ts.String())
+		})
+	}
+}
