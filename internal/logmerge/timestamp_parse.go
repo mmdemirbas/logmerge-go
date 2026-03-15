@@ -90,6 +90,9 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 	}
 
 	i += count
+	if i >= n {
+		return ZeroTimestamp, n
+	}
 	b := buffer[i]
 
 	// if b == '-' || b == '/' { i++ }
@@ -106,6 +109,9 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 	}
 
 	i += mcount
+	if i >= n {
+		return ZeroTimestamp, n
+	}
 	b = buffer[i]
 
 	// if b == '-' || b == '/' { i++ }
@@ -122,6 +128,9 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 	}
 
 	i += dcount
+	if i >= n {
+		return ZeroTimestamp, n
+	}
 	b = buffer[i]
 	i++
 	if i >= n || (b != ' ' && b != 'T' && b != '_') {
