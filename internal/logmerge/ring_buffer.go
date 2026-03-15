@@ -5,6 +5,24 @@ import (
 	"io"
 )
 
+// indexCRorLF finds the first '\r' or '\n' in buf, returning its index or -1.
+// Optimized to avoid bytes.IndexAny's per-call ASCII bitset construction.
+// Searches for '\n' first (SIMD-accelerated, stops early since '\n' is common),
+// then only scans the short prefix before it for '\r'.
+func indexCRorLF(buf []byte) int {
+	lf := bytes2.IndexByte(buf, '\n')
+	// Only scan for '\r' in the portion before the '\n' (or the full buffer if no '\n')
+	searchLen := lf
+	if lf == -1 {
+		searchLen = len(buf)
+	}
+	cr := bytes2.IndexByte(buf[:searchLen], '\r')
+	if cr != -1 {
+		return cr
+	}
+	return lf
+}
+
 // RingBuffer is a circular buffer that can be used to store a fixed number of bytes.
 type RingBuffer struct {
 	buf        []byte // buffer
@@ -155,7 +173,7 @@ func (r *RingBuffer) SkipNextLineSlice(latestCharWasCR *bool) (int, EOLType) {
 	// (readIndex < writeIndex) ? writeIndex : cap (we are sure that readIndex != writeIndex)
 	searchUntil := ((readIndex-writeIndex)>>31)&writeIndex | ((writeIndex-readIndex)>>31)&r.cap
 
-	idx := bytes2.IndexAny(buf[readIndex:searchUntil], "\r\n")
+	idx := indexCRorLF(buf[readIndex:searchUntil])
 	if idx == -1 {
 		r.Skip(searchUntil - readIndex)
 		return searchUntil - readIndex, None
@@ -204,7 +222,7 @@ func (r *RingBuffer) PeekNextLineSlice(latestCharWasCR *bool) ([]byte, EOLType) 
 	// (readIndex < writeIndex) ? writeIndex : cap (we are sure that readIndex != writeIndex)
 	searchUntil := ((readIndex-writeIndex)>>31)&writeIndex | ((writeIndex-readIndex)>>31)&r.cap
 
-	idx := bytes2.IndexAny(buf[readIndex:searchUntil], "\r\n")
+	idx := indexCRorLF(buf[readIndex:searchUntil])
 	if idx == -1 {
 		return buf[readIndex:searchUntil], None
 	}
