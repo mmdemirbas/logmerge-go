@@ -10,8 +10,6 @@ import (
 	"github.com/mmdemirbas/logmerge/internal/logmerge"
 )
 
-var nullLog = &logmerge.WritableFile{File: os.NewFile(0, os.DevNull)}
-
 func BenchmarkProcessFiles_Saturation(b *testing.B) {
 	// configuration
 	numFiles := 20
@@ -25,13 +23,16 @@ func BenchmarkProcessFiles_Saturation(b *testing.B) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	var files []*logmerge.FileHandle
-	var osFiles []*os.File // keep references for seeking
+	paths := make([]string, numFiles)
 	var totalBytes int64
 
 	for i := 0; i < numFiles; i++ {
 		path := fmt.Sprintf("%s/file-%d.log", tmpDir, i)
-		f, _ := os.Create(path)
+		paths[i] = path
+		f, err := os.Create(path)
+		if err != nil {
+			b.Fatal(err)
+		}
 
 		writer := bufio.NewWriter(f)
 		for j := 0; j < linesPerFile; j++ {
@@ -42,45 +43,51 @@ func BenchmarkProcessFiles_Saturation(b *testing.B) {
 			totalBytes += int64(n)
 		}
 		writer.Flush()
-		f.Seek(0, 0)
-
-		handle, _ := logmerge.NewFileHandle(&logmerge.OsFile{F: f}, fmt.Sprintf("file-%d", i), 1024*1024)
-		files = append(files, handle)
-		osFiles = append(osFiles, f)
+		f.Close()
 	}
 
 	config := &logmerge.MergeConfig{
 		BufferSizeForWrite: 1024 * 1024,
+		MaxTimestamp:       logmerge.Timestamp(1<<63 - 1),
+	}
+
+	tsConfig := &logmerge.ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
 	}
 
 	b.ResetTimer()
 	b.SetBytes(totalBytes) // This enables MB/s reporting
 	for i := 0; i < b.N; i++ {
-		// Reset handles for each iteration
-		for j, h := range files {
-			osFiles[j].Seek(0, 0)
-			h.Done = false
-			h.BytesRead = 0
-			h.LineTimestampParsed = false
-			h.Buffer = logmerge.NewRingBuffer(1024 * 1024)
+		// Reopen files from disk each iteration since ProcessFiles closes them
+		files := make([]*logmerge.FileHandle, numFiles)
+		for j, path := range paths {
+			f, err := os.Open(path)
+			if err != nil {
+				b.Fatal(err)
+			}
+			files[j], err = logmerge.NewFileHandle(&logmerge.OsFile{F: f}, fmt.Sprintf("file-%d", j), 1024*1024)
+			if err != nil {
+				b.Fatal(err)
+			}
 		}
 
 		out := io.Discard // Bypass actual disk I/O to measure pure CPU/Logic overhead
 		writer := bufio.NewWriter(out)
 
-		_ = logmerge.ProcessFiles(
+		err := logmerge.ProcessFiles(
 			config,
 			logmerge.NewMergeMetrics(),
 			files,
 			writer,
 			&logmerge.WritableFile{File: os.Stderr},
 			func(f *logmerge.FileHandle) error {
-				return logmerge.UpdateTimestamp(&logmerge.ParseTimestampConfig{
-					ShortestTimestampLen:    15,
-					TimestampSearchEndIndex: 250,
-				}, f)
+				return logmerge.UpdateTimestamp(tsConfig, f)
 			},
 		)
+		if err != nil {
+			b.Fatal(err)
+		}
 		writer.Flush()
 	}
 }
