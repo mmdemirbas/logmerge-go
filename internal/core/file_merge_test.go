@@ -961,3 +961,58 @@ func TestProcessFiles_StripTimestampSmallBuffer(t *testing.T) {
 		})
 	}
 }
+
+func TestProcessFiles_StripTimestampPreservesPrefix(t *testing.T) {
+	tests := []struct {
+		name             string
+		content          string
+		expectContains   []string
+		expectNotContain []string
+	}{
+		{
+			"syslog priority preserved",
+			"<165> 2024-08-04T12:00:01Z server1 msg\n",
+			[]string{"<165> server1 msg"},
+			[]string{"2024-08-04"},
+		},
+		{
+			"single-char prefix with space insertion",
+			"I20250115 19:29:15.463310 3239941 glogger\n",
+			[]string{"I 3239941 glogger"},
+			[]string{"20250115"},
+		},
+		{
+			"pipe-delimited stripping",
+			"2025-01-15 10:00:00,179 | INFO | msg\n",
+			[]string{"INFO | msg"},
+			[]string{"2025-01-15", "10:00:00"},
+		},
+		{
+			"bracket-delimited stripping",
+			"[2025-01-09 20:27:27,236] [sidecar] msg\n",
+			[]string{"[sidecar] msg"},
+			[]string{"2025-01-09", "20:27:27"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fh := makeHandle("test.log", tt.content, 4096)
+			c := defaultConfig()
+			c.StripOriginalTimestamp = true
+
+			got := runMerge(t, c, []*fsutil.FileHandle{fh})
+
+			for _, want := range tt.expectContains {
+				if !strings.Contains(got, want) {
+					t.Errorf("expected output to contain %q, got:\n%s", want, got)
+				}
+			}
+			for _, notWant := range tt.expectNotContain {
+				if strings.Contains(got, notWant) {
+					t.Errorf("expected output to NOT contain %q, got:\n%s", notWant, got)
+				}
+			}
+		})
+	}
+}

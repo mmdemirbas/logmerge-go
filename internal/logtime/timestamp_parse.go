@@ -11,17 +11,17 @@ type ParseTimestampConfig struct {
 // ParseTimestamp scans the first TimestampSearchEndIndex bytes of buffer for a
 // recognizable timestamp pattern and returns it, or ZeroTimestamp if none found.
 func ParseTimestamp(c *ParseTimestampConfig, buffer []byte) Timestamp {
-	ts, _ := ParseTimestampWithEnd(c, buffer)
+	ts, _, _ := ParseTimestampWithEnd(c, buffer)
 	return ts
 }
 
-// ParseTimestampWithEnd scans the buffer for a timestamp and returns both the
-// parsed timestamp and the byte offset where the timestamp ends. The end offset
-// can be used to strip the original timestamp from output.
+// ParseTimestampWithEnd scans the buffer for a timestamp and returns the parsed
+// timestamp, the byte offset where the timestamp section starts (including any
+// leading delimiters that should be stripped), and the byte offset where the
+// timestamp section ends (including any trailing delimiters).
 // If no timestamp is found, or the timestamp is on a subsequent line (past a
-// newline), the end offset is 0 — indicating nothing should be stripped from
-// the current line.
-func ParseTimestampWithEnd(c *ParseTimestampConfig, buffer []byte) (Timestamp, int) {
+// newline), start and end are both 0 — indicating nothing should be stripped.
+func ParseTimestampWithEnd(c *ParseTimestampConfig, buffer []byte) (Timestamp, int, int) {
 	n := min(len(buffer), c.TimestampSearchEndIndex)
 
 	// Find the first newline — the end offset is only meaningful within the
@@ -37,42 +37,80 @@ func ParseTimestampWithEnd(c *ParseTimestampConfig, buffer []byte) (Timestamp, i
 	}
 
 	var timestamp Timestamp
+	var tsStart int
 	var end int
 	for i := 0; timestamp == ZeroTimestamp && i < n; {
-		timestamp, i = tryParseTimestamp(c, buffer, i, n)
+		timestamp, tsStart, i = tryParseTimestamp(c, buffer, i, n)
 		end = i
 	}
 	if timestamp == ZeroTimestamp || end > firstNewline {
-		return timestamp, 0
+		return timestamp, 0, 0
 	}
-	return timestamp, end
+
+	// Strip trailing delimiters after the timestamp (up to 3 chars).
+	// Only closers and separators — not openers like '[' or '(' which start new sections.
+	tsEnd := end
+	for scanned := 0; tsEnd < n && tsEnd <= firstNewline && scanned < 3; scanned++ {
+		b := buffer[tsEnd]
+		switch b {
+		case ' ', '\t', '|', ']', ')', '}', ':', ',':
+			tsEnd++
+		default:
+			goto doneTrailing
+		}
+	}
+doneTrailing:
+
+	// Look backward from tsStart for opening brackets (up to 3 chars)
+	prefixStart := tsStart
+	for back := 0; prefixStart > 0 && back < 3; back++ {
+		b := buffer[prefixStart-1]
+		switch b {
+		case '[', '(':
+			prefixStart--
+		default:
+			goto donePrefix
+		}
+	}
+donePrefix:
+	// Only strip prefix brackets if we reached start-of-line or a space/tab boundary
+	if prefixStart > 0 {
+		b := buffer[prefixStart-1]
+		if b != ' ' && b != '\t' {
+			prefixStart = tsStart // revert: no valid boundary found
+		}
+	}
+
+	return timestamp, prefixStart, tsEnd
 }
 
-func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Timestamp, int) {
+func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Timestamp, int, int) {
 	if n < i+c.ShortestTimestampLen {
-		return ZeroTimestamp, n
+		return ZeroTimestamp, i, n
 	}
 
 	var hitNewline bool
 	i, hitNewline = skipToFirstDigit(buffer, n, i)
 	if hitNewline {
-		return ZeroTimestamp, i
+		return ZeroTimestamp, i, i
 	}
 
+	tsStart := i // position of the first digit
+
 	if i >= n || n < i+c.ShortestTimestampLen {
-		return ZeroTimestamp, n
+		return ZeroTimestamp, tsStart, n
 	}
 
 	for j := i + c.ShortestTimestampLen - 1; j >= i; j-- {
 		b := buffer[j]
 		if b == '\n' || b == '\r' {
-			return ZeroTimestamp, j + 1
+			return ZeroTimestamp, tsStart, j + 1
 		}
 	}
 
 	year, count := parseDigits(buffer, n, i, 4)
 	if count == 0 {
-		return ZeroTimestamp, i + 1
+		return ZeroTimestamp, tsStart, i + 1
 	} else if count == 2 {
 		if year < 69 {
 			year += 2000
@@ -80,12 +118,12 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 			year += 1900
 		}
 	} else if year > 2050 || year < 1969 {
-		return ZeroTimestamp, i + count
+		return ZeroTimestamp, tsStart, i + count
 	}
 
 	i += count
 	if i >= n {
-		return ZeroTimestamp, n
+		return ZeroTimestamp, tsStart, n
 	}
 	b := buffer[i]
 
@@ -96,15 +134,15 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 
 	month, mcount := parseMax2Digits(buffer, n, i)
 	if mcount == 0 {
-		return ZeroTimestamp, i + 1
+		return ZeroTimestamp, tsStart, i + 1
 	}
 	if month > 12 || month < 1 {
-		return ZeroTimestamp, i + mcount
+		return ZeroTimestamp, tsStart, i + mcount
 	}
 
 	i += mcount
 	if i >= n {
-		return ZeroTimestamp, n
+		return ZeroTimestamp, tsStart, n
 	}
 	b = buffer[i]
 
@@ -115,66 +153,66 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 
 	day, dcount := parseMax2Digits(buffer, n, i)
 	if dcount == 0 {
-		return ZeroTimestamp, i + 1
+		return ZeroTimestamp, tsStart, i + 1
 	}
 	if day > 31 || day < 1 {
-		return ZeroTimestamp, i + dcount
+		return ZeroTimestamp, tsStart, i + dcount
 	}
 
 	i += dcount
 	if i >= n {
-		return ZeroTimestamp, n
+		return ZeroTimestamp, tsStart, n
 	}
 	b = buffer[i]
 	i++
 	if i >= n || (b != ' ' && b != 'T' && b != '_') {
-		return ZeroTimestamp, i
+		return ZeroTimestamp, tsStart, i
 	}
 
 	hour, hcount := parseMax2Digits(buffer, n, i)
 	if hcount == 0 {
-		return ZeroTimestamp, i + 1
+		return ZeroTimestamp, tsStart, i + 1
 	}
 	if hour > 23 {
-		return ZeroTimestamp, i + hcount
+		return ZeroTimestamp, tsStart, i + hcount
 	}
 
 	i += hcount
 	if i >= n {
-		return ZeroTimestamp, n
+		return ZeroTimestamp, tsStart, n
 	}
 
 	b = buffer[i]
 	i++
 	if b != ':' && b != '.' && b != '-' {
-		return ZeroTimestamp, i
+		return ZeroTimestamp, tsStart, i
 	}
 
 	minute, mincount := parseMax2Digits(buffer, n, i)
 	if mincount == 0 {
-		return ZeroTimestamp, i + 1
+		return ZeroTimestamp, tsStart, i + 1
 	}
 	if minute > 59 {
-		return ZeroTimestamp, i + mincount
+		return ZeroTimestamp, tsStart, i + mincount
 	}
 
 	i += mincount
 	if i >= n {
-		return ZeroTimestamp, n
+		return ZeroTimestamp, tsStart, n
 	}
 
 	b = buffer[i]
 	i++
 	if b != ':' && b != '.' && b != '-' {
-		return ZeroTimestamp, i
+		return ZeroTimestamp, tsStart, i
 	}
 
 	second, scount := parseMax2Digits(buffer, n, i)
 	if scount == 0 {
-		return ZeroTimestamp, i + 1
+		return ZeroTimestamp, tsStart, i + 1
 	}
 	if second > 59 {
-		return ZeroTimestamp, i + scount
+		return ZeroTimestamp, tsStart, i + scount
 	}
 
 	i += scount
@@ -193,7 +231,7 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 
 	tzSign, tzHour, tzMin, i := parseTimezone(c, buffer, n, i)
 
-	return NewTimestamp(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin), i
+	return NewTimestamp(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin), tsStart, i
 }
 
 func skipToFirstDigit(buffer []byte, n, i int) (int, bool) {
@@ -231,12 +269,17 @@ func parseTimezone(c *ParseTimestampConfig, buffer []byte, n int, i int) (tzSign
 		if hcount == 0 || tzHour > 23 {
 			break
 		}
-		nextI += hcount // Fix: correctly advance over the timezone hours
+		nextI += hcount
 		if nextI < n && buffer[nextI] == ':' {
 			nextI++
-			if nextI+2 <= n {
-				tzMin, _ = parseMax2Digits(buffer, n, nextI)
-			}
+			var mcount int
+			tzMin, mcount = parseMax2Digits(buffer, n, nextI)
+			nextI += mcount
+		} else {
+			// +0800 format (no colon)
+			var mcount int
+			tzMin, mcount = parseMax2Digits(buffer, n, nextI)
+			nextI += mcount
 		}
 	}
 	return tzSign, tzHour, tzMin, nextI

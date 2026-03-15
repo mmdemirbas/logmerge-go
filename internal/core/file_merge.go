@@ -283,8 +283,40 @@ func writeLine(c *MergeConfig, m *metrics.MergeMetrics, ws *writeState, writer *
 	// Strip the original timestamp from the line if configured
 	if c.StripOriginalTimestamp && file.LineTimestampEnd > 0 {
 		startTime := file.Metrics.Start("StripTimestamp")
+
+		// Write prefix bytes before the timestamp section
+		var lastPrefixByte byte
+		if file.LineTimestampStart > 0 {
+			var prefixBuf [16]byte
+			prefixLen := file.LineTimestampStart
+			prefix := file.Buffer.PeekSlice(prefixBuf[:prefixLen:prefixLen])
+			lastPrefixByte = prefix[len(prefix)-1]
+			n, err := writer.Write(prefix)
+			if err != nil {
+				file.Metrics.Stop(startTime)
+				return fmt.Errorf("failed to write prefix: %v", err)
+			}
+			m.BytesWrittenForRawData += int64(n)
+		}
+
+		// Skip the entire timestamp section (from start through trailing delimiters)
 		file.Buffer.Skip(file.LineTimestampEnd)
 		m.BytesReadAndSkipped += int64(file.LineTimestampEnd)
+
+		// Insert separator if prefix and remaining content would merge without space
+		if file.LineTimestampStart > 0 && !file.Buffer.IsEmpty() {
+			nextByte := file.Buffer.Peek(0)
+			if lastPrefixByte != ' ' && lastPrefixByte != '\t' &&
+				nextByte != ' ' && nextByte != '\t' && nextByte != '\n' && nextByte != '\r' {
+				_, err := writer.Write([]byte{' '})
+				if err != nil {
+					file.Metrics.Stop(startTime)
+					return fmt.Errorf("failed to write separator: %v", err)
+				}
+				m.BytesWrittenForRawData++
+			}
+		}
+
 		file.Metrics.Stop(startTime)
 	}
 

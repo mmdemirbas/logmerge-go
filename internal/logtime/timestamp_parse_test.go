@@ -487,3 +487,72 @@ func TestParseTimestamp_EndToEnd_SmallBuffer(t *testing.T) {
 		})
 	}
 }
+
+func TestParseTimestampWithEnd_Stripping(t *testing.T) {
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	tests := []struct {
+		name      string
+		input     string
+		tsStart   int
+		tsEnd     int
+		prefix    string
+		remaining string
+	}{
+		{
+			"pipe-delimited with spaces",
+			"2025-01-15 10:00:00,179 | INFO | msg",
+			0, 26, "", "INFO | msg",
+		},
+		{
+			"bracket-delimited timestamp",
+			"[2025-01-09 20:27:27,236] [sidecar] msg",
+			0, 26, "", "[sidecar] msg",
+		},
+		{
+			"syslog priority prefix",
+			"<165> 2024-08-04T12:00:01Z server1",
+			6, 27, "<165> ", "server1",
+		},
+		{
+			"single-char log level prefix",
+			"I20250115 19:29:15.463310 3239941",
+			1, 26, "I", "3239941",
+		},
+		{
+			"timezone colon trailing",
+			"2024-12-23T15:55:26.569+0800: 1.138",
+			0, 30, "", "1.138",
+		},
+		{
+			"pipe no spaces",
+			"2025-01-15 10:00:00|INFO",
+			0, 20, "", "INFO",
+		},
+		{
+			"space-separated",
+			"2025-01-15 10:00:00 hello",
+			0, 20, "", "hello",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts, tsStart, tsEnd := ParseTimestampWithEnd(c, []byte(tt.input))
+			if ts == ZeroTimestamp {
+				t.Fatalf("expected valid timestamp for %q", tt.input)
+			}
+			testutil.AssertEquals(t, tt.tsStart, tsStart)
+			testutil.AssertEquals(t, tt.tsEnd, tsEnd)
+
+			gotPrefix := tt.input[:tsStart]
+			testutil.AssertEquals(t, tt.prefix, gotPrefix)
+
+			gotRemaining := tt.input[tsEnd:]
+			testutil.AssertEquals(t, tt.remaining, gotRemaining)
+		})
+	}
+}

@@ -38,9 +38,10 @@ func UpdateTimestamp(c *logtime.ParseTimestampConfig, file *fsutil.FileHandle) e
 	buf := file.Buffer.PeekSlice(peekBuf[:])
 	file.Metrics.Stop(startTime)
 
-	timestamp, tsEnd := logtime.ParseTimestampWithEnd(c, buf)
+	timestamp, tsStart, tsEnd := logtime.ParseTimestampWithEnd(c, buf)
 	file.LineTimestampParsed = true
 	file.LineTimestamp = timestamp
+	file.LineTimestampStart = tsStart
 	file.LineTimestampEnd = tsEnd
 	return nil
 }
