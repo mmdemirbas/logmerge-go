@@ -1,4 +1,4 @@
-package logmerge
+package cli
 
 import (
 	"fmt"

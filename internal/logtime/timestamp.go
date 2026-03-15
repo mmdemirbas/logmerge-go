@@ -1,4 +1,4 @@
-package logmerge
+package logtime
 
 import (
 	"fmt"

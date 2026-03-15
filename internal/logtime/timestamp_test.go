@@ -1,8 +1,9 @@
-package logmerge_test
+package logtime_test
 
 import (
-	. "github.com/mmdemirbas/logmerge/internal/logmerge"
 	"testing"
+
+	. "github.com/mmdemirbas/logmerge/internal/logtime"
 )
 
 func TestNewTimestampAndString(t *testing.T) {

@@ -1,4 +1,4 @@
-package logmerge_test
+package cli_test
 
 import (
 	"os"

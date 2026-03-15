@@ -1,22 +1,26 @@
-package logmerge_test
+package cli_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	. "github.com/mmdemirbas/logmerge/internal/logmerge"
+	. "github.com/mmdemirbas/logmerge/internal/cli"
+	"github.com/mmdemirbas/logmerge/internal/core"
+	"github.com/mmdemirbas/logmerge/internal/fsutil"
+	"github.com/mmdemirbas/logmerge/internal/logtime"
+	"github.com/mmdemirbas/logmerge/internal/metrics"
 )
 
 func TestToYAML(t *testing.T) {
 	cfg := &MainConfig{
 		InputPaths:           []string{"/var/log"},
-		OutputFile:           &WritableFile{File: os.Stdout},
-		LogFile:              &WritableFile{File: os.Stderr},
-		ListFilesConfig:      &ListFilesConfig{IgnorePatterns: []string{"*.zip"}, FileAliases: map[string]string{}},
-		ParseTimestampConfig: &ParseTimestampConfig{ShortestTimestampLen: 15, TimestampSearchEndIndex: 250},
-		MergeConfig:          &MergeConfig{WriteTimestampPerLine: true},
-		PrintProgressConfig:  &PrintProgressConfig{PeriodMillis: 500},
+		OutputFile:           &fsutil.WritableFile{File: os.Stdout},
+		LogFile:              &fsutil.WritableFile{File: os.Stderr},
+		ListFilesConfig:      &fsutil.ListFilesConfig{IgnorePatterns: []string{"*.zip"}, FileAliases: map[string]string{}},
+		ParseTimestampConfig: &logtime.ParseTimestampConfig{ShortestTimestampLen: 15, TimestampSearchEndIndex: 250},
+		MergeConfig:          &core.MergeConfig{WriteTimestampPerLine: true},
+		PrintProgressConfig:  &metrics.PrintProgressConfig{PeriodMillis: 500},
 	}
 
 	yamlStr, err := cfg.ToYAML()
@@ -60,12 +64,12 @@ func TestToYAML_RoundTrip(t *testing.T) {
 
 	cfg := &MainConfig{
 		InputPaths:           []string{"/tmp/logs"},
-		OutputFile:           &WritableFile{Path: outPath},
-		LogFile:              &WritableFile{Path: logPath},
-		ListFilesConfig:      &ListFilesConfig{IgnorePatterns: []string{"*.bak"}, FileAliases: map[string]string{"app.log": "app"}},
-		ParseTimestampConfig: &ParseTimestampConfig{ShortestTimestampLen: 15, TimestampSearchEndIndex: 250},
-		MergeConfig:          &MergeConfig{BufferSizeForRead: 1024},
-		PrintProgressConfig:  &PrintProgressConfig{},
+		OutputFile:           &fsutil.WritableFile{Path: outPath},
+		LogFile:              &fsutil.WritableFile{Path: logPath},
+		ListFilesConfig:      &fsutil.ListFilesConfig{IgnorePatterns: []string{"*.bak"}, FileAliases: map[string]string{"app.log": "app"}},
+		ParseTimestampConfig: &logtime.ParseTimestampConfig{ShortestTimestampLen: 15, TimestampSearchEndIndex: 250},
+		MergeConfig:          &core.MergeConfig{BufferSizeForRead: 1024},
+		PrintProgressConfig:  &metrics.PrintProgressConfig{},
 	}
 
 	yamlStr, err := cfg.ToYAML()
@@ -78,12 +82,12 @@ func TestToYAML_RoundTrip(t *testing.T) {
 	os.WriteFile(yamlPath, []byte(yamlStr), 0644)
 
 	cfg2 := &MainConfig{
-		OutputFile:           &WritableFile{File: os.Stdout},
-		LogFile:              &WritableFile{File: os.Stderr},
-		ListFilesConfig:      &ListFilesConfig{FileAliases: map[string]string{}},
-		ParseTimestampConfig: &ParseTimestampConfig{},
-		MergeConfig:          &MergeConfig{},
-		PrintProgressConfig:  &PrintProgressConfig{},
+		OutputFile:           &fsutil.WritableFile{File: os.Stdout},
+		LogFile:              &fsutil.WritableFile{File: os.Stderr},
+		ListFilesConfig:      &fsutil.ListFilesConfig{FileAliases: map[string]string{}},
+		ParseTimestampConfig: &logtime.ParseTimestampConfig{},
+		MergeConfig:          &core.MergeConfig{},
+		PrintProgressConfig:  &metrics.PrintProgressConfig{},
 	}
 
 	err = cfg2.LoadYAML(yamlPath)
@@ -100,7 +104,7 @@ func TestToYAML_RoundTrip(t *testing.T) {
 }
 
 func TestWritableFile_Initialize_EmptyPath(t *testing.T) {
-	wf := &WritableFile{File: os.Stdout}
+	wf := &fsutil.WritableFile{File: os.Stdout}
 	err := wf.Initialize()
 	if err != nil {
 		t.Fatalf("Initialize with empty path should not fail: %v", err)
@@ -115,7 +119,7 @@ func TestWritableFile_Initialize_CreatesFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "subdir", "output.log")
 
-	wf := &WritableFile{Path: path}
+	wf := &fsutil.WritableFile{Path: path}
 	err := wf.Initialize()
 	if err != nil {
 		t.Fatalf("Initialize failed: %v", err)
@@ -139,12 +143,12 @@ func TestWritableFile_Initialize_CreatesFile(t *testing.T) {
 
 func TestLoadYAML_InvalidPath(t *testing.T) {
 	cfg := &MainConfig{
-		OutputFile:           &WritableFile{File: os.Stdout},
-		LogFile:              &WritableFile{File: os.Stderr},
-		ListFilesConfig:      &ListFilesConfig{FileAliases: map[string]string{}},
-		ParseTimestampConfig: &ParseTimestampConfig{},
-		MergeConfig:          &MergeConfig{},
-		PrintProgressConfig:  &PrintProgressConfig{},
+		OutputFile:           &fsutil.WritableFile{File: os.Stdout},
+		LogFile:              &fsutil.WritableFile{File: os.Stderr},
+		ListFilesConfig:      &fsutil.ListFilesConfig{FileAliases: map[string]string{}},
+		ParseTimestampConfig: &logtime.ParseTimestampConfig{},
+		MergeConfig:          &core.MergeConfig{},
+		PrintProgressConfig:  &metrics.PrintProgressConfig{},
 	}
 
 	err := cfg.LoadYAML("/nonexistent/path/config.yaml")
@@ -159,12 +163,12 @@ func TestLoadYAML_InvalidYAML(t *testing.T) {
 	os.WriteFile(path, []byte("{{{{not yaml"), 0644)
 
 	cfg := &MainConfig{
-		OutputFile:           &WritableFile{File: os.Stdout},
-		LogFile:              &WritableFile{File: os.Stderr},
-		ListFilesConfig:      &ListFilesConfig{FileAliases: map[string]string{}},
-		ParseTimestampConfig: &ParseTimestampConfig{},
-		MergeConfig:          &MergeConfig{},
-		PrintProgressConfig:  &PrintProgressConfig{},
+		OutputFile:           &fsutil.WritableFile{File: os.Stdout},
+		LogFile:              &fsutil.WritableFile{File: os.Stderr},
+		ListFilesConfig:      &fsutil.ListFilesConfig{FileAliases: map[string]string{}},
+		ParseTimestampConfig: &logtime.ParseTimestampConfig{},
+		MergeConfig:          &core.MergeConfig{},
+		PrintProgressConfig:  &metrics.PrintProgressConfig{},
 	}
 
 	err := cfg.LoadYAML(path)

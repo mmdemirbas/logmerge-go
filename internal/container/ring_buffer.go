@@ -1,4 +1,4 @@
-package logmerge
+package container
 
 import (
 	bytes2 "bytes"

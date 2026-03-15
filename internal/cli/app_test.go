@@ -1,11 +1,15 @@
-package logmerge_test
+package cli_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	. "github.com/mmdemirbas/logmerge/internal/logmerge"
+	. "github.com/mmdemirbas/logmerge/internal/cli"
+	"github.com/mmdemirbas/logmerge/internal/core"
+	"github.com/mmdemirbas/logmerge/internal/fsutil"
+	"github.com/mmdemirbas/logmerge/internal/logtime"
+	"github.com/mmdemirbas/logmerge/internal/metrics"
 )
 
 func TestHydrationPipelineCLIOverridesYAML(t *testing.T) {
@@ -45,12 +49,12 @@ PrintProgressConfig:
 
 	// Load the config
 	cfg := &MainConfig{
-		OutputFile:           &WritableFile{File: os.Stdout},
-		LogFile:              &WritableFile{File: os.Stderr},
-		ListFilesConfig:      &ListFilesConfig{FileAliases: map[string]string{}},
-		ParseTimestampConfig: &ParseTimestampConfig{},
-		MergeConfig:          &MergeConfig{},
-		PrintProgressConfig:  &PrintProgressConfig{},
+		OutputFile:           &fsutil.WritableFile{File: os.Stdout},
+		LogFile:              &fsutil.WritableFile{File: os.Stderr},
+		ListFilesConfig:      &fsutil.ListFilesConfig{FileAliases: map[string]string{}},
+		ParseTimestampConfig: &logtime.ParseTimestampConfig{},
+		MergeConfig:          &core.MergeConfig{},
+		PrintProgressConfig:  &metrics.PrintProgressConfig{},
 	}
 
 	err = cfg.LoadYAML(yamlPath)
@@ -89,15 +93,15 @@ PrintProgressConfig:
 
 func TestHydrationPipelineFilterAppend(t *testing.T) {
 	cfg := &MainConfig{
-		OutputFile: &WritableFile{File: os.Stdout},
-		LogFile:    &WritableFile{File: os.Stderr},
-		ListFilesConfig: &ListFilesConfig{
+		OutputFile: &fsutil.WritableFile{File: os.Stdout},
+		LogFile:    &fsutil.WritableFile{File: os.Stderr},
+		ListFilesConfig: &fsutil.ListFilesConfig{
 			IgnorePatterns: []string{"*.zip"},
 			FileAliases:    map[string]string{},
 		},
-		ParseTimestampConfig: &ParseTimestampConfig{},
-		MergeConfig:          &MergeConfig{},
-		PrintProgressConfig:  &PrintProgressConfig{},
+		ParseTimestampConfig: &logtime.ParseTimestampConfig{},
+		MergeConfig:          &core.MergeConfig{},
+		PrintProgressConfig:  &metrics.PrintProgressConfig{},
 	}
 
 	// Simulate appending --filter flags

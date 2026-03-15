@@ -1,8 +1,10 @@
-package logmerge_test
+package fsutil_test
 
 import (
-	. "github.com/mmdemirbas/logmerge/internal/logmerge"
 	"testing"
+
+	. "github.com/mmdemirbas/logmerge/internal/fsutil"
+	"github.com/mmdemirbas/logmerge/internal/testutil"
 )
 
 func TestGetAliasPatternMatching(t *testing.T) {
@@ -39,7 +41,7 @@ func TestGetAliasPatternMatching(t *testing.T) {
 			}
 			actual := GetAlias([]string{"."}, c, tt.filePath)
 			if actual != tt.expected {
-				t.Errorf(expectedFormat, tt.expected, tt.expected, actual, actual)
+				t.Errorf(testutil.ExpectedFormat, tt.expected, tt.expected, actual, actual)
 			}
 		})
 	}

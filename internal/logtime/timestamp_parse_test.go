@@ -1,10 +1,11 @@
-package logmerge_test
+package logtime_test
 
 import (
 	"strings"
 	"testing"
 
-	. "github.com/mmdemirbas/logmerge/internal/logmerge"
+	. "github.com/mmdemirbas/logmerge/internal/logtime"
+	"github.com/mmdemirbas/logmerge/internal/testutil"
 )
 
 func TestParseTimestamp(t *testing.T) {
@@ -42,7 +43,7 @@ func TestParseTimestamp(t *testing.T) {
 			ts := ParseTimestamp(c, []byte(tt.input))
 			actual := ts.String()
 			if strings.Compare(tt.expected, actual) != 0 {
-				t.Errorf(expectedFormat, tt.expected, tt.expected, actual, actual)
+				t.Errorf(testutil.ExpectedFormat, tt.expected, tt.expected, actual, actual)
 			}
 		})
 	}

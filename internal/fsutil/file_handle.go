@@ -1,11 +1,17 @@
-package logmerge
+package fsutil
 
 import (
 	"bufio"
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/mmdemirbas/logmerge/internal/container"
+	"github.com/mmdemirbas/logmerge/internal/logtime"
+	"github.com/mmdemirbas/logmerge/internal/metrics"
 )
+
+var newline = []byte{'\n'}
 
 // VirtualFile abstracts a readable file, supporting transparent decompression.
 type VirtualFile interface {
@@ -35,15 +41,15 @@ type FileHandle struct {
 	Alias               []byte
 	AliasForBlock       []byte
 	AliasForLine        []byte
-	Size                int64       // Size of the file in bytes
-	BytesRead           int64       // Number of bytes read from the file
-	Done                bool        // Whether the file has been fully read
-	Buffer              *RingBuffer // Buffer for reading the file
-	LineTimestampParsed bool        // Whether the timestamp for the current line has been parsed
-	LineTimestamp       Timestamp   // The timestamp for the current line
-	BlockTimestamp      Timestamp   // The timestamp for the current block, i.e. the last non-zero timestamp
-	Metrics             *MetricsTree
-	MergeMetrics        *MergeMetrics
+	Size                int64                 // Size of the file in bytes
+	BytesRead           int64                 // Number of bytes read from the file
+	Done                bool                  // Whether the file has been fully read
+	Buffer              *container.RingBuffer // Buffer for reading the file
+	LineTimestampParsed bool                  // Whether the timestamp for the current line has been parsed
+	LineTimestamp       logtime.Timestamp     // The timestamp for the current line
+	BlockTimestamp      logtime.Timestamp     // The timestamp for the current block, i.e. the last non-zero timestamp
+	Metrics             *metrics.MetricsTree
+	MergeMetrics        *metrics.MergeMetrics
 	eofReached          bool // true after the underlying reader returns io.EOF
 }
 
@@ -55,13 +61,13 @@ func NewFileHandle(file VirtualFile, alias string, bufferSize int) (fh *FileHand
 		Alias:               []byte(alias),
 		Size:                file.Size(),
 		BytesRead:           0,
-		Buffer:              NewRingBuffer(bufferSize),
+		Buffer:              container.NewRingBuffer(bufferSize),
 		Done:                false,
 		LineTimestampParsed: false,
-		LineTimestamp:       ZeroTimestamp,
-		BlockTimestamp:      ZeroTimestamp,
-		Metrics:             NewMetricsTree(),
-		MergeMetrics:        NewMergeMetrics(),
+		LineTimestamp:       logtime.ZeroTimestamp,
+		BlockTimestamp:      logtime.ZeroTimestamp,
+		Metrics:             metrics.NewMetricsTree(),
+		MergeMetrics:        metrics.NewMergeMetrics(),
 	}, nil
 }
 
@@ -86,13 +92,13 @@ func (r *FileHandle) SkipLine() (bytesCount int, eolLength int, err error) {
 	var (
 		n               = 0
 		latestCharWasCR = false
-		eol             = None
+		eol             = container.None
 	)
 
 	for !r.Buffer.IsEmpty() {
 		n, eol = r.Buffer.SkipNextLineSlice(&latestCharWasCR)
 		bytesCount += n
-		if eol != None {
+		if eol != container.None {
 			break
 		}
 
@@ -108,10 +114,10 @@ func (r *FileHandle) SkipLine() (bytesCount int, eolLength int, err error) {
 	}
 
 	switch eol {
-	case None:
-	case CR, LF:
+	case container.None:
+	case container.CR, container.LF:
 		eolLength = 1
-	case CRLF:
+	case container.CRLF:
 		eolLength = 2
 	}
 	return
@@ -119,11 +125,11 @@ func (r *FileHandle) SkipLine() (bytesCount int, eolLength int, err error) {
 
 // WriteLine writes the current line from the buffer to the writer, ensuring
 // it ends with a newline. Updates byte and line-length metrics.
-func (r *FileHandle) WriteLine(m *MergeMetrics, writer *bufio.Writer) error {
+func (r *FileHandle) WriteLine(m *metrics.MergeMetrics, writer *bufio.Writer) error {
 	var (
 		count           = 0
 		latestCharWasCR = false
-		eol             = None
+		eol             = container.None
 		chunk           []byte
 		err             error = nil
 	)
@@ -138,7 +144,7 @@ func (r *FileHandle) WriteLine(m *MergeMetrics, writer *bufio.Writer) error {
 			var n int
 			n, err = writer.Write(chunk)
 			if err == nil {
-				if eol == CRLF && len(chunk) == 1 && chunk[0] == '\n' {
+				if eol == container.CRLF && len(chunk) == 1 && chunk[0] == '\n' {
 					// This chunk is the '\n' part of a split CRLF.
 					// The '\n' was returned by PeekNextLineSlice but not
 					// consumed — skip it so it doesn't leak into the next line.
@@ -154,7 +160,7 @@ func (r *FileHandle) WriteLine(m *MergeMetrics, writer *bufio.Writer) error {
 		if err != nil {
 			return fmt.Errorf("failed to write line to output: %v", err)
 		}
-		if eol != None {
+		if eol != container.None {
 			break
 		}
 
@@ -169,7 +175,7 @@ func (r *FileHandle) WriteLine(m *MergeMetrics, writer *bufio.Writer) error {
 	}
 
 	// Ensure \n is written at the end of the line
-	if eol != LF && eol != CRLF {
+	if eol != container.LF && eol != container.CRLF {
 		startTime := r.Metrics.Start("WriteMissingNewline")
 		_, err = writer.Write(newline)
 		m.BytesWrittenForMissingNewlines++
@@ -181,10 +187,10 @@ func (r *FileHandle) WriteLine(m *MergeMetrics, writer *bufio.Writer) error {
 
 	lineLengthWithoutEol := count
 	switch eol {
-	case None:
-	case CR, LF:
+	case container.None:
+	case container.CR, container.LF:
 		lineLengthWithoutEol -= 1
-	case CRLF:
+	case container.CRLF:
 		lineLengthWithoutEol -= 2
 	}
 
@@ -198,3 +204,7 @@ func (r *FileHandle) WriteLine(m *MergeMetrics, writer *bufio.Writer) error {
 func (r *FileHandle) Close() error {
 	return r.File.Close()
 }
+
+func (r *FileHandle) GetBytesRead() int64 { return r.BytesRead }
+func (r *FileHandle) GetFileSize() int64  { return r.Size }
+func (r *FileHandle) IsDone() bool        { return r.Done }

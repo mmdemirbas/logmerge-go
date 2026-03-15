@@ -1,4 +1,4 @@
-package logmerge_test
+package fsutil_test
 
 import (
 	"bufio"
@@ -6,8 +6,25 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/mmdemirbas/logmerge/internal/logmerge"
+	. "github.com/mmdemirbas/logmerge/internal/fsutil"
+	"github.com/mmdemirbas/logmerge/internal/metrics"
+	"github.com/mmdemirbas/logmerge/internal/testutil"
 )
+
+func newMemFile(name, content string) VirtualFile {
+	b := []byte(content)
+	return &memFile{Reader: bytes.NewReader(b), name: name, size: int64(len(b))}
+}
+
+type memFile struct {
+	*bytes.Reader
+	name string
+	size int64
+}
+
+func (m *memFile) Close() error { return nil }
+func (m *memFile) Name() string { return m.name }
+func (m *memFile) Size() int64  { return m.size }
 
 func TestFillBuffer_ReadsData(t *testing.T) {
 	content := "2024-01-15 10:00:00 hello world\n"
@@ -114,7 +131,7 @@ func TestWriteLine_Basic(t *testing.T) {
 
 	var buf bytes.Buffer
 	writer := bufio.NewWriter(&buf)
-	m := NewMergeMetrics()
+	m := metrics.NewMergeMetrics()
 
 	err := fh.WriteLine(m, writer)
 	if err != nil {
@@ -122,7 +139,7 @@ func TestWriteLine_Basic(t *testing.T) {
 	}
 	writer.Flush()
 
-	assertEquals(t, "hello world\n", buf.String())
+	testutil.AssertEquals(t, "hello world\n", buf.String())
 }
 
 func TestWriteLine_NoTrailingNewline(t *testing.T) {
@@ -133,7 +150,7 @@ func TestWriteLine_NoTrailingNewline(t *testing.T) {
 
 	var buf bytes.Buffer
 	writer := bufio.NewWriter(&buf)
-	m := NewMergeMetrics()
+	m := metrics.NewMergeMetrics()
 
 	err := fh.WriteLine(m, writer)
 	if err != nil {
@@ -158,7 +175,7 @@ func TestWriteLine_UpdatesMetrics(t *testing.T) {
 
 	var buf bytes.Buffer
 	writer := bufio.NewWriter(&buf)
-	m := NewMergeMetrics()
+	m := metrics.NewMergeMetrics()
 
 	fh.WriteLine(m, writer)
 	writer.Flush()
@@ -176,7 +193,7 @@ func TestWriteLine_MultipleLines(t *testing.T) {
 
 	var buf bytes.Buffer
 	writer := bufio.NewWriter(&buf)
-	m := NewMergeMetrics()
+	m := metrics.NewMergeMetrics()
 
 	// Write three lines
 	for i := 0; i < 3; i++ {
@@ -187,7 +204,7 @@ func TestWriteLine_MultipleLines(t *testing.T) {
 	}
 	writer.Flush()
 
-	assertEquals(t, content, buf.String())
+	testutil.AssertEquals(t, content, buf.String())
 }
 
 func TestClose(t *testing.T) {

@@ -1,6 +1,4 @@
-package logmerge
-
-import "fmt"
+package logtime
 
 // TODO: Consider supporting other time formats like 1 Jan 2006; Jan 1, 2006; 01/02/2006 etc.
 
@@ -8,38 +6,6 @@ type ParseTimestampConfig struct {
 	IgnoreTimezoneInfo      bool `yaml:"IgnoreTimezoneInfo"`
 	ShortestTimestampLen    int  `yaml:"ShortestTimestampLen"`
 	TimestampSearchEndIndex int  `yaml:"TimestampSearchEndIndex"`
-}
-
-// UpdateTimestamp reads the next line's prefix from file's buffer and parses
-// a timestamp, setting file.LineTimestamp and file.LineTimestampParsed.
-func UpdateTimestamp(c *ParseTimestampConfig, file *FileHandle) error {
-	bufLen := file.Buffer.Len()
-	if bufLen < c.TimestampSearchEndIndex {
-		startTime := file.Metrics.Start("FillBuffer")
-		err := file.FillBuffer()
-		if err != nil {
-			file.LineTimestampParsed = false
-			file.LineTimestamp = ZeroTimestamp
-			return fmt.Errorf("failed to fill buffer: %v", err)
-		}
-		file.Metrics.Stop(startTime)
-
-		if bufLen == 0 && file.Buffer.IsEmpty() {
-			file.LineTimestampParsed = false
-			file.LineTimestamp = ZeroTimestamp
-			return nil
-		}
-	}
-
-	startTime := file.Metrics.Start("BufferAsSlice")
-	var latestCharWasCR bool
-	buf, _ := file.Buffer.PeekNextLineSlice(&latestCharWasCR)
-	file.Metrics.Stop(startTime)
-
-	timestamp := ParseTimestamp(c, buf)
-	file.LineTimestampParsed = true
-	file.LineTimestamp = timestamp
-	return nil
 }
 
 // ParseTimestamp scans the first TimestampSearchEndIndex bytes of buffer for a

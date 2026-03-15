@@ -1,4 +1,4 @@
-package logmerge_test
+package fsutil_test
 
 import (
 	"archive/tar"
@@ -9,7 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/mmdemirbas/logmerge/internal/logmerge"
+	. "github.com/mmdemirbas/logmerge/internal/fsutil"
+	"github.com/mmdemirbas/logmerge/internal/metrics"
 	"github.com/ulikunitz/xz"
 )
 
@@ -219,7 +220,7 @@ func TestArchiveFormats(t *testing.T) {
 				IgnorePatterns: []string{},
 				FileAliases:    map[string]string{},
 			}
-			m := NewListFilesMetrics()
+			m := metrics.NewListFilesMetrics()
 
 			files, err := ListFiles(
 				[]string{archivePath},
@@ -263,7 +264,7 @@ func TestArchiveFiltering(t *testing.T) {
 		IgnorePatterns: []string{"*.tmp"},
 		FileAliases:    map[string]string{},
 	}
-	m := NewListFilesMetrics()
+	m := metrics.NewListFilesMetrics()
 
 	files, err := ListFiles(
 		[]string{archivePath},
@@ -298,7 +299,7 @@ func TestTarEntryContent(t *testing.T) {
 		IgnorePatterns: []string{},
 		FileAliases:    map[string]string{},
 	}
-	m := NewListFilesMetrics()
+	m := metrics.NewListFilesMetrics()
 
 	files, err := ListFiles([]string{archivePath}, cfg, m, 1024*1024, 1024, logFile)
 	if err != nil {
@@ -355,7 +356,7 @@ func TestTgzAlias(t *testing.T) {
 		IgnorePatterns: []string{},
 		FileAliases:    map[string]string{},
 	}
-	m := NewListFilesMetrics()
+	m := metrics.NewListFilesMetrics()
 
 	files, err := ListFiles([]string{path}, cfg, m, 1024*1024, 1024, logFile)
 	if err != nil {
@@ -390,7 +391,7 @@ func TestIgnoreArchivesIncludesNewFormats(t *testing.T) {
 		IgnorePatterns: []string{"*.tar", "*.tar.gz", "*.tgz", "*.tar.bz2", "*.tbz2", "*.tar.xz", "*.txz", "*.bz2", "*.xz", "*.gz", "*.zip"},
 		FileAliases:    map[string]string{},
 	}
-	m := NewListFilesMetrics()
+	m := metrics.NewListFilesMetrics()
 
 	files, err := ListFiles([]string{dir}, cfg, m, 1024*1024, 1024, logFile)
 	if err != nil {

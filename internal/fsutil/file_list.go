@@ -1,4 +1,4 @@
-package logmerge
+package fsutil
 
 import (
 	"archive/tar"
@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/mmdemirbas/logmerge/internal/metrics"
 	"github.com/ulikunitz/xz"
 )
 
@@ -24,26 +25,9 @@ type ListFilesConfig struct {
 	FileAliases    map[string]string `yaml:"FileAliases"`
 }
 
-type ListFilesMetrics struct {
-	DirsScanned  int64
-	FilesScanned int64
-	FilesMatched int64
-	MatchedFiles []string
-}
-
-// NewListFilesMetrics returns a zero-valued ListFilesMetrics ready for use.
-func NewListFilesMetrics() *ListFilesMetrics {
-	return &ListFilesMetrics{
-		DirsScanned:  0,
-		FilesScanned: 0,
-		FilesMatched: 0,
-		MatchedFiles: make([]string, 0),
-	}
-}
-
 // ListFiles discovers files from inputPaths (files or directories), applies ignore
 // patterns, transparently opens archives, and returns a FileHandle per discovered file.
-func ListFiles(inputPaths []string, c *ListFilesConfig, m *ListFilesMetrics, totalBufferSize int, minBufferSizePerFile int, logFile *WritableFile) (files []*FileHandle, err error) {
+func ListFiles(inputPaths []string, c *ListFilesConfig, m *metrics.ListFilesMetrics, totalBufferSize int, minBufferSizePerFile int, logFile *WritableFile) (files []*FileHandle, err error) {
 	matcher := NewMatcher(c.IgnorePatterns)
 
 	vfiles, err := listVirtualFiles(inputPaths, m, matcher, logFile)
@@ -89,7 +73,7 @@ func ListFiles(inputPaths []string, c *ListFilesConfig, m *ListFilesMetrics, tot
 	return files, nil
 }
 
-func listVirtualFiles(inputPaths []string, m *ListFilesMetrics, matcher *Matcher, logFile *WritableFile) ([]VirtualFile, error) {
+func listVirtualFiles(inputPaths []string, m *metrics.ListFilesMetrics, matcher *Matcher, logFile *WritableFile) ([]VirtualFile, error) {
 	if len(inputPaths) == 0 {
 		return nil, fmt.Errorf("no input paths specified")
 	}
@@ -126,7 +110,7 @@ func listVirtualFiles(inputPaths []string, m *ListFilesMetrics, matcher *Matcher
 	return vfiles, nil
 }
 
-func visitVirtualFile(matcher *Matcher, m *ListFilesMetrics, path string, vfiles *[]VirtualFile, logFile *WritableFile) {
+func visitVirtualFile(matcher *Matcher, m *metrics.ListFilesMetrics, path string, vfiles *[]VirtualFile, logFile *WritableFile) {
 	m.FilesScanned++
 	if !matcher.ShouldInclude(path) {
 		return
@@ -290,7 +274,7 @@ func (z *zipEntryFile) Close() error {
 func (z *zipEntryFile) Name() string { return z.name }
 func (z *zipEntryFile) Size() int64  { return z.size }
 
-func openZipFile(path string, matcher *Matcher, m *ListFilesMetrics) ([]VirtualFile, error) {
+func openZipFile(path string, matcher *Matcher, m *metrics.ListFilesMetrics) ([]VirtualFile, error) {
 	zr, err := zip.OpenReader(path)
 	if err != nil {
 		return nil, err
@@ -412,7 +396,7 @@ func decompressGzip(f *os.File) (io.Reader, error)  { return gzip.NewReader(f) }
 func decompressBzip2(f *os.File) (io.Reader, error) { return bzip2.NewReader(f), nil }
 func decompressXz(f *os.File) (io.Reader, error)    { return xz.NewReader(f) }
 
-func openTarFile(path string, matcher *Matcher, m *ListFilesMetrics, decomp decompressor) ([]VirtualFile, error) {
+func openTarFile(path string, matcher *Matcher, m *metrics.ListFilesMetrics, decomp decompressor) ([]VirtualFile, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err

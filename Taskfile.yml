@@ -87,7 +87,7 @@ tasks:
     desc: "Run benchmark tests and capture CPU and memory profiles"
     cmds:
       - mkdir -p {{.OUT_DIR}}
-      - go test -bench=. -benchmem ./internal/logmerge -run=^$ -benchtime=5s -cpuprofile={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -memprofile={{.OUT_DIR}}/{{.MEM_PROF_FILE}} -trace={{.OUT_DIR}}/{{.TRACE_FILE}}
+      - go test -bench=. -benchmem ./internal/core/ -run=^$ -benchtime=5s -cpuprofile={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -memprofile={{.OUT_DIR}}/{{.MEM_PROF_FILE}} -trace={{.OUT_DIR}}/{{.TRACE_FILE}}
       - mv logmerge.test {{.OUT_DIR}}/logmerge.test || true
 
   profile:

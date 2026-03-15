@@ -1,9 +1,10 @@
-package logmerge_test
+package metrics_test
 
 import (
 	"testing"
 
-	. "github.com/mmdemirbas/logmerge/internal/logmerge"
+	. "github.com/mmdemirbas/logmerge/internal/metrics"
+	"github.com/mmdemirbas/logmerge/internal/testutil"
 )
 
 func TestMetricsTree_StartStop(t *testing.T) {
@@ -148,10 +149,10 @@ func TestMergeMetrics_Merge(t *testing.T) {
 
 	m1.Merge(m2)
 
-	assertEquals(t, int64(300), m1.BytesRead)
-	assertEquals(t, int64(30), m1.LinesRead)
-	assertEquals(t, int64(23), m1.LinesWithTimestamps)
-	assertEquals(t, int64(7), m1.LinesWithoutTimestamps)
+	testutil.AssertEquals(t, int64(300), m1.BytesRead)
+	testutil.AssertEquals(t, int64(30), m1.LinesRead)
+	testutil.AssertEquals(t, int64(23), m1.LinesWithTimestamps)
+	testutil.AssertEquals(t, int64(7), m1.LinesWithoutTimestamps)
 }
 
 func TestMergeMetrics_MergeAllFields(t *testing.T) {
@@ -169,12 +170,12 @@ func TestMergeMetrics_MergeAllFields(t *testing.T) {
 
 	m1.Merge(m2)
 
-	assertEquals(t, int64(50), m1.BytesReadAndSkipped)
-	assertEquals(t, int64(30), m1.BytesNotRead)
-	assertEquals(t, int64(100), m1.BytesWrittenForTimestamps)
-	assertEquals(t, int64(200), m1.BytesWrittenForAliasPerLine)
-	assertEquals(t, int64(300), m1.BytesWrittenForAliasPerBlock)
-	assertEquals(t, int64(400), m1.BytesWrittenForRawData)
-	assertEquals(t, int64(5), m1.BytesWrittenForMissingNewlines)
-	assertEquals(t, int64(3), m1.LinesReadAndSkipped)
+	testutil.AssertEquals(t, int64(50), m1.BytesReadAndSkipped)
+	testutil.AssertEquals(t, int64(30), m1.BytesNotRead)
+	testutil.AssertEquals(t, int64(100), m1.BytesWrittenForTimestamps)
+	testutil.AssertEquals(t, int64(200), m1.BytesWrittenForAliasPerLine)
+	testutil.AssertEquals(t, int64(300), m1.BytesWrittenForAliasPerBlock)
+	testutil.AssertEquals(t, int64(400), m1.BytesWrittenForRawData)
+	testutil.AssertEquals(t, int64(5), m1.BytesWrittenForMissingNewlines)
+	testutil.AssertEquals(t, int64(3), m1.LinesReadAndSkipped)
 }

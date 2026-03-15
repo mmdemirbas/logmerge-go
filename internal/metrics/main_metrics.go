@@ -1,7 +1,8 @@
-package logmerge
+package metrics
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"runtime"
 	"sort"
@@ -218,7 +219,7 @@ func (b *BucketMetric) Merge(other *BucketMetric) {
 // timing tree) to the configured log file.
 //
 //goland:noinspection GoUnhandledErrorResult
-func (m *MainMetrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTime time.Duration, err error) {
+func (m *MainMetrics) PrintMetrics(logFile io.Writer, configYAML string, startTime time.Time, elapsedTime time.Duration, err error) {
 	inputBytes := m.MergeMetrics.BytesRead + m.MergeMetrics.BytesNotRead
 	bytesReadAndProcessed := m.MergeMetrics.BytesRead - m.MergeMetrics.BytesReadAndSkipped
 	linesReadAndProcessed := m.MergeMetrics.LinesRead - m.MergeMetrics.LinesReadAndSkipped
@@ -233,115 +234,108 @@ func (m *MainMetrics) PrintMetrics(c *MainConfig, startTime time.Time, elapsedTi
 	m.Tree.Root.Metric.Duration = elapsedNanoseconds
 	m.Tree.Root.Metric.CallCount = 1
 
-	logFile := c.LogFile
-
-	fmt.Fprintf(c.LogFile, "===== SUMMARY ====================================================================================================================================================================\n")
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "Start time               : %s\n", startTime.Format(time.RFC3339Nano))
-	fmt.Fprintf(c.LogFile, "Error                    : %v\n", err)
-	fmt.Fprintf(c.LogFile, "Total main duration      : %v\n", elapsedTime)
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "===== CONFIGURATION ==============================================================================================================================================================\n")
-	fmt.Fprintf(c.LogFile, "\n")
-	yaml, err := c.ToYAML()
-	if err != nil {
-		fmt.Fprintf(c.LogFile, "Failed to convert configuration to YAML: %v\n", err)
-	} else {
-		fmt.Fprintf(c.LogFile, "%s\n", yaml)
-	}
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "===== STATISTICS =================================================================================================================================================================\n")
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "File count stats\n")
-	fmt.Fprintf(c.LogFile, "  dirs scanned           : %8s ~ %15d\n", "", m.ListFilesMetrics.DirsScanned)
-	fmt.Fprintf(c.LogFile, "  files scanned          : %8s ~ %15d\n", percent(m.ListFilesMetrics.FilesScanned, m.ListFilesMetrics.FilesScanned), m.ListFilesMetrics.FilesScanned)
-	fmt.Fprintf(c.LogFile, "  files matched          : %8s ~ %15d\n", percent(m.ListFilesMetrics.FilesMatched, m.ListFilesMetrics.FilesScanned), m.ListFilesMetrics.FilesMatched)
-	fmt.Fprintf(c.LogFile, "Byte count stats\n")
-	fmt.Fprintf(c.LogFile, "  input bytes            : %8s ~ %15d = %10s ≈ %s\n", percent(inputBytes, inputBytes), inputBytes, bytes(inputBytes), bytesSpeed(inputBytes, elapsedNanoseconds))
-	fmt.Fprintf(c.LogFile, "    read                 : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.BytesRead, inputBytes), m.MergeMetrics.BytesRead, bytes(m.MergeMetrics.BytesRead), bytesSpeed(m.MergeMetrics.BytesRead, elapsedNanoseconds))
-	fmt.Fprintf(c.LogFile, "      read and skipped   : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.BytesReadAndSkipped, inputBytes), m.MergeMetrics.BytesReadAndSkipped, bytes(m.MergeMetrics.BytesReadAndSkipped), bytesSpeed(m.MergeMetrics.BytesReadAndSkipped, elapsedNanoseconds))
-	fmt.Fprintf(c.LogFile, "      read and processed : %8s ~ %15d = %10s ≈ %s\n", percent(bytesReadAndProcessed, inputBytes), bytesReadAndProcessed, bytes(bytesReadAndProcessed), bytesSpeed(bytesReadAndProcessed, elapsedNanoseconds))
-	fmt.Fprintf(c.LogFile, "    not read             : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.BytesNotRead, inputBytes), m.MergeMetrics.BytesNotRead, bytes(m.MergeMetrics.BytesNotRead), bytesSpeed(m.MergeMetrics.BytesNotRead, elapsedNanoseconds))
-	fmt.Fprintf(c.LogFile, "  output bytes           : %8s ~ %15d = %10s ≈ %s\n", percent(outputBytes, outputBytes), outputBytes, bytes(outputBytes), bytesSpeed(outputBytes, elapsedNanoseconds))
-	fmt.Fprintf(c.LogFile, "    raw data             : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.BytesWrittenForRawData, outputBytes), m.MergeMetrics.BytesWrittenForRawData, bytes(m.MergeMetrics.BytesWrittenForRawData))
-	fmt.Fprintf(c.LogFile, "    overhead             : %8s ~ %15v = %10s\n", percent(writtenBytesOverhead, outputBytes), writtenBytesOverhead, bytes(writtenBytesOverhead))
-	fmt.Fprintf(c.LogFile, "      source name @block : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.BytesWrittenForAliasPerBlock, outputBytes), m.MergeMetrics.BytesWrittenForAliasPerBlock, bytes(m.MergeMetrics.BytesWrittenForAliasPerBlock))
-	fmt.Fprintf(c.LogFile, "      source name @line  : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.BytesWrittenForAliasPerLine, outputBytes), m.MergeMetrics.BytesWrittenForAliasPerLine, bytes(m.MergeMetrics.BytesWrittenForAliasPerLine))
-	fmt.Fprintf(c.LogFile, "      timestamps  @line  : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.BytesWrittenForTimestamps, outputBytes), m.MergeMetrics.BytesWrittenForTimestamps, bytes(m.MergeMetrics.BytesWrittenForTimestamps))
-	fmt.Fprintf(c.LogFile, "      missing newlines   : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.BytesWrittenForMissingNewlines, outputBytes), m.MergeMetrics.BytesWrittenForMissingNewlines, bytes(m.MergeMetrics.BytesWrittenForMissingNewlines))
-	fmt.Fprintf(c.LogFile, "Line count stats\n")
-	fmt.Fprintf(c.LogFile, "  lines read             : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.LinesRead, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesRead, count(m.MergeMetrics.LinesRead), countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
-	fmt.Fprintf(c.LogFile, "    with timestamp       : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.LinesWithTimestamps, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesWithTimestamps, count(m.MergeMetrics.LinesWithTimestamps))
-	fmt.Fprintf(c.LogFile, "    without timestamp    : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.LinesWithoutTimestamps, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesWithoutTimestamps, count(m.MergeMetrics.LinesWithoutTimestamps))
-	fmt.Fprintf(c.LogFile, "  lines read             : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.LinesRead, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesRead, count(m.MergeMetrics.LinesRead), countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
-	fmt.Fprintf(c.LogFile, "    skipped              : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.LinesReadAndSkipped, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesReadAndSkipped, count(m.MergeMetrics.LinesReadAndSkipped))
-	fmt.Fprintf(c.LogFile, "    processed            : %8s ~ %15v = %10s\n", percent(linesReadAndProcessed, m.MergeMetrics.LinesRead), linesReadAndProcessed, count(linesReadAndProcessed))
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "===== TIMING SUMMARY =============================================================================================================================================================\n")
-	fmt.Fprintf(c.LogFile, "\n")
+	fmt.Fprintf(logFile, "===== SUMMARY ====================================================================================================================================================================\n")
+	fmt.Fprintf(logFile, "\n")
+	fmt.Fprintf(logFile, "Start time               : %s\n", startTime.Format(time.RFC3339Nano))
+	fmt.Fprintf(logFile, "Error                    : %v\n", err)
+	fmt.Fprintf(logFile, "Total main duration      : %v\n", elapsedTime)
+	fmt.Fprintf(logFile, "\n")
+	fmt.Fprintf(logFile, "===== CONFIGURATION ==============================================================================================================================================================\n")
+	fmt.Fprintf(logFile, "\n")
+	fmt.Fprintf(logFile, "%s\n", configYAML)
+	fmt.Fprintf(logFile, "\n")
+	fmt.Fprintf(logFile, "===== STATISTICS =================================================================================================================================================================\n")
+	fmt.Fprintf(logFile, "\n")
+	fmt.Fprintf(logFile, "File count stats\n")
+	fmt.Fprintf(logFile, "  dirs scanned           : %8s ~ %15d\n", "", m.ListFilesMetrics.DirsScanned)
+	fmt.Fprintf(logFile, "  files scanned          : %8s ~ %15d\n", percent(m.ListFilesMetrics.FilesScanned, m.ListFilesMetrics.FilesScanned), m.ListFilesMetrics.FilesScanned)
+	fmt.Fprintf(logFile, "  files matched          : %8s ~ %15d\n", percent(m.ListFilesMetrics.FilesMatched, m.ListFilesMetrics.FilesScanned), m.ListFilesMetrics.FilesMatched)
+	fmt.Fprintf(logFile, "Byte count stats\n")
+	fmt.Fprintf(logFile, "  input bytes            : %8s ~ %15d = %10s ≈ %s\n", percent(inputBytes, inputBytes), inputBytes, bytes(inputBytes), bytesSpeed(inputBytes, elapsedNanoseconds))
+	fmt.Fprintf(logFile, "    read                 : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.BytesRead, inputBytes), m.MergeMetrics.BytesRead, bytes(m.MergeMetrics.BytesRead), bytesSpeed(m.MergeMetrics.BytesRead, elapsedNanoseconds))
+	fmt.Fprintf(logFile, "      read and skipped   : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.BytesReadAndSkipped, inputBytes), m.MergeMetrics.BytesReadAndSkipped, bytes(m.MergeMetrics.BytesReadAndSkipped), bytesSpeed(m.MergeMetrics.BytesReadAndSkipped, elapsedNanoseconds))
+	fmt.Fprintf(logFile, "      read and processed : %8s ~ %15d = %10s ≈ %s\n", percent(bytesReadAndProcessed, inputBytes), bytesReadAndProcessed, bytes(bytesReadAndProcessed), bytesSpeed(bytesReadAndProcessed, elapsedNanoseconds))
+	fmt.Fprintf(logFile, "    not read             : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.BytesNotRead, inputBytes), m.MergeMetrics.BytesNotRead, bytes(m.MergeMetrics.BytesNotRead), bytesSpeed(m.MergeMetrics.BytesNotRead, elapsedNanoseconds))
+	fmt.Fprintf(logFile, "  output bytes           : %8s ~ %15d = %10s ≈ %s\n", percent(outputBytes, outputBytes), outputBytes, bytes(outputBytes), bytesSpeed(outputBytes, elapsedNanoseconds))
+	fmt.Fprintf(logFile, "    raw data             : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.BytesWrittenForRawData, outputBytes), m.MergeMetrics.BytesWrittenForRawData, bytes(m.MergeMetrics.BytesWrittenForRawData))
+	fmt.Fprintf(logFile, "    overhead             : %8s ~ %15v = %10s\n", percent(writtenBytesOverhead, outputBytes), writtenBytesOverhead, bytes(writtenBytesOverhead))
+	fmt.Fprintf(logFile, "      source name @block : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.BytesWrittenForAliasPerBlock, outputBytes), m.MergeMetrics.BytesWrittenForAliasPerBlock, bytes(m.MergeMetrics.BytesWrittenForAliasPerBlock))
+	fmt.Fprintf(logFile, "      source name @line  : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.BytesWrittenForAliasPerLine, outputBytes), m.MergeMetrics.BytesWrittenForAliasPerLine, bytes(m.MergeMetrics.BytesWrittenForAliasPerLine))
+	fmt.Fprintf(logFile, "      timestamps  @line  : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.BytesWrittenForTimestamps, outputBytes), m.MergeMetrics.BytesWrittenForTimestamps, bytes(m.MergeMetrics.BytesWrittenForTimestamps))
+	fmt.Fprintf(logFile, "      missing newlines   : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.BytesWrittenForMissingNewlines, outputBytes), m.MergeMetrics.BytesWrittenForMissingNewlines, bytes(m.MergeMetrics.BytesWrittenForMissingNewlines))
+	fmt.Fprintf(logFile, "Line count stats\n")
+	fmt.Fprintf(logFile, "  lines read             : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.LinesRead, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesRead, count(m.MergeMetrics.LinesRead), countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
+	fmt.Fprintf(logFile, "    with timestamp       : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.LinesWithTimestamps, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesWithTimestamps, count(m.MergeMetrics.LinesWithTimestamps))
+	fmt.Fprintf(logFile, "    without timestamp    : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.LinesWithoutTimestamps, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesWithoutTimestamps, count(m.MergeMetrics.LinesWithoutTimestamps))
+	fmt.Fprintf(logFile, "  lines read             : %8s ~ %15d = %10s ≈ %s\n", percent(m.MergeMetrics.LinesRead, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesRead, count(m.MergeMetrics.LinesRead), countSpeed(m.MergeMetrics.LinesRead, elapsedNanoseconds))
+	fmt.Fprintf(logFile, "    skipped              : %8s ~ %15v = %10s\n", percent(m.MergeMetrics.LinesReadAndSkipped, m.MergeMetrics.LinesRead), m.MergeMetrics.LinesReadAndSkipped, count(m.MergeMetrics.LinesReadAndSkipped))
+	fmt.Fprintf(logFile, "    processed            : %8s ~ %15v = %10s\n", percent(linesReadAndProcessed, m.MergeMetrics.LinesRead), linesReadAndProcessed, count(linesReadAndProcessed))
+	fmt.Fprintf(logFile, "\n")
+	fmt.Fprintf(logFile, "===== TIMING SUMMARY =============================================================================================================================================================\n")
+	fmt.Fprintf(logFile, "\n")
 	if m.Tree.HeapTotal != nil {
 		m.Tree.HeapTotal.printCallMetric(logFile, bytesSpeed(m.MergeMetrics.BytesRead, elapsedNanoseconds))
 	}
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "===== TIMING BREAKDOWN ===========================================================================================================================================================\n")
-	fmt.Fprintf(c.LogFile, "\n")
+	fmt.Fprintf(logFile, "\n")
+	fmt.Fprintf(logFile, "===== TIMING BREAKDOWN ===========================================================================================================================================================\n")
+	fmt.Fprintf(logFile, "\n")
 	m.Tree.Root.printTree(logFile, 0)
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "===== RUNTIME METRICS ============================================================================================================================================================\n")
-	fmt.Fprintf(c.LogFile, "NumCPU                               : %12v\n", runtime.NumCPU())
-	fmt.Fprintf(c.LogFile, "NumGoroutine                         : %12v\n", runtime.NumGoroutine())
-	fmt.Fprintf(c.LogFile, "NumCgoCall                           : %12v\n", runtime.NumCgoCall())
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "MemStats                             : %+v\n", MemStats)
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "Allocated heap objects               : %12v = %10s\n", MemStats.Alloc, bytes(int64(MemStats.Alloc)))
-	fmt.Fprintf(c.LogFile, "Allocated heap objects (cumulative)  : %12v = %10s\n", MemStats.TotalAlloc, bytes(int64(MemStats.TotalAlloc)))
-	fmt.Fprintf(c.LogFile, "Memory obtained from the OS          : %12v = %10s\n", MemStats.Sys, bytes(int64(MemStats.Sys)))
-	fmt.Fprintf(c.LogFile, "Number of pointer lookups            : %12v = %10s\n", MemStats.Lookups, count(int64(MemStats.Lookups)))
-	fmt.Fprintf(c.LogFile, "Number of mallocs                    : %12v = %10s\n", MemStats.Mallocs, count(int64(MemStats.Mallocs)))
-	fmt.Fprintf(c.LogFile, "Number of frees                      : %12v = %10s\n", MemStats.Frees, count(int64(MemStats.Frees)))
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "Allocated heap objects               : %12v = %10s\n", MemStats.HeapAlloc, bytes(int64(MemStats.HeapAlloc)))
-	fmt.Fprintf(c.LogFile, "Allocated heap objects (cumulative)  : %12v = %10s\n", MemStats.HeapSys, bytes(int64(MemStats.HeapSys)))
-	fmt.Fprintf(c.LogFile, "Heap idle memory                     : %12v = %10s\n", MemStats.HeapIdle, bytes(int64(MemStats.HeapIdle)))
-	fmt.Fprintf(c.LogFile, "Heap in-use memory                   : %12v = %10s\n", MemStats.HeapInuse, bytes(int64(MemStats.HeapInuse)))
-	fmt.Fprintf(c.LogFile, "Heap released memory                 : %12v = %10s\n", MemStats.HeapReleased, bytes(int64(MemStats.HeapReleased)))
-	fmt.Fprintf(c.LogFile, "Heap objects waiting to be freed     : %12v = %10s\n", MemStats.HeapObjects, count(int64(MemStats.HeapObjects)))
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "Stack memory in use                  : %12v = %10s\n", MemStats.StackInuse, bytes(int64(MemStats.StackInuse)))
-	fmt.Fprintf(c.LogFile, "Stack memory obtained from the OS    : %12v = %10s\n", MemStats.StackSys, bytes(int64(MemStats.StackSys)))
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "Allocated mspan structures           : %12v = %10s\n", MemStats.MSpanInuse, bytes(int64(MemStats.MSpanInuse)))
-	fmt.Fprintf(c.LogFile, "mspan memory obtained from the OS    : %12v = %10s\n", MemStats.MSpanSys, bytes(int64(MemStats.MSpanSys)))
-	fmt.Fprintf(c.LogFile, "Allocated mcache structures          : %12v = %10s\n", MemStats.MCacheInuse, bytes(int64(MemStats.MCacheInuse)))
-	fmt.Fprintf(c.LogFile, "mcache memory obtained from the OS   : %12v = %10s\n", MemStats.MCacheSys, bytes(int64(MemStats.MCacheSys)))
-	fmt.Fprintf(c.LogFile, "Allocated buckhash tables            : %12v = %10s\n", MemStats.BuckHashSys, bytes(int64(MemStats.BuckHashSys)))
-	fmt.Fprintf(c.LogFile, "Allocated GC metadata                : %12v = %10s\n", MemStats.GCSys, bytes(int64(MemStats.GCSys)))
-	fmt.Fprintf(c.LogFile, "Allocated other system allocations   : %12v = %10s\n", MemStats.OtherSys, bytes(int64(MemStats.OtherSys)))
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "Last GC finish time                  :   %s\n", strings.Replace(time.Unix(0, int64(MemStats.LastGC)).Format(time.RFC3339Nano), "T", "   ", 1))
-	fmt.Fprintf(c.LogFile, "Target heap size of the next GC cycle: %12v = %10s\n", MemStats.NextGC, bytes(int64(MemStats.NextGC)))
-	fmt.Fprintf(c.LogFile, "GC pause duration                    : %12v = %10s\n", MemStats.PauseTotalNs, duration(int64(MemStats.PauseTotalNs)))
-	fmt.Fprintf(c.LogFile, "Number of completed GC cycles        : %12v = %10s\n", MemStats.NumGC, count(int64(MemStats.NumGC)))
-	fmt.Fprintf(c.LogFile, "Number of forced GC cycles by app    : %12v = %10s\n", MemStats.NumForcedGC, count(int64(MemStats.NumForcedGC)))
-	fmt.Fprintf(c.LogFile, "GCCPUFraction                        : %12.2f / %10s\n", MemStats.GCCPUFraction*1_000_000, "1_000_000")
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "===== DEBUG METRICS ==============================================================================================================================================================\n")
+	fmt.Fprintf(logFile, "\n")
+	fmt.Fprintf(logFile, "===== RUNTIME METRICS ============================================================================================================================================================\n")
+	fmt.Fprintf(logFile, "NumCPU                               : %12v\n", runtime.NumCPU())
+	fmt.Fprintf(logFile, "NumGoroutine                         : %12v\n", runtime.NumGoroutine())
+	fmt.Fprintf(logFile, "NumCgoCall                           : %12v\n", runtime.NumCgoCall())
+	fmt.Fprintf(logFile, "\n")
+	fmt.Fprintf(logFile, "MemStats                             : %+v\n", MemStats)
+	fmt.Fprintf(logFile, "\n")
+	fmt.Fprintf(logFile, "Allocated heap objects               : %12v = %10s\n", MemStats.Alloc, bytes(int64(MemStats.Alloc)))
+	fmt.Fprintf(logFile, "Allocated heap objects (cumulative)  : %12v = %10s\n", MemStats.TotalAlloc, bytes(int64(MemStats.TotalAlloc)))
+	fmt.Fprintf(logFile, "Memory obtained from the OS          : %12v = %10s\n", MemStats.Sys, bytes(int64(MemStats.Sys)))
+	fmt.Fprintf(logFile, "Number of pointer lookups            : %12v = %10s\n", MemStats.Lookups, count(int64(MemStats.Lookups)))
+	fmt.Fprintf(logFile, "Number of mallocs                    : %12v = %10s\n", MemStats.Mallocs, count(int64(MemStats.Mallocs)))
+	fmt.Fprintf(logFile, "Number of frees                      : %12v = %10s\n", MemStats.Frees, count(int64(MemStats.Frees)))
+	fmt.Fprintf(logFile, "\n")
+	fmt.Fprintf(logFile, "Allocated heap objects               : %12v = %10s\n", MemStats.HeapAlloc, bytes(int64(MemStats.HeapAlloc)))
+	fmt.Fprintf(logFile, "Allocated heap objects (cumulative)  : %12v = %10s\n", MemStats.HeapSys, bytes(int64(MemStats.HeapSys)))
+	fmt.Fprintf(logFile, "Heap idle memory                     : %12v = %10s\n", MemStats.HeapIdle, bytes(int64(MemStats.HeapIdle)))
+	fmt.Fprintf(logFile, "Heap in-use memory                   : %12v = %10s\n", MemStats.HeapInuse, bytes(int64(MemStats.HeapInuse)))
+	fmt.Fprintf(logFile, "Heap released memory                 : %12v = %10s\n", MemStats.HeapReleased, bytes(int64(MemStats.HeapReleased)))
+	fmt.Fprintf(logFile, "Heap objects waiting to be freed     : %12v = %10s\n", MemStats.HeapObjects, count(int64(MemStats.HeapObjects)))
+	fmt.Fprintf(logFile, "\n")
+	fmt.Fprintf(logFile, "Stack memory in use                  : %12v = %10s\n", MemStats.StackInuse, bytes(int64(MemStats.StackInuse)))
+	fmt.Fprintf(logFile, "Stack memory obtained from the OS    : %12v = %10s\n", MemStats.StackSys, bytes(int64(MemStats.StackSys)))
+	fmt.Fprintf(logFile, "\n")
+	fmt.Fprintf(logFile, "Allocated mspan structures           : %12v = %10s\n", MemStats.MSpanInuse, bytes(int64(MemStats.MSpanInuse)))
+	fmt.Fprintf(logFile, "mspan memory obtained from the OS    : %12v = %10s\n", MemStats.MSpanSys, bytes(int64(MemStats.MSpanSys)))
+	fmt.Fprintf(logFile, "Allocated mcache structures          : %12v = %10s\n", MemStats.MCacheInuse, bytes(int64(MemStats.MCacheInuse)))
+	fmt.Fprintf(logFile, "mcache memory obtained from the OS   : %12v = %10s\n", MemStats.MCacheSys, bytes(int64(MemStats.MCacheSys)))
+	fmt.Fprintf(logFile, "Allocated buckhash tables            : %12v = %10s\n", MemStats.BuckHashSys, bytes(int64(MemStats.BuckHashSys)))
+	fmt.Fprintf(logFile, "Allocated GC metadata                : %12v = %10s\n", MemStats.GCSys, bytes(int64(MemStats.GCSys)))
+	fmt.Fprintf(logFile, "Allocated other system allocations   : %12v = %10s\n", MemStats.OtherSys, bytes(int64(MemStats.OtherSys)))
+	fmt.Fprintf(logFile, "\n")
+	fmt.Fprintf(logFile, "Last GC finish time                  :   %s\n", strings.Replace(time.Unix(0, int64(MemStats.LastGC)).Format(time.RFC3339Nano), "T", "   ", 1))
+	fmt.Fprintf(logFile, "Target heap size of the next GC cycle: %12v = %10s\n", MemStats.NextGC, bytes(int64(MemStats.NextGC)))
+	fmt.Fprintf(logFile, "GC pause duration                    : %12v = %10s\n", MemStats.PauseTotalNs, duration(int64(MemStats.PauseTotalNs)))
+	fmt.Fprintf(logFile, "Number of completed GC cycles        : %12v = %10s\n", MemStats.NumGC, count(int64(MemStats.NumGC)))
+	fmt.Fprintf(logFile, "Number of forced GC cycles by app    : %12v = %10s\n", MemStats.NumForcedGC, count(int64(MemStats.NumForcedGC)))
+	fmt.Fprintf(logFile, "GCCPUFraction                        : %12.2f / %10s\n", MemStats.GCCPUFraction*1_000_000, "1_000_000")
+	fmt.Fprintf(logFile, "\n")
+	fmt.Fprintf(logFile, "===== DEBUG METRICS ==============================================================================================================================================================\n")
 	m.MergeMetrics.LineLengths.printBuckets(logFile)
 	m.MergeMetrics.SkippedLineCounts.printBuckets(logFile)
 	m.MergeMetrics.SuccessiveLineCounts.printBuckets(logFile)
 	m.MergeMetrics.BlockLineCounts.printBuckets(logFile)
-	fmt.Fprintf(c.LogFile, "\n")
-	fmt.Fprintf(c.LogFile, "===== FILE LIST ==================================================================================================================================================================\n")
-	fmt.Fprintf(c.LogFile, "File list (%d files):\n", len(m.ListFilesMetrics.MatchedFiles))
+	fmt.Fprintf(logFile, "\n")
+	fmt.Fprintf(logFile, "===== FILE LIST ==================================================================================================================================================================\n")
+	fmt.Fprintf(logFile, "File list (%d files):\n", len(m.ListFilesMetrics.MatchedFiles))
 	sort.Strings(m.ListFilesMetrics.MatchedFiles)
 	for i, file := range m.ListFilesMetrics.MatchedFiles {
-		fmt.Fprintf(c.LogFile, "%5d %s\n", i+1, file)
+		fmt.Fprintf(logFile, "%5d %s\n", i+1, file)
 	}
-	fmt.Fprintf(c.LogFile, "==================================================================================================================================================================================\n")
+	fmt.Fprintf(logFile, "==================================================================================================================================================================================\n")
 }
 
-func (t *MetricsTreeNode) printTree(logFile *WritableFile, depth int) {
+func (t *MetricsTreeNode) printTree(logFile io.Writer, depth int) {
 	metric := t.Metric
 	metricsTree := metric.MetricsTree
 	metricsTree.printDurationLog(logFile, depth, metric.Name, metric.CallCount, metric.Duration, "")
@@ -360,7 +354,7 @@ func (t *MetricsTreeNode) printTree(logFile *WritableFile, depth int) {
 	}
 }
 
-func (m *MetricsTree) printDurationLog(logFile *WritableFile, depth int, name string, n int64, nanoseconds int64, extra string) {
+func (m *MetricsTree) printDurationLog(logFile io.Writer, depth int, name string, n int64, nanoseconds int64, extra string) {
 	padLen := 35
 	//goland:noinspection GoUnhandledErrorResult
 	fmt.Fprintf(
@@ -379,12 +373,12 @@ func (m *MetricsTree) printDurationLog(logFile *WritableFile, depth int, name st
 	)
 }
 
-func (c *CallMetric) printCallMetric(logFile *WritableFile, extra string) {
+func (c *CallMetric) printCallMetric(logFile io.Writer, extra string) {
 	c.MetricsTree.printDurationLog(logFile, 0, c.Name, c.CallCount, c.Duration, extra)
 }
 
 //goland:noinspection GoUnhandledErrorResult
-func (b *BucketMetric) printBuckets(logFile *WritableFile) {
+func (b *BucketMetric) printBuckets(logFile io.Writer) {
 	minValue := b.min
 	maxValue := b.max
 	total := b.count

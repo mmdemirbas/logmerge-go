@@ -1,4 +1,4 @@
-package logmerge_test
+package core_test
 
 import (
 	"bufio"
@@ -7,7 +7,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mmdemirbas/logmerge/internal/logmerge"
+	"github.com/mmdemirbas/logmerge/internal/core"
+	"github.com/mmdemirbas/logmerge/internal/fsutil"
+	"github.com/mmdemirbas/logmerge/internal/logtime"
+	"github.com/mmdemirbas/logmerge/internal/metrics"
 )
 
 func BenchmarkProcessFiles_Saturation(b *testing.B) {
@@ -46,12 +49,12 @@ func BenchmarkProcessFiles_Saturation(b *testing.B) {
 		f.Close()
 	}
 
-	config := &logmerge.MergeConfig{
+	config := &core.MergeConfig{
 		BufferSizeForWrite: 1024 * 1024,
-		MaxTimestamp:       logmerge.Timestamp(1<<63 - 1),
+		MaxTimestamp:       logtime.Timestamp(1<<63 - 1),
 	}
 
-	tsConfig := &logmerge.ParseTimestampConfig{
+	tsConfig := &logtime.ParseTimestampConfig{
 		ShortestTimestampLen:    15,
 		TimestampSearchEndIndex: 250,
 	}
@@ -60,13 +63,13 @@ func BenchmarkProcessFiles_Saturation(b *testing.B) {
 	b.SetBytes(totalBytes) // This enables MB/s reporting
 	for i := 0; i < b.N; i++ {
 		// Reopen files from disk each iteration since ProcessFiles closes them
-		files := make([]*logmerge.FileHandle, numFiles)
+		files := make([]*fsutil.FileHandle, numFiles)
 		for j, path := range paths {
 			f, err := os.Open(path)
 			if err != nil {
 				b.Fatal(err)
 			}
-			files[j], err = logmerge.NewFileHandle(&logmerge.OsFile{F: f}, fmt.Sprintf("file-%d", j), 1024*1024)
+			files[j], err = fsutil.NewFileHandle(&fsutil.OsFile{F: f}, fmt.Sprintf("file-%d", j), 1024*1024)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -75,14 +78,14 @@ func BenchmarkProcessFiles_Saturation(b *testing.B) {
 		out := io.Discard // Bypass actual disk I/O to measure pure CPU/Logic overhead
 		writer := bufio.NewWriter(out)
 
-		err := logmerge.ProcessFiles(
+		err := core.ProcessFiles(
 			config,
-			logmerge.NewMergeMetrics(),
+			metrics.NewMergeMetrics(),
 			files,
 			writer,
-			&logmerge.WritableFile{File: os.Stderr},
-			func(f *logmerge.FileHandle) error {
-				return logmerge.UpdateTimestamp(tsConfig, f)
+			&fsutil.WritableFile{File: os.Stderr},
+			func(f *fsutil.FileHandle) error {
+				return core.UpdateTimestamp(tsConfig, f)
 			},
 		)
 		if err != nil {

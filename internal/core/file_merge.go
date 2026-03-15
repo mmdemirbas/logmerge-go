@@ -1,11 +1,16 @@
-package logmerge
+package core
 
 import (
 	"bufio"
 	bytes2 "bytes"
 	"fmt"
+	"io"
 	"runtime"
 	"sync"
+
+	"github.com/mmdemirbas/logmerge/internal/fsutil"
+	"github.com/mmdemirbas/logmerge/internal/logtime"
+	"github.com/mmdemirbas/logmerge/internal/metrics"
 )
 
 type MergeConfig struct {
@@ -15,69 +20,15 @@ type MergeConfig struct {
 	WriteAliasPerLine     bool `yaml:"WriteAliasPerLine"`
 	WriteTimestampPerLine bool `yaml:"WriteTimestampPerLine"`
 
-	MinTimestamp Timestamp `yaml:"MinTimestamp"`
-	MaxTimestamp Timestamp `yaml:"MaxTimestamp"`
+	MinTimestamp logtime.Timestamp `yaml:"MinTimestamp"`
+	MaxTimestamp logtime.Timestamp `yaml:"MaxTimestamp"`
 
 	BufferSizeForRead  int `yaml:"BufferSizeForRead"`
 	BufferSizeForWrite int `yaml:"BufferSizeForWrite"`
 }
 
-type MergeMetrics struct {
-
-	// Byte count stats
-
-	BytesRead                      int64
-	BytesReadAndSkipped            int64
-	BytesNotRead                   int64
-	BytesWrittenForTimestamps      int64
-	BytesWrittenForAliasPerLine    int64
-	BytesWrittenForAliasPerBlock   int64
-	BytesWrittenForRawData         int64
-	BytesWrittenForMissingNewlines int64
-
-	// Line count stats
-
-	LinesRead              int64
-	LinesReadAndSkipped    int64
-	LinesWithTimestamps    int64
-	LinesWithoutTimestamps int64
-	LineLengths            *BucketMetric
-	SkippedLineCounts      *BucketMetric
-	SuccessiveLineCounts   *BucketMetric
-	BlockLineCounts        *BucketMetric
-}
-
-// Merge aggregates counters from another MergeMetrics into this one.
-func (m *MergeMetrics) Merge(other *MergeMetrics) {
-	m.BytesRead += other.BytesRead
-	m.BytesReadAndSkipped += other.BytesReadAndSkipped
-	m.BytesNotRead += other.BytesNotRead
-	m.BytesWrittenForTimestamps += other.BytesWrittenForTimestamps
-	m.BytesWrittenForAliasPerLine += other.BytesWrittenForAliasPerLine
-	m.BytesWrittenForAliasPerBlock += other.BytesWrittenForAliasPerBlock
-	m.BytesWrittenForRawData += other.BytesWrittenForRawData
-	m.BytesWrittenForMissingNewlines += other.BytesWrittenForMissingNewlines
-	m.LinesRead += other.LinesRead
-	m.LinesReadAndSkipped += other.LinesReadAndSkipped
-	m.LinesWithTimestamps += other.LinesWithTimestamps
-	m.LinesWithoutTimestamps += other.LinesWithoutTimestamps
-	m.LineLengths.Merge(other.LineLengths)
-	m.SkippedLineCounts.Merge(other.SkippedLineCounts)
-	m.SuccessiveLineCounts.Merge(other.SuccessiveLineCounts)
-	m.BlockLineCounts.Merge(other.BlockLineCounts)
-}
-
-func NewMergeMetrics() *MergeMetrics {
-	return &MergeMetrics{
-		LineLengths:          NewBucketMetric("LineLengths", 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000),
-		SkippedLineCounts:    NewBucketMetric("SkippedLineCounts", 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100),
-		SuccessiveLineCounts: NewBucketMetric("SuccessiveLineCounts", 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100),
-		BlockLineCounts:      NewBucketMetric("BlockLineCounts", 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100),
-	}
-}
-
 type writeState struct {
-	cachedTimestamp       Timestamp
+	cachedTimestamp       logtime.Timestamp
 	cachedTimestampString []byte
 }
 
@@ -87,14 +38,14 @@ type writeState struct {
 // timestamp of each new line before it enters the heap.
 func ProcessFiles(
 	c *MergeConfig,
-	m *MergeMetrics,
-	files []*FileHandle,
+	m *metrics.MergeMetrics,
+	files []*fsutil.FileHandle,
 	writer *bufio.Writer,
-	logFile *WritableFile,
-	updateTimestamp func(file *FileHandle) error,
+	logFile io.Writer,
+	updateTimestamp func(file *fsutil.FileHandle) error,
 ) error {
 	ws := &writeState{
-		cachedTimestamp:       ZeroTimestamp,
+		cachedTimestamp:       logtime.ZeroTimestamp,
 		cachedTimestampString: make([]byte, 30),
 	}
 	for i := range ws.cachedTimestampString {
@@ -110,11 +61,11 @@ func ProcessFiles(
 
 func parallelProcessFiles(
 	c *MergeConfig,
-	m *MergeMetrics,
-	files []*FileHandle,
+	m *metrics.MergeMetrics,
+	files []*fsutil.FileHandle,
 	writer *bufio.Writer,
-	logFile *WritableFile,
-	updateTimestamp func(file *FileHandle) error,
+	logFile io.Writer,
+	updateTimestamp func(file *fsutil.FileHandle) error,
 	ws *writeState,
 ) error {
 	numWorkers := runtime.NumCPU()
@@ -123,7 +74,7 @@ func parallelProcessFiles(
 	}
 
 	// Split files into chunks for workers
-	chunks := make([][]*FileHandle, numWorkers)
+	chunks := make([][]*fsutil.FileHandle, numWorkers)
 	for i, f := range files {
 		chunks[i%numWorkers] = append(chunks[i%numWorkers], f)
 	}
@@ -141,25 +92,25 @@ func parallelProcessFiles(
 
 func sequentialProcessFiles(
 	c *MergeConfig,
-	m *MergeMetrics,
-	files []*FileHandle,
+	m *metrics.MergeMetrics,
+	files []*fsutil.FileHandle,
 	writer *bufio.Writer,
-	logFile *WritableFile,
-	updateTimestamp func(file *FileHandle) error,
+	logFile io.Writer,
+	updateTimestamp func(file *fsutil.FileHandle) error,
 	ws *writeState,
 ) error {
 	h := NewMinHeap(len(files))
 
 	// Parallel prefetch (Step 17 logic)
 	type prefetchResult struct {
-		file *FileHandle
+		file *fsutil.FileHandle
 		err  error
 	}
 	results := make([]prefetchResult, len(files))
 	var wg sync.WaitGroup
 	for i, file := range files {
 		wg.Add(1)
-		go func(idx int, f *FileHandle) {
+		go func(idx int, f *fsutil.FileHandle) {
 			defer wg.Done()
 			err := doUpdateTimestamp(f, f.MergeMetrics, updateTimestamp)
 			results[idx] = prefetchResult{file: f, err: err}
@@ -196,7 +147,7 @@ func sequentialProcessFiles(
 		skippedLineCount := 0
 
 		// Skip lines below MinTimestamp
-		for file.LineTimestampParsed && file.LineTimestamp != ZeroTimestamp && file.LineTimestamp < c.MinTimestamp {
+		for file.LineTimestampParsed && file.LineTimestamp != logtime.ZeroTimestamp && file.LineTimestamp < c.MinTimestamp {
 			bytesCount, _, skipErr := file.SkipLine()
 			if skipErr != nil {
 				return fmt.Errorf("failed to skip line from %s: %v", file.File.Name(), skipErr)
@@ -249,7 +200,7 @@ func sequentialProcessFiles(
 				return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
 			}
 
-			if !file.LineTimestampParsed || file.LineTimestamp != ZeroTimestamp {
+			if !file.LineTimestampParsed || file.LineTimestamp != logtime.ZeroTimestamp {
 				// Timestamp changed or file ended
 				blockLineCount += successiveLineCount
 				m.SuccessiveLineCounts.UpdateBucketCount(successiveLineCount)
@@ -286,10 +237,10 @@ func sequentialProcessFiles(
 	return nil
 }
 
-func doUpdateTimestamp(file *FileHandle, m *MergeMetrics, updateTimestamp func(file *FileHandle) error) error {
+func doUpdateTimestamp(file *fsutil.FileHandle, m *metrics.MergeMetrics, updateTimestamp func(file *fsutil.FileHandle) error) error {
 	err := updateTimestamp(file)
 	if file.LineTimestampParsed {
-		if file.LineTimestamp == ZeroTimestamp {
+		if file.LineTimestamp == logtime.ZeroTimestamp {
 			m.LinesWithoutTimestamps++
 		} else {
 			m.LinesWithTimestamps++
@@ -299,7 +250,7 @@ func doUpdateTimestamp(file *FileHandle, m *MergeMetrics, updateTimestamp func(f
 	return err
 }
 
-func writeLine(c *MergeConfig, m *MergeMetrics, ws *writeState, writer *bufio.Writer, file *FileHandle) error {
+func writeLine(c *MergeConfig, m *metrics.MergeMetrics, ws *writeState, writer *bufio.Writer, file *fsutil.FileHandle) error {
 	if c.WriteTimestampPerLine {
 		startTime := file.Metrics.Start("WriteTimestamp")
 		timestampToLog := file.BlockTimestamp

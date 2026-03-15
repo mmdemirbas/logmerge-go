@@ -1,4 +1,4 @@
-package logmerge_test
+package core_test
 
 import (
 	"bufio"
@@ -8,7 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/mmdemirbas/logmerge/internal/logmerge"
+	. "github.com/mmdemirbas/logmerge/internal/core"
+	"github.com/mmdemirbas/logmerge/internal/fsutil"
+	"github.com/mmdemirbas/logmerge/internal/logtime"
+	"github.com/mmdemirbas/logmerge/internal/metrics"
+	"github.com/mmdemirbas/logmerge/internal/testutil"
 )
 
 // memFile is an in-memory VirtualFile for testing.
@@ -22,26 +26,26 @@ func (m *memFile) Close() error { return nil }
 func (m *memFile) Name() string { return m.name }
 func (m *memFile) Size() int64  { return m.size }
 
-func newMemFile(name, content string) VirtualFile {
+func newMemFile(name, content string) fsutil.VirtualFile {
 	b := []byte(content)
 	return &memFile{Reader: bytes.NewReader(b), name: name, size: int64(len(b))}
 }
 
-var tsConfig = &ParseTimestampConfig{
+var tsConfig = &logtime.ParseTimestampConfig{
 	ShortestTimestampLen:    15,
 	TimestampSearchEndIndex: 250,
 }
 
-func updateTS(f *FileHandle) error {
+func updateTS(f *fsutil.FileHandle) error {
 	return UpdateTimestamp(tsConfig, f)
 }
 
-func runMerge(t *testing.T, c *MergeConfig, files []*FileHandle) string {
+func runMerge(t *testing.T, c *MergeConfig, files []*fsutil.FileHandle) string {
 	t.Helper()
 	var buf bytes.Buffer
 	writer := bufio.NewWriter(&buf)
-	m := NewMergeMetrics()
-	logFile := &WritableFile{File: os.NewFile(0, os.DevNull)}
+	m := metrics.NewMergeMetrics()
+	logFile := &fsutil.WritableFile{File: os.NewFile(0, os.DevNull)}
 
 	err := ProcessFiles(c, m, files, writer, logFile, updateTS)
 	if err != nil {
@@ -51,9 +55,9 @@ func runMerge(t *testing.T, c *MergeConfig, files []*FileHandle) string {
 	return buf.String()
 }
 
-func makeHandle(name, content string, bufSize int) *FileHandle {
+func makeHandle(name, content string, bufSize int) *fsutil.FileHandle {
 	vf := newMemFile(name, content)
-	fh, _ := NewFileHandle(vf, name, bufSize)
+	fh, _ := fsutil.NewFileHandle(vf, name, bufSize)
 	fh.AliasForBlock = []byte(fmt.Sprintf("\n--- %s ---\n", name))
 	fh.AliasForLine = []byte(fmt.Sprintf("%-10s - ", name))
 	return fh
@@ -61,7 +65,7 @@ func makeHandle(name, content string, bufSize int) *FileHandle {
 
 func defaultConfig() *MergeConfig {
 	return &MergeConfig{
-		MaxTimestamp:       ^Timestamp(0),
+		MaxTimestamp:       ^logtime.Timestamp(0),
 		BufferSizeForWrite: 64 * 1024,
 	}
 }
@@ -70,7 +74,7 @@ func TestProcessFiles_SingleFile(t *testing.T) {
 	content := "2024-01-15 10:00:00 line one\n2024-01-15 10:00:01 line two\n2024-01-15 10:00:02 line three\n"
 	fh := makeHandle("app.log", content, 4096)
 
-	got := runMerge(t, defaultConfig(), []*FileHandle{fh})
+	got := runMerge(t, defaultConfig(), []*fsutil.FileHandle{fh})
 
 	expected := "2024-01-15 10:00:00 line one\n2024-01-15 10:00:01 line two\n2024-01-15 10:00:02 line three\n"
 	if got != expected {
@@ -85,19 +89,19 @@ func TestProcessFiles_MultipleFilesInterleaved(t *testing.T) {
 	fhA := makeHandle("a.log", contentA, 4096)
 	fhB := makeHandle("b.log", contentB, 4096)
 
-	got := runMerge(t, defaultConfig(), []*FileHandle{fhA, fhB})
+	got := runMerge(t, defaultConfig(), []*fsutil.FileHandle{fhA, fhB})
 
 	// Lines should be interleaved chronologically
 	lines := strings.Split(strings.TrimRight(got, "\n"), "\n")
 	if len(lines) != 6 {
 		t.Fatalf("expected 6 lines, got %d:\n%s", len(lines), got)
 	}
-	assertEquals(t, "2024-01-15 10:00:00 A1", lines[0])
-	assertEquals(t, "2024-01-15 10:00:01 B1", lines[1])
-	assertEquals(t, "2024-01-15 10:00:02 A2", lines[2])
-	assertEquals(t, "2024-01-15 10:00:03 B2", lines[3])
-	assertEquals(t, "2024-01-15 10:00:04 A3", lines[4])
-	assertEquals(t, "2024-01-15 10:00:05 B3", lines[5])
+	testutil.AssertEquals(t, "2024-01-15 10:00:00 A1", lines[0])
+	testutil.AssertEquals(t, "2024-01-15 10:00:01 B1", lines[1])
+	testutil.AssertEquals(t, "2024-01-15 10:00:02 A2", lines[2])
+	testutil.AssertEquals(t, "2024-01-15 10:00:03 B2", lines[3])
+	testutil.AssertEquals(t, "2024-01-15 10:00:04 A3", lines[4])
+	testutil.AssertEquals(t, "2024-01-15 10:00:05 B3", lines[5])
 }
 
 func TestProcessFiles_MinTimestamp(t *testing.T) {
@@ -105,9 +109,9 @@ func TestProcessFiles_MinTimestamp(t *testing.T) {
 	fh := makeHandle("app.log", content, 4096)
 
 	c := defaultConfig()
-	c.MinTimestamp = NewTimestamp(2024, 1, 15, 12, 0, 0, 0, 0, 0, 0)
+	c.MinTimestamp = logtime.NewTimestamp(2024, 1, 15, 12, 0, 0, 0, 0, 0, 0)
 
-	got := runMerge(t, c, []*FileHandle{fh})
+	got := runMerge(t, c, []*fsutil.FileHandle{fh})
 
 	// MinTimestamp filtering happens outside ProcessFiles (at the caller level),
 	// so ProcessFiles itself doesn't skip lines based on MinTimestamp.
@@ -125,9 +129,9 @@ func TestProcessFiles_MaxTimestamp(t *testing.T) {
 	fh := makeHandle("app.log", content, 4096)
 
 	c := defaultConfig()
-	c.MaxTimestamp = NewTimestamp(2024, 1, 15, 12, 0, 0, 0, 0, 0, 0)
+	c.MaxTimestamp = logtime.NewTimestamp(2024, 1, 15, 12, 0, 0, 0, 0, 0, 0)
 
-	got := runMerge(t, c, []*FileHandle{fh})
+	got := runMerge(t, c, []*fsutil.FileHandle{fh})
 
 	if !strings.Contains(got, "first") {
 		t.Errorf("expected 'first' in output:\n%s", got)
@@ -150,7 +154,7 @@ func TestProcessFiles_WriteAliasPerLine(t *testing.T) {
 	c := defaultConfig()
 	c.WriteAliasPerLine = true
 
-	got := runMerge(t, c, []*FileHandle{fhA, fhB})
+	got := runMerge(t, c, []*fsutil.FileHandle{fhA, fhB})
 
 	lines := strings.Split(strings.TrimRight(got, "\n"), "\n")
 	if len(lines) != 2 {
@@ -174,7 +178,7 @@ func TestProcessFiles_WriteAliasPerBlock(t *testing.T) {
 	c := defaultConfig()
 	c.WriteAliasPerBlock = true
 
-	got := runMerge(t, c, []*FileHandle{fhA, fhB})
+	got := runMerge(t, c, []*fsutil.FileHandle{fhA, fhB})
 
 	// Expect block alias headers when source changes
 	if !strings.Contains(got, "--- a.log ---") {
@@ -192,7 +196,7 @@ func TestProcessFiles_WriteTimestampPerLine(t *testing.T) {
 	c := defaultConfig()
 	c.WriteTimestampPerLine = true
 
-	got := runMerge(t, c, []*FileHandle{fh})
+	got := runMerge(t, c, []*fsutil.FileHandle{fh})
 
 	lines := strings.Split(strings.TrimRight(got, "\n"), "\n")
 	if len(lines) != 2 {
@@ -213,7 +217,7 @@ func TestProcessFiles_WriteTimestampPerLine(t *testing.T) {
 func TestProcessFiles_EmptyFile(t *testing.T) {
 	fh := makeHandle("empty.log", "", 4096)
 
-	got := runMerge(t, defaultConfig(), []*FileHandle{fh})
+	got := runMerge(t, defaultConfig(), []*fsutil.FileHandle{fh})
 
 	if got != "" {
 		t.Errorf("expected empty output for empty file, got: %q", got)
@@ -225,7 +229,7 @@ func TestProcessFiles_NoTimestamps(t *testing.T) {
 	content := "no timestamp line one\nno timestamp line two\n"
 	fh := makeHandle("notimestamp.log", content, 4096)
 
-	got := runMerge(t, defaultConfig(), []*FileHandle{fh})
+	got := runMerge(t, defaultConfig(), []*fsutil.FileHandle{fh})
 
 	if !strings.Contains(got, "no timestamp line one") {
 		t.Errorf("expected lines to appear in output:\n%s", got)
@@ -243,7 +247,7 @@ func TestProcessFiles_MixedTimestampAndNoTimestamp(t *testing.T) {
 	fhA := makeHandle("a.log", contentA, 4096)
 	fhB := makeHandle("b.log", contentB, 4096)
 
-	got := runMerge(t, defaultConfig(), []*FileHandle{fhA, fhB})
+	got := runMerge(t, defaultConfig(), []*fsutil.FileHandle{fhA, fhB})
 
 	// Both files should appear — lines without timestamps get ZeroTimestamp
 	// and are processed before timestamped lines
@@ -263,16 +267,16 @@ func TestProcessFiles_LinesWithoutTimestampInheritBlock(t *testing.T) {
 	content := "2024-01-15 10:00:00 main entry\n  continuation line 1\n  continuation line 2\n2024-01-15 10:00:01 next entry\n"
 	fh := makeHandle("app.log", content, 4096)
 
-	got := runMerge(t, defaultConfig(), []*FileHandle{fh})
+	got := runMerge(t, defaultConfig(), []*fsutil.FileHandle{fh})
 
 	lines := strings.Split(strings.TrimRight(got, "\n"), "\n")
 	if len(lines) != 4 {
 		t.Fatalf("expected 4 lines, got %d:\n%s", len(lines), got)
 	}
-	assertEquals(t, "2024-01-15 10:00:00 main entry", lines[0])
-	assertEquals(t, "  continuation line 1", lines[1])
-	assertEquals(t, "  continuation line 2", lines[2])
-	assertEquals(t, "2024-01-15 10:00:01 next entry", lines[3])
+	testutil.AssertEquals(t, "2024-01-15 10:00:00 main entry", lines[0])
+	testutil.AssertEquals(t, "  continuation line 1", lines[1])
+	testutil.AssertEquals(t, "  continuation line 2", lines[2])
+	testutil.AssertEquals(t, "2024-01-15 10:00:01 next entry", lines[3])
 }
 
 func TestProcessFiles_SmallBuffer(t *testing.T) {
@@ -280,7 +284,7 @@ func TestProcessFiles_SmallBuffer(t *testing.T) {
 	content := "2024-01-15 10:00:00 this is a moderately long line to exceed a tiny buffer\n2024-01-15 10:00:01 second line\n"
 	fh := makeHandle("app.log", content, 128)
 
-	got := runMerge(t, defaultConfig(), []*FileHandle{fh})
+	got := runMerge(t, defaultConfig(), []*fsutil.FileHandle{fh})
 
 	if !strings.Contains(got, "moderately long line") {
 		t.Errorf("expected full first line in output:\n%s", got)
@@ -300,7 +304,7 @@ func TestProcessFiles_SameTimestamps(t *testing.T) {
 	fhB := makeHandle("b.log", contentB, 4096)
 	fhC := makeHandle("c.log", contentC, 4096)
 
-	got := runMerge(t, defaultConfig(), []*FileHandle{fhA, fhB, fhC})
+	got := runMerge(t, defaultConfig(), []*fsutil.FileHandle{fhA, fhB, fhC})
 
 	if !strings.Contains(got, "from A") || !strings.Contains(got, "from B") || !strings.Contains(got, "from C") {
 		t.Errorf("expected all three lines in output:\n%s", got)
@@ -312,7 +316,7 @@ func TestProcessFiles_NoTrailingNewline(t *testing.T) {
 	content := "2024-01-15 10:00:00 no newline at end"
 	fh := makeHandle("app.log", content, 4096)
 
-	got := runMerge(t, defaultConfig(), []*FileHandle{fh})
+	got := runMerge(t, defaultConfig(), []*fsutil.FileHandle{fh})
 
 	if !strings.HasSuffix(got, "\n") {
 		t.Errorf("expected output to end with newline, got: %q", got)
@@ -331,7 +335,7 @@ func TestProcessFiles_AllOptionsEnabled(t *testing.T) {
 	c.WriteAliasPerLine = true
 	c.WriteTimestampPerLine = true
 
-	got := runMerge(t, c, []*FileHandle{fhA, fhB})
+	got := runMerge(t, c, []*fsutil.FileHandle{fhA, fhB})
 
 	// Should contain block aliases, line aliases, and timestamp prefixes
 	if !strings.Contains(got, "--- a.log ---") {

@@ -1,4 +1,4 @@
-package logmerge_test
+package logtime_test
 
 import (
 	"testing"

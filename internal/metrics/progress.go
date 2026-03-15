@@ -1,4 +1,4 @@
-package logmerge
+package metrics
 
 import (
 	"fmt"
@@ -12,9 +12,16 @@ type PrintProgressConfig struct {
 	PeriodMillis         int  `yaml:"PeriodMillis"`
 }
 
+// ProgressFile abstracts a file handle for progress reporting.
+type ProgressFile interface {
+	GetBytesRead() int64
+	GetFileSize() int64
+	IsDone() bool
+}
+
 // PrintProgressPeriodically prints a progress bar to stderr at regular intervals.
 // It blocks forever and is intended to run in a goroutine.
-func PrintProgressPeriodically(c *PrintProgressConfig, files []*FileHandle, programStartTime time.Time) {
+func PrintProgressPeriodically(c *PrintProgressConfig, files []ProgressFile, programStartTime time.Time) {
 	if !c.PrintProgressEnabled {
 		return
 	}
@@ -32,7 +39,7 @@ func PrintProgressPeriodically(c *PrintProgressConfig, files []*FileHandle, prog
 }
 
 // PrintProgress prints a single progress line to stderr showing bytes and file completion.
-func PrintProgress(c *PrintProgressConfig, files []*FileHandle, programStartTime time.Time) {
+func PrintProgress(c *PrintProgressConfig, files []ProgressFile, programStartTime time.Time) {
 	if !c.PrintProgressEnabled {
 		return
 	}
@@ -44,13 +51,13 @@ func PrintProgress(c *PrintProgressConfig, files []*FileHandle, programStartTime
 	totalCount := len(files)
 
 	for _, file := range files {
-		if file.Done {
-			completedSize += file.Size
+		if file.IsDone() {
+			completedSize += file.GetFileSize()
 			completedCount++
 		} else {
-			completedSize += file.BytesRead
+			completedSize += file.GetBytesRead()
 		}
-		totalSize += file.Size
+		totalSize += file.GetFileSize()
 	}
 
 	totalSize = max(totalSize, 1)

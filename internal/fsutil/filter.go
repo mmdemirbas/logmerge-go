@@ -1,4 +1,4 @@
-package logmerge
+package fsutil
 
 import (
 	"path/filepath"

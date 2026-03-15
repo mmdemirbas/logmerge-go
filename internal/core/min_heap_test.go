@@ -1,18 +1,21 @@
-package logmerge_test
+package core_test
 
 import (
-	. "github.com/mmdemirbas/logmerge/internal/logmerge"
 	"testing"
+
+	. "github.com/mmdemirbas/logmerge/internal/core"
+	"github.com/mmdemirbas/logmerge/internal/fsutil"
+	"github.com/mmdemirbas/logmerge/internal/logtime"
 )
 
 func TestMinHeap(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
 		h := NewMinHeap(10)
-		h.Push(&FileHandle{LineTimestamp: newTime(100)})
-		h.Push(&FileHandle{LineTimestamp: newTime(50)})
-		h.Push(&FileHandle{LineTimestamp: newTime(150)})
-		h.Push(&FileHandle{LineTimestamp: newTime(75)})
-		h.Push(&FileHandle{LineTimestamp: newTime(125)})
+		h.Push(&fsutil.FileHandle{LineTimestamp: newTime(100)})
+		h.Push(&fsutil.FileHandle{LineTimestamp: newTime(50)})
+		h.Push(&fsutil.FileHandle{LineTimestamp: newTime(150)})
+		h.Push(&fsutil.FileHandle{LineTimestamp: newTime(75)})
+		h.Push(&fsutil.FileHandle{LineTimestamp: newTime(125)})
 
 		if h.Pop().LineTimestamp != newTime(50) {
 			t.Error("Expected 50")
@@ -36,20 +39,20 @@ func TestMinHeap(t *testing.T) {
 
 	t.Run("2", func(t *testing.T) {
 		h := NewMinHeap(10)
-		h.Push(&FileHandle{LineTimestamp: newTime(100)})
-		h.Push(&FileHandle{LineTimestamp: newTime(50)})
-		h.Push(&FileHandle{LineTimestamp: newTime(150)})
+		h.Push(&fsutil.FileHandle{LineTimestamp: newTime(100)})
+		h.Push(&fsutil.FileHandle{LineTimestamp: newTime(50)})
+		h.Push(&fsutil.FileHandle{LineTimestamp: newTime(150)})
 		if h.Pop().LineTimestamp != newTime(50) {
 			t.Error("Expected 50")
 		}
 		if h.Pop().LineTimestamp != newTime(100) {
 			t.Error("Expected 100")
 		}
-		h.Push(&FileHandle{LineTimestamp: newTime(75)})
+		h.Push(&fsutil.FileHandle{LineTimestamp: newTime(75)})
 		if h.Pop().LineTimestamp != newTime(75) {
 			t.Error("Expected 75")
 		}
-		h.Push(&FileHandle{LineTimestamp: newTime(200)})
+		h.Push(&fsutil.FileHandle{LineTimestamp: newTime(200)})
 		if h.Pop().LineTimestamp != newTime(150) {
 			t.Error("Expected 150")
 		}
@@ -62,6 +65,6 @@ func TestMinHeap(t *testing.T) {
 	})
 }
 
-func newTime(nanos int) Timestamp {
-	return NewTimestamp(1970, 1, 1, 0, 0, 0, nanos, 0, 0, 0)
+func newTime(nanos int) logtime.Timestamp {
+	return logtime.NewTimestamp(1970, 1, 1, 0, 0, 0, nanos, 0, 0, 0)
 }

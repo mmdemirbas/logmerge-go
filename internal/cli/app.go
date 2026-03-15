@@ -1,4 +1,4 @@
-package logmerge
+package cli
 
 import (
 	"bufio"
@@ -8,6 +8,11 @@ import (
 	"runtime/pprof"
 	"strings"
 	"time"
+
+	"github.com/mmdemirbas/logmerge/internal/core"
+	"github.com/mmdemirbas/logmerge/internal/fsutil"
+	"github.com/mmdemirbas/logmerge/internal/logtime"
+	"github.com/mmdemirbas/logmerge/internal/metrics"
 )
 
 // stringSliceFlag implements flag.Value for repeated string flags.
@@ -21,41 +26,41 @@ func (s *stringSliceFlag) Set(value string) error {
 
 // config defines the default configuration
 var config = &MainConfig{
-	OutputFile: &WritableFile{File: os.Stdout},
-	LogFile:    &WritableFile{File: os.Stderr},
+	OutputFile: &fsutil.WritableFile{File: os.Stdout},
+	LogFile:    &fsutil.WritableFile{File: os.Stderr},
 
 	ProfilingEnabled: false,
 
-	ListFilesConfig: &ListFilesConfig{
+	ListFilesConfig: &fsutil.ListFilesConfig{
 		IgnorePatterns: []string{},
 		FileAliases:    map[string]string{},
 	},
 
-	ParseTimestampConfig: &ParseTimestampConfig{
+	ParseTimestampConfig: &logtime.ParseTimestampConfig{
 		IgnoreTimezoneInfo:      false,
 		ShortestTimestampLen:    15,
 		TimestampSearchEndIndex: 250,
 	},
 
-	MergeConfig: &MergeConfig{
+	MergeConfig: &core.MergeConfig{
 		MetricsTreeEnabled:    false,
 		WriteAliasPerBlock:    false,
 		WriteAliasPerLine:     false,
 		WriteTimestampPerLine: false,
-		MinTimestamp:          ZeroTimestamp,
-		MaxTimestamp:          Timestamp(1<<63 - 1),
+		MinTimestamp:          logtime.ZeroTimestamp,
+		MaxTimestamp:          logtime.Timestamp(1<<63 - 1),
 		BufferSizeForRead:     1024 * 1024 * 100,
 		BufferSizeForWrite:    1024 * 1024 * 100,
 	},
 
-	PrintProgressConfig: &PrintProgressConfig{
+	PrintProgressConfig: &metrics.PrintProgressConfig{
 		PrintProgressEnabled: true,
 		InitialDelayMillis:   1000,
 		PeriodMillis:         1000,
 	},
 }
 
-var metrics *MainMetrics
+var appMetrics *metrics.MainMetrics
 
 // TODO: Catch interrupt signal during merge process and do the post-work anyway
 
@@ -180,22 +185,22 @@ func Run() error {
 	// Override config with explicitly set flags
 	if explicitlySet["out"] || explicitlySet["o"] {
 		if *outputFlag != "" {
-			config.OutputFile = &WritableFile{Path: *outputFlag}
+			config.OutputFile = &fsutil.WritableFile{Path: *outputFlag}
 			if err := config.OutputFile.Initialize(); err != nil {
 				return err
 			}
 		} else {
-			config.OutputFile = &WritableFile{File: os.Stdout}
+			config.OutputFile = &fsutil.WritableFile{File: os.Stdout}
 		}
 	}
 	if explicitlySet["log"] || explicitlySet["l"] {
 		if *logFlag != "" {
-			config.LogFile = &WritableFile{Path: *logFlag}
+			config.LogFile = &fsutil.WritableFile{Path: *logFlag}
 			if err := config.LogFile.Initialize(); err != nil {
 				return err
 			}
 		} else {
-			config.LogFile = &WritableFile{File: os.Stderr}
+			config.LogFile = &fsutil.WritableFile{File: os.Stderr}
 		}
 	}
 	if explicitlySet["write-timestamp"] || explicitlySet["t"] {
@@ -212,14 +217,14 @@ func Run() error {
 		if err != nil {
 			return fmt.Errorf("failed to parse --since value %q: %w", *sinceFlag, err)
 		}
-		config.MergeConfig.MinTimestamp = Timestamp(ts.UnixNano())
+		config.MergeConfig.MinTimestamp = logtime.Timestamp(ts.UnixNano())
 	}
 	if explicitlySet["until"] {
 		ts, err := time.Parse(time.RFC3339Nano, *untilFlag)
 		if err != nil {
 			return fmt.Errorf("failed to parse --until value %q: %w", *untilFlag, err)
 		}
-		config.MergeConfig.MaxTimestamp = Timestamp(ts.UnixNano())
+		config.MergeConfig.MaxTimestamp = logtime.Timestamp(ts.UnixNano())
 	}
 	if explicitlySet["ignore-timezone"] {
 		config.ParseTimestampConfig.IgnoreTimezoneInfo = *ignoreTimezone
@@ -311,14 +316,14 @@ func Run() error {
 	outputFile := config.OutputFile
 	logFile := config.LogFile
 
-	metrics = NewMetrics()
-	metrics.Tree = NewMetricsTree()
-	metrics.Tree.Enabled = config.MergeConfig.MetricsTreeEnabled
+	appMetrics = metrics.NewMetrics()
+	appMetrics.Tree = metrics.NewMetricsTree()
+	appMetrics.Tree.Enabled = config.MergeConfig.MetricsTreeEnabled
 
-	files, err := ListFiles(
+	files, err := fsutil.ListFiles(
 		config.InputPaths,
 		config.ListFilesConfig,
-		metrics.ListFilesMetrics,
+		appMetrics.ListFilesMetrics,
 		config.MergeConfig.BufferSizeForRead,
 		config.ParseTimestampConfig.ShortestTimestampLen,
 		logFile,
@@ -333,10 +338,14 @@ func Run() error {
 	}
 
 	// Print progress periodically
-	go PrintProgressPeriodically(config.PrintProgressConfig, files, programStartTime)
+	progressFiles := make([]metrics.ProgressFile, len(files))
+	for i, f := range files {
+		progressFiles[i] = f
+	}
+	go metrics.PrintProgressPeriodically(config.PrintProgressConfig, progressFiles, programStartTime)
 	defer func() {
 		if err == nil {
-			PrintProgress(config.PrintProgressConfig, files, programStartTime)
+			metrics.PrintProgress(config.PrintProgressConfig, progressFiles, programStartTime)
 		}
 	}()
 
@@ -347,23 +356,23 @@ func Run() error {
 	}()
 
 	// Process files
-	err = ProcessFiles(
+	err = core.ProcessFiles(
 		config.MergeConfig,
-		metrics.MergeMetrics,
+		appMetrics.MergeMetrics,
 		files,
 		writer,
 		logFile,
-		func(file *FileHandle) error {
-			return UpdateTimestamp(config.ParseTimestampConfig, file)
+		func(file *fsutil.FileHandle) error {
+			return core.UpdateTimestamp(config.ParseTimestampConfig, file)
 		},
 	)
 
 	// Final aggregation of localized metrics
 	for _, f := range files {
-		metrics.MergeMetrics.Merge(f.MergeMetrics)
-		metrics.Tree.Merge(f.Metrics)
+		appMetrics.MergeMetrics.Merge(f.MergeMetrics)
+		appMetrics.Tree.Merge(f.Metrics)
 	}
-	metrics.Tree.Root.Metric.Duration = time.Since(programStartTime).Nanoseconds()
+	appMetrics.Tree.Root.Metric.Duration = time.Since(programStartTime).Nanoseconds()
 
 	if config.ProfilingEnabled {
 		memFile, err := os.Create("out/mem.prof")
@@ -378,7 +387,11 @@ func Run() error {
 	}
 
 	elapsedTime := time.Since(programStartTime)
-	metrics.PrintMetrics(config, programStartTime, elapsedTime, err)
+	configYAML, yamlErr := config.ToYAML()
+	if yamlErr != nil {
+		configYAML = fmt.Sprintf("Failed to convert configuration to YAML: %v", yamlErr)
+	}
+	appMetrics.PrintMetrics(config.LogFile, configYAML, programStartTime, elapsedTime, err)
 
 	return err
 }

@@ -1,8 +1,10 @@
-package logmerge_test
+package fsutil_test
 
 import (
-	. "github.com/mmdemirbas/logmerge/internal/logmerge"
 	"testing"
+
+	. "github.com/mmdemirbas/logmerge/internal/fsutil"
+	"github.com/mmdemirbas/logmerge/internal/testutil"
 )
 
 func TestMatcherShouldInclude(t *testing.T) {
@@ -53,7 +55,7 @@ func TestMatcherShouldInclude(t *testing.T) {
 			m := NewMatcher(tt.patterns)
 			actual := m.ShouldInclude(tt.filePath)
 			if actual != tt.expected {
-				t.Errorf(expectedFormat, tt.expected, tt.expected, actual, actual)
+				t.Errorf(testutil.ExpectedFormat, tt.expected, tt.expected, actual, actual)
 			}
 		})
 	}

@@ -1,8 +1,13 @@
-package logmerge
+package core
+
+import (
+	"github.com/mmdemirbas/logmerge/internal/fsutil"
+	"github.com/mmdemirbas/logmerge/internal/logtime"
+)
 
 type heapEntry struct {
-	timestamp Timestamp
-	file      *FileHandle
+	timestamp logtime.Timestamp
+	file      *fsutil.FileHandle
 }
 
 // MinHeap is a specialized priority queue for FileHandle
@@ -23,7 +28,7 @@ func (h *MinHeap) Len() int {
 }
 
 // Peek returns the FileHandle with the smallest timestamp without removing it.
-func (h *MinHeap) Peek() *FileHandle {
+func (h *MinHeap) Peek() *fsutil.FileHandle {
 	if len(h.entries) == 0 {
 		return nil
 	}
@@ -31,7 +36,7 @@ func (h *MinHeap) Peek() *FileHandle {
 }
 
 // Push inserts a FileHandle into the heap
-func (h *MinHeap) Push(file *FileHandle) {
+func (h *MinHeap) Push(file *fsutil.FileHandle) {
 	ts := file.LineTimestamp
 	h.entries = append(h.entries, heapEntry{timestamp: ts, file: file})
 
@@ -51,7 +56,7 @@ func (h *MinHeap) Push(file *FileHandle) {
 }
 
 // Pop removes and returns the smallest Timestamp FileHandle
-func (h *MinHeap) Pop() *FileHandle {
+func (h *MinHeap) Pop() *fsutil.FileHandle {
 	n := len(h.entries)
 	if n == 0 {
 		return nil // empty heap
