@@ -11,13 +11,41 @@ type ParseTimestampConfig struct {
 // ParseTimestamp scans the first TimestampSearchEndIndex bytes of buffer for a
 // recognizable timestamp pattern and returns it, or ZeroTimestamp if none found.
 func ParseTimestamp(c *ParseTimestampConfig, buffer []byte) Timestamp {
+	ts, _ := ParseTimestampWithEnd(c, buffer)
+	return ts
+}
+
+// ParseTimestampWithEnd scans the buffer for a timestamp and returns both the
+// parsed timestamp and the byte offset where the timestamp ends. The end offset
+// can be used to strip the original timestamp from output.
+// If no timestamp is found, or the timestamp is on a subsequent line (past a
+// newline), the end offset is 0 — indicating nothing should be stripped from
+// the current line.
+func ParseTimestampWithEnd(c *ParseTimestampConfig, buffer []byte) (Timestamp, int) {
 	n := min(len(buffer), c.TimestampSearchEndIndex)
 
+	// Find the first newline — the end offset is only meaningful within the
+	// first line. If the parser finds a timestamp past a newline, that
+	// timestamp belongs to a later line and should not cause stripping of
+	// the current line.
+	firstNewline := n
+	for j := 0; j < n; j++ {
+		if buffer[j] == '\n' || buffer[j] == '\r' {
+			firstNewline = j
+			break
+		}
+	}
+
 	var timestamp Timestamp
+	var end int
 	for i := 0; timestamp == ZeroTimestamp && i < n; {
 		timestamp, i = tryParseTimestamp(c, buffer, i, n)
+		end = i
 	}
-	return timestamp
+	if timestamp == ZeroTimestamp || end > firstNewline {
+		return timestamp, 0
+	}
+	return timestamp, end
 }
 
 func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Timestamp, int) {

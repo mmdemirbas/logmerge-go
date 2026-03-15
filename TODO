@@ -7,7 +7,6 @@
 - Output formatting
   - Add unified log level support to format output logs in IDE better (print log level just like timestamp)
   - Opt in to add standardized log level to the output
-  - Opt in to remove timestamp from raw line
   - Opt in to remove log level from raw line
   - Custom source name format template (beyond simple --alias pat=name)
   - Custom timestamp output format

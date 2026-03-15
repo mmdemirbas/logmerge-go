@@ -88,6 +88,9 @@ func Run() error {
 	writeTimestamp := flag.Bool("write-timestamp", false, "")
 	flag.BoolVar(writeTimestamp, "t", false, "")
 
+	stripTimestamp := flag.Bool("strip-timestamp", false, "")
+	flag.BoolVar(stripTimestamp, "s", false, "")
+
 	writeBlockAlias := flag.Bool("write-block-alias", false, "")
 	flag.BoolVar(writeBlockAlias, "b", false, "")
 
@@ -125,6 +128,7 @@ func Run() error {
 		fmt.Fprintf(w, "      --alias <pat>=<name>  File alias mapping (repeatable)\n")
 		fmt.Fprintf(w, "\nFormatting:\n")
 		fmt.Fprintf(w, "  -t, --write-timestamp     Prepend normalized timestamp to each line\n")
+		fmt.Fprintf(w, "  -s, --strip-timestamp     Remove original timestamp from each line\n")
 		fmt.Fprintf(w, "  -b, --write-block-alias   Insert separator when file source changes\n")
 		fmt.Fprintf(w, "  -a, --write-line-alias    Prepend file alias to each line\n")
 		fmt.Fprintf(w, "\nTime range:\n")
@@ -205,6 +209,9 @@ func Run() error {
 	}
 	if explicitlySet["write-timestamp"] || explicitlySet["t"] {
 		config.MergeConfig.WriteTimestampPerLine = *writeTimestamp
+	}
+	if explicitlySet["strip-timestamp"] || explicitlySet["s"] {
+		config.MergeConfig.StripOriginalTimestamp = *stripTimestamp
 	}
 	if explicitlySet["write-block-alias"] || explicitlySet["b"] {
 		config.MergeConfig.WriteAliasPerBlock = *writeBlockAlias

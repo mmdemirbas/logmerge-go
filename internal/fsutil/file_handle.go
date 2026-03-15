@@ -47,6 +47,7 @@ type FileHandle struct {
 	Buffer              *container.RingBuffer // Buffer for reading the file
 	LineTimestampParsed bool                  // Whether the timestamp for the current line has been parsed
 	LineTimestamp       logtime.Timestamp     // The timestamp for the current line
+	LineTimestampEnd    int                   // Byte offset where the parsed timestamp ends in the current line
 	BlockTimestamp      logtime.Timestamp     // The timestamp for the current block, i.e. the last non-zero timestamp
 	Metrics             *metrics.MetricsTree
 	MergeMetrics        *metrics.MergeMetrics

@@ -16,9 +16,10 @@ import (
 type MergeConfig struct {
 	MetricsTreeEnabled bool `yaml:"MetricsTreeEnabled"`
 
-	WriteAliasPerBlock    bool `yaml:"WriteAliasPerBlock"`
-	WriteAliasPerLine     bool `yaml:"WriteAliasPerLine"`
-	WriteTimestampPerLine bool `yaml:"WriteTimestampPerLine"`
+	WriteAliasPerBlock     bool `yaml:"WriteAliasPerBlock"`
+	WriteAliasPerLine      bool `yaml:"WriteAliasPerLine"`
+	WriteTimestampPerLine  bool `yaml:"WriteTimestampPerLine"`
+	StripOriginalTimestamp bool `yaml:"StripOriginalTimestamp"`
 
 	MinTimestamp logtime.Timestamp `yaml:"MinTimestamp"`
 	MaxTimestamp logtime.Timestamp `yaml:"MaxTimestamp"`
@@ -276,6 +277,14 @@ func writeLine(c *MergeConfig, m *metrics.MergeMetrics, ws *writeState, writer *
 		if err != nil {
 			return fmt.Errorf("failed to write alias: %v", err)
 		}
+		file.Metrics.Stop(startTime)
+	}
+
+	// Strip the original timestamp from the line if configured
+	if c.StripOriginalTimestamp && file.LineTimestampEnd > 0 {
+		startTime := file.Metrics.Start("StripTimestamp")
+		file.Buffer.Skip(file.LineTimestampEnd)
+		m.BytesReadAndSkipped += int64(file.LineTimestampEnd)
 		file.Metrics.Stop(startTime)
 	}
 

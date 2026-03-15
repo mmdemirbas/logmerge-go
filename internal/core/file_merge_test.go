@@ -875,3 +875,89 @@ func TestProcessFiles_BytesReadMetrics(t *testing.T) {
 		t.Errorf("BytesNotRead=%d, want 0. Some bytes were not counted.", m.BytesNotRead)
 	}
 }
+
+func TestProcessFiles_StripOriginalTimestamp(t *testing.T) {
+	content := "2024-01-15 10:00:00 hello world\n2024-01-15 10:01:00 second line\n"
+	fh := makeHandle("test.log", content, 4096)
+
+	c := defaultConfig()
+	c.StripOriginalTimestamp = true
+	c.WriteTimestampPerLine = true
+
+	got := runMerge(t, c, []*fsutil.FileHandle{fh})
+
+	// Original timestamps should be stripped, unified ones prepended
+	if strings.Contains(got, "2024-01-15 10:00:00 hello") {
+		t.Errorf("original timestamp should be stripped:\n%s", got)
+	}
+	if !strings.Contains(got, "hello world") {
+		t.Errorf("content after timestamp should be preserved:\n%s", got)
+	}
+	if !strings.Contains(got, "second line") {
+		t.Errorf("second line content should be preserved:\n%s", got)
+	}
+	// Each line should start with the unified timestamp format (30 chars)
+	lines := strings.Split(strings.TrimRight(got, "\n"), "\n")
+	for i, line := range lines {
+		if len(line) < 30 {
+			t.Errorf("line %d too short for unified timestamp: %q", i, line)
+		}
+	}
+}
+
+func TestProcessFiles_StripTimestampWithoutWriteTimestamp(t *testing.T) {
+	// Strip without write-timestamp: just removes the original timestamp
+	content := "2024-01-15 10:00:00 hello\n"
+	fh := makeHandle("test.log", content, 4096)
+
+	c := defaultConfig()
+	c.StripOriginalTimestamp = true
+	c.WriteTimestampPerLine = false
+
+	got := runMerge(t, c, []*fsutil.FileHandle{fh})
+
+	if strings.Contains(got, "2024-01-15") {
+		t.Errorf("original timestamp should be stripped:\n%s", got)
+	}
+	if !strings.Contains(got, "hello") {
+		t.Errorf("content should be preserved:\n%s", got)
+	}
+}
+
+func TestProcessFiles_StripTimestampContinuationLines(t *testing.T) {
+	// Lines without timestamps should not be affected by stripping
+	content := "2024-01-15 10:00:00 error\n  at com.example.Main(Main.java:42)\n2024-01-15 10:01:00 ok\n"
+	fh := makeHandle("test.log", content, 4096)
+
+	c := defaultConfig()
+	c.StripOriginalTimestamp = true
+
+	got := runMerge(t, c, []*fsutil.FileHandle{fh})
+
+	// Continuation line should be intact (no timestamp to strip)
+	if !strings.Contains(got, "  at com.example.Main(Main.java:42)") {
+		t.Errorf("continuation line should be preserved intact:\n%s", got)
+	}
+	if strings.Contains(got, "2024-01-15") {
+		t.Errorf("timestamps should be stripped:\n%s", got)
+	}
+}
+
+func TestProcessFiles_StripTimestampSmallBuffer(t *testing.T) {
+	// Small buffer to exercise the skip across buffer boundaries
+	content := "2024-01-15 10:00:00 data\n"
+	for _, bufSize := range []int{24, 32, 64, 1024} {
+		t.Run(fmt.Sprintf("buf=%d", bufSize), func(t *testing.T) {
+			fh := makeHandle("test.log", content, bufSize)
+			c := defaultConfig()
+			c.StripOriginalTimestamp = true
+			got := runMerge(t, c, []*fsutil.FileHandle{fh})
+			if strings.Contains(got, "2024-01-15") {
+				t.Errorf("buf=%d: timestamp should be stripped:\n%s", bufSize, got)
+			}
+			if !strings.Contains(got, "data") {
+				t.Errorf("buf=%d: content should be preserved:\n%s", bufSize, got)
+			}
+		})
+	}
+}
