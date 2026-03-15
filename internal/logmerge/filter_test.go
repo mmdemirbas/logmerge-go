@@ -35,6 +35,17 @@ func TestMatcherShouldInclude(t *testing.T) {
 		// Comments and empty lines are skipped
 		{"comment ignored", []string{"# this is a comment", "*.gz"}, "archive.gz", false},
 		{"empty line ignored", []string{"", "  ", "*.gz"}, "archive.gz", false},
+
+		// Patterns with '/' match at any depth in the path
+		{"dir pattern shallow", []string{"*/memartscc/*"}, "a/memartscc/b.log", false},
+		{"dir pattern deep", []string{"*/memartscc/*"}, "x/y/memartscc/z.log", false},
+		{"dir pattern no match", []string{"*/memartscc/*"}, "x/y/other/z.log", true},
+		{"dir pattern negation deep", []string{"*/memartscc/*", "!*/memartscc/keep.log"}, "x/y/memartscc/keep.log", true},
+		{"dir pattern negation other excluded", []string{"*/memartscc/*", "!*/memartscc/keep.log"}, "x/y/memartscc/other.log", false},
+
+		// Filename-only patterns still work with deep paths
+		{"filename pattern deep path", []string{"*.gz"}, "a/b/c/archive.gz", false},
+		{"filename pattern deep path no match", []string{"*.gz"}, "a/b/c/app.log", true},
 	}
 
 	for _, tt := range tests {

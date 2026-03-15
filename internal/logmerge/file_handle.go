@@ -134,7 +134,10 @@ func (r *FileHandle) WriteLine(m *MergeMetrics, writer *bufio.Writer) error {
 			n, err = writer.Write(chunk)
 			if err == nil {
 				if eol == CRLF && len(chunk) == 1 && chunk[0] == '\n' {
-					// this chunk is just the '\n' part of a split CRLF
+					// This chunk is the '\n' part of a split CRLF.
+					// The '\n' was returned by PeekNextLineSlice but not
+					// consumed — skip it so it doesn't leak into the next line.
+					r.Buffer.Skip(1)
 				} else {
 					r.Buffer.Skip(n)
 				}

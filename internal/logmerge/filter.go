@@ -39,11 +39,35 @@ func (m *Matcher) ShouldInclude(filePath string) (included bool) {
 	_, name := filepath.Split(filePath)
 	included = true // default: include if no rules match
 	for _, rule := range m.rules {
-		nameMatched, _ := filepath.Match(rule.pattern, name)
-		pathMatched, _ := filepath.Match(rule.pattern, filePath)
-		if nameMatched || pathMatched {
+		if matchGitignorePattern(rule.pattern, filePath, name) {
 			included = rule.negation
 		}
 	}
 	return included
+}
+
+// matchGitignorePattern matches a gitignore-style pattern against a file path.
+// Patterns without '/' are matched against the filename only.
+// Patterns with '/' are matched against the full path, with each sub-path tried
+// to emulate gitignore's "match anywhere in path" behavior.
+func matchGitignorePattern(pattern, filePath, name string) bool {
+	if !strings.Contains(pattern, "/") {
+		matched, _ := filepath.Match(pattern, name)
+		return matched
+	}
+
+	// Pattern contains '/' — try matching against the full path and every
+	// suffix starting at a path separator to emulate "**/"-style matching.
+	if matched, _ := filepath.Match(pattern, filePath); matched {
+		return true
+	}
+	for i := 0; i < len(filePath); i++ {
+		if filePath[i] == filepath.Separator || filePath[i] == '/' {
+			sub := filePath[i+1:]
+			if matched, _ := filepath.Match(pattern, sub); matched {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -151,27 +151,41 @@ func sequentialProcessFiles(
 	h := NewMinHeap(len(files))
 
 	// Parallel prefetch (Step 17 logic)
+	type prefetchResult struct {
+		file *FileHandle
+		err  error
+	}
+	results := make([]prefetchResult, len(files))
 	var wg sync.WaitGroup
-	for _, file := range files {
+	for i, file := range files {
 		wg.Add(1)
-		go func(f *FileHandle) {
+		go func(idx int, f *FileHandle) {
 			defer wg.Done()
-			_ = doUpdateTimestamp(f, f.MergeMetrics, updateTimestamp)
-		}(file)
+			err := doUpdateTimestamp(f, f.MergeMetrics, updateTimestamp)
+			results[idx] = prefetchResult{file: f, err: err}
+		}(i, file)
 	}
 
 	wg.Wait()
 
-	for _, file := range files {
-		if file.LineTimestampParsed {
-			h.Push(file)
-		} else if file.BytesRead > 0 {
-			// Only log if we actually tried to read data and found nothing
-			// This prevents double-logging during benchmark resets
-			fmt.Fprintf(logFile, "closed file %s as it has no parsable timestamps\n", file.File.Name())
+	for _, r := range results {
+		file := r.file
+		if r.err != nil {
+			fmt.Fprintf(logFile, "failed to prefetch file %s: %v\n", file.File.Name(), r.err)
 			file.MergeMetrics.BytesRead += int64(file.BytesRead)
 			file.MergeMetrics.BytesNotRead += int64(file.Size - file.BytesRead)
 			file.Done = true
+			file.Close()
+			continue
+		}
+		if file.LineTimestampParsed {
+			h.Push(file)
+		} else {
+			fmt.Fprintf(logFile, "closed file %s: no data or no parsable timestamps\n", file.File.Name())
+			file.MergeMetrics.BytesRead += int64(file.BytesRead)
+			file.MergeMetrics.BytesNotRead += int64(file.Size - file.BytesRead)
+			file.Done = true
+			file.Close()
 		}
 	}
 
@@ -180,6 +194,19 @@ func sequentialProcessFiles(
 	for h.Len() > 0 {
 		file := h.Pop()
 		skippedLineCount := 0
+
+		// Skip lines below MinTimestamp
+		for file.LineTimestampParsed && file.LineTimestamp != ZeroTimestamp && file.LineTimestamp < c.MinTimestamp {
+			bytesCount, _, skipErr := file.SkipLine()
+			if skipErr != nil {
+				return fmt.Errorf("failed to skip line from %s: %v", file.File.Name(), skipErr)
+			}
+			file.MergeMetrics.BytesReadAndSkipped += int64(bytesCount)
+			skippedLineCount++
+			if err := doUpdateTimestamp(file, file.MergeMetrics, updateTimestamp); err != nil {
+				return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
+			}
+		}
 
 		m.LinesRead += int64(skippedLineCount)
 		m.LinesReadAndSkipped += int64(skippedLineCount)
