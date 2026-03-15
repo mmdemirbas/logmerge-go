@@ -1,6 +1,7 @@
 package logtime_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -44,6 +45,184 @@ func TestParseTimestamp(t *testing.T) {
 			actual := ts.String()
 			if strings.Compare(tt.expected, actual) != 0 {
 				t.Errorf(testutil.ExpectedFormat, tt.expected, tt.expected, actual, actual)
+			}
+		})
+	}
+}
+
+func TestParseTimestamp_BufferBoundary(t *testing.T) {
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"year only", "2024"},
+		{"year-month", "2024-01"},
+		{"date only", "2024-01-15"},
+		{"mid-hour", "2024-01-15 1"},
+		{"hour:minute no seconds", "2024-01-15 10:30"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := ParseTimestamp(c, []byte(tt.input))
+			testutil.AssertEquals(t, ZeroTimestamp, ts)
+		})
+	}
+}
+
+func TestParseTimestamp_TwoDigitYearBoundary(t *testing.T) {
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	tests := []struct {
+		year     string
+		expected string
+	}{
+		{"68", "2068-01-15 10:30:00.000000000 "},
+		{"00", "2000-01-15 10:30:00.000000000 "},
+		{"99", "1999-01-15 10:30:00.000000000 "},
+	}
+
+	for _, tt := range tests {
+		t.Run("year="+tt.year, func(t *testing.T) {
+			input := fmt.Sprintf("%s-01-15 10:30:00", tt.year)
+			ts := ParseTimestamp(c, []byte(input))
+			testutil.AssertEquals(t, tt.expected, ts.String())
+		})
+	}
+
+	// Year 69 maps to 1969, which is before Unix epoch. The parser accepts it
+	// but the uint64 nanosecond representation wraps around, producing garbled
+	// output from String(). Verify the parser does not panic.
+	t.Run("year=69 does not panic", func(t *testing.T) {
+		input := "69-01-15 10:30:00"
+		ts := ParseTimestamp(c, []byte(input))
+		testutil.AssertNotEquals(t, ZeroTimestamp, ts)
+	})
+}
+
+func TestParseTimestamp_TimezoneEdgeCases(t *testing.T) {
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	tests := []struct {
+		name     string
+		suffix   string
+		expected string
+	}{
+		{"+08:00 with colon", "+08:00", "2024-01-15 02:30:00.000000000 "},
+		{"+0800 without colon", "+0800", "2024-01-15 02:30:00.000000000 "},
+		{"-05:30 negative with colon", "-05:30", "2024-01-15 16:00:00.000000000 "},
+		{"Z UTC", "Z", "2024-01-15 10:30:00.000000000 "},
+		{"+00:00 explicit UTC", "+00:00", "2024-01-15 10:30:00.000000000 "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := "2024-01-15T10:30:00" + tt.suffix
+			ts := ParseTimestamp(c, []byte(input))
+			testutil.AssertEquals(t, tt.expected, ts.String())
+		})
+	}
+
+	t.Run("IgnoreTimezoneInfo=true", func(t *testing.T) {
+		cIgnore := &ParseTimestampConfig{
+			ShortestTimestampLen:    15,
+			TimestampSearchEndIndex: 250,
+			IgnoreTimezoneInfo:      true,
+		}
+		input := "2024-01-15T10:30:00+08:00"
+		ts := ParseTimestamp(cIgnore, []byte(input))
+		testutil.AssertEquals(t, "2024-01-15 10:30:00.000000000 ", ts.String())
+	})
+}
+
+func TestParseTimestamp_FractionalSeconds(t *testing.T) {
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	tests := []struct {
+		name     string
+		frac     string
+		expected string
+	}{
+		{".1", ".1", "2024-01-15 10:30:00.100000000 "},
+		{".12", ".12", "2024-01-15 10:30:00.120000000 "},
+		{".123456789", ".123456789", "2024-01-15 10:30:00.123456789 "},
+		{",123 comma", ",123", "2024-01-15 10:30:00.123000000 "},
+		{".0", ".0", "2024-01-15 10:30:00.000000000 "},
+		{".000000001", ".000000001", "2024-01-15 10:30:00.000000001 "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := "2024-01-15 10:30:00" + tt.frac
+			ts := ParseTimestamp(c, []byte(input))
+			testutil.AssertEquals(t, tt.expected, ts.String())
+		})
+	}
+}
+
+func TestParseTimestamp_NoTimestamp(t *testing.T) {
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"empty buffer", ""},
+		{"only text", "hello world"},
+		{"only newlines", "\n\n\n"},
+		{"invalid number sequence", "99999"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := ParseTimestamp(c, []byte(tt.input))
+			testutil.AssertEquals(t, ZeroTimestamp, ts)
+		})
+	}
+}
+
+func TestParseTimestamp_ShortTimestampLen(t *testing.T) {
+	tests := []struct {
+		name        string
+		shortestLen int
+		input       string
+		expectZero  bool
+	}{
+		{"len=10 valid timestamp", 10, "2024-01-15 10:30:00", false},
+		{"len=10 short input", 10, "2024-01-15", true},
+		{"len=19 valid timestamp", 19, "2024-01-15 10:30:00", false},
+		{"len=20 with 19-char input", 20, "2024-01-15 10:30:00", true},
+		{"len=1 valid timestamp", 1, "2024-01-15 10:30:00", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &ParseTimestampConfig{
+				ShortestTimestampLen:    tt.shortestLen,
+				TimestampSearchEndIndex: 250,
+			}
+			ts := ParseTimestamp(c, []byte(tt.input))
+			if tt.expectZero {
+				testutil.AssertEquals(t, ZeroTimestamp, ts)
+			} else {
+				testutil.AssertNotEquals(t, ZeroTimestamp, ts)
 			}
 		})
 	}

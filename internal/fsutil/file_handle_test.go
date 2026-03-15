@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	. "github.com/mmdemirbas/logmerge/internal/fsutil"
 	"github.com/mmdemirbas/logmerge/internal/metrics"
@@ -205,6 +206,41 @@ func TestWriteLine_MultipleLines(t *testing.T) {
 	writer.Flush()
 
 	testutil.AssertEquals(t, content, buf.String())
+}
+
+func TestWriteLine_CRAtEOF(t *testing.T) {
+	// File ending with \r (CR as the very last byte, no LF follows).
+	// This previously caused an infinite loop in WriteLine because
+	// PeekNextLineSlice checks empty buffer before latestCharWasCR,
+	// leaving the flag set forever.
+	content := "hello\r"
+	vf := newMemFile("test.log", content)
+	fh, _ := NewFileHandle(vf, "test", 4096)
+	fh.FillBuffer()
+
+	var buf bytes.Buffer
+	writer := bufio.NewWriter(&buf)
+	m := metrics.NewMergeMetrics()
+
+	// Run in goroutine with timeout to detect infinite loop
+	done := make(chan error, 1)
+	go func() {
+		done <- fh.WriteLine(m, writer)
+	}()
+
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("WriteLine failed: %v", err)
+		}
+		writer.Flush()
+		// CR line ending: the \r is written as content, then \n appended
+		testutil.AssertEquals(t, "hello\r\n", buf.String())
+	case <-timer.C:
+		t.Fatal("WriteLine hung — infinite loop on CR at EOF")
+	}
 }
 
 func TestClose(t *testing.T) {

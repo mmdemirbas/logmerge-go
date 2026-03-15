@@ -72,7 +72,6 @@ func (h *MinHeap) Pop() *fsutil.FileHandle {
 	last := h.entries[n]       // last item which will be re-located
 	h.entries[n] = heapEntry{} // Prevent memory leak by clearing the pointer
 	h.entries = h.entries[:n]  // shorten slice by 1
-	h.entries = h.entries[:n]
 
 	index := 0               // start at the root
 	firstLeafIndex := n >> 1 // index of first leaf node

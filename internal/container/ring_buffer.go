@@ -120,9 +120,12 @@ func (r *RingBuffer) Fill(reader io.Reader) (int, error) {
 				copy(r.buf, r.buf[r.readIndex:r.writeIndex])
 			} else {
 				// Wrapped: [==W---R==]
+				// Save head before tail copy overwrites it.
 				tailLen := r.cap - r.readIndex
+				head := make([]byte, r.writeIndex)
+				copy(head, r.buf[:r.writeIndex])
 				copy(r.buf, r.buf[r.readIndex:r.cap])
-				copy(r.buf[tailLen:], r.buf[:r.writeIndex])
+				copy(r.buf[tailLen:], head)
 			}
 		}
 		r.readIndex = 0
@@ -165,17 +168,21 @@ func (r *RingBuffer) SkipNextLineSlice(latestCharWasCR *bool) (int, EOLType) {
 	writeIndex := r.writeIndex
 	buf := r.buf
 
-	if readIndex == writeIndex {
-		return 0, None // Buffer is empty
-	}
-
 	if *latestCharWasCR {
 		*latestCharWasCR = false
+		if readIndex == writeIndex {
+			// CR was the last byte and no more data — treat as standalone CR
+			return 0, CR
+		}
 		if buf[readIndex] == '\n' {
 			r.Skip(1)
 			return 1, CRLF
 		}
 		return 0, CR
+	}
+
+	if readIndex == writeIndex {
+		return 0, None // Buffer is empty
 	}
 
 	// (readIndex < writeIndex) ? writeIndex : cap (we are sure that readIndex != writeIndex)
@@ -214,17 +221,21 @@ func (r *RingBuffer) PeekNextLineSlice(latestCharWasCR *bool) ([]byte, EOLType) 
 	writeIndex := r.writeIndex
 	buf := r.buf
 
-	if readIndex == writeIndex {
-		return nil, None // Buffer is empty
-	}
-
 	if *latestCharWasCR {
 		*latestCharWasCR = false
+		if readIndex == writeIndex {
+			// CR was the last byte and no more data — treat as standalone CR
+			return nil, CR
+		}
 		if buf[readIndex] == '\n' {
 			return newline, CRLF
 		} else {
 			return nil, CR
 		}
+	}
+
+	if readIndex == writeIndex {
+		return nil, None // Buffer is empty
 	}
 
 	// (readIndex < writeIndex) ? writeIndex : cap (we are sure that readIndex != writeIndex)
