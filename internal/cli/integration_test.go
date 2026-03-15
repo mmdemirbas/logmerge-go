@@ -519,3 +519,263 @@ func TestIntegration_StdoutOutput(t *testing.T) {
 		t.Errorf("expected output on stdout:\n%s", stdout)
 	}
 }
+
+// --- Tests against real example directories ---
+
+// examplesDir returns the path to the examples/ directory relative to this test file.
+func examplesDir(t *testing.T) string {
+	t.Helper()
+	// This test file is at internal/cli/integration_test.go
+	// Examples are at ../../examples/
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(wd, "..", "..", "examples")
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		t.Skipf("examples directory not found at %s", dir)
+	}
+	return dir
+}
+
+func TestIntegration_ExamplesSmall_GoldenOutput(t *testing.T) {
+	bin := buildBinary(t)
+	examples := examplesDir(t)
+	inputDir := filepath.Join(examples, "small")
+	goldenPath := filepath.Join(examples, "small.log")
+
+	golden, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("cannot read golden file: %v", err)
+	}
+
+	outPath := filepath.Join(t.TempDir(), "out.log")
+	_, stderr, err := runLogmerge(t, bin,
+		"-o", outPath,
+		"-t", // write unified timestamp (matches golden file format)
+		"-a", // write per-line alias (matches golden file format)
+		inputDir)
+	if err != nil {
+		t.Fatalf("logmerge failed: %v\nstderr: %s", err, stderr)
+	}
+
+	got, _ := os.ReadFile(outPath)
+	if string(got) != string(golden) {
+		gotLines := strings.Split(string(got), "\n")
+		goldenLines := strings.Split(string(golden), "\n")
+		for i := 0; i < len(gotLines) && i < len(goldenLines); i++ {
+			if gotLines[i] != goldenLines[i] {
+				t.Errorf("first difference at line %d:\n  got:    %q\n  golden: %q", i+1, gotLines[i], goldenLines[i])
+				break
+			}
+		}
+		if len(gotLines) != len(goldenLines) {
+			t.Errorf("line count: got %d, golden %d", len(gotLines), len(goldenLines))
+		}
+	}
+}
+
+func TestIntegration_ExamplesSmall_Deterministic(t *testing.T) {
+	bin := buildBinary(t)
+	examples := examplesDir(t)
+	inputDir := filepath.Join(examples, "small")
+
+	run := func() string {
+		t.Helper()
+		outPath := filepath.Join(t.TempDir(), "out.log")
+		_, _, err := runLogmerge(t, bin, "-o", outPath, "-t", inputDir)
+		if err != nil {
+			t.Fatalf("logmerge failed: %v", err)
+		}
+		got, _ := os.ReadFile(outPath)
+		return string(got)
+	}
+
+	out1 := run()
+	out2 := run()
+	if out1 != out2 {
+		t.Error("output is not deterministic across runs")
+	}
+}
+
+func TestIntegration_ExamplesSmall_ChronologicalOrder(t *testing.T) {
+	bin := buildBinary(t)
+	examples := examplesDir(t)
+	inputDir := filepath.Join(examples, "small")
+
+	outPath := filepath.Join(t.TempDir(), "out.log")
+	_, _, err := runLogmerge(t, bin, "-o", outPath, "-t", inputDir)
+	if err != nil {
+		t.Fatalf("logmerge failed: %v", err)
+	}
+
+	got, _ := os.ReadFile(outPath)
+	lines := strings.Split(strings.TrimRight(string(got), "\n"), "\n")
+
+	// Each line starts with a 30-char timestamp; verify non-decreasing order
+	var prev string
+	for i, line := range lines {
+		if len(line) < 30 {
+			t.Errorf("line %d too short: %q", i, line)
+			continue
+		}
+		ts := line[:30]
+		if ts < prev {
+			t.Errorf("line %d: timestamp went backwards:\n  prev: %s\n  curr: %s", i, prev, ts)
+		}
+		prev = ts
+	}
+}
+
+func TestIntegration_ExamplesSmall_NoDataLoss(t *testing.T) {
+	bin := buildBinary(t)
+	examples := examplesDir(t)
+	inputDir := filepath.Join(examples, "small")
+
+	outPath := filepath.Join(t.TempDir(), "out.log")
+	_, _, err := runLogmerge(t, bin, "-o", outPath, inputDir)
+	if err != nil {
+		t.Fatalf("logmerge failed: %v", err)
+	}
+
+	got, _ := os.ReadFile(outPath)
+	output := string(got)
+
+	// Read source files and verify every line appears in output
+	for _, name := range []string{"file1.log", "file2.log"} {
+		src, _ := os.ReadFile(filepath.Join(inputDir, name))
+		for _, line := range strings.Split(strings.TrimRight(string(src), "\n"), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			if !strings.Contains(output, line) {
+				t.Errorf("line from %s not in output: %q", name, line)
+			}
+		}
+	}
+}
+
+func TestIntegration_ExamplesSmall_StripTimestamp(t *testing.T) {
+	bin := buildBinary(t)
+	examples := examplesDir(t)
+	inputDir := filepath.Join(examples, "small")
+
+	outPath := filepath.Join(t.TempDir(), "out.log")
+	_, _, err := runLogmerge(t, bin, "-o", outPath, "-s", inputDir)
+	if err != nil {
+		t.Fatalf("logmerge failed: %v", err)
+	}
+
+	got, _ := os.ReadFile(outPath)
+	lines := strings.Split(strings.TrimRight(string(got), "\n"), "\n")
+
+	for i, line := range lines {
+		if strings.Contains(line, "2025-01-01") {
+			t.Errorf("line %d: original timestamp not stripped: %q", i, line)
+		}
+	}
+
+	// Content must be preserved
+	output := string(got)
+	for _, want := range []string{"Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("missing content %q after stripping", want)
+		}
+	}
+}
+
+func TestIntegration_ExamplesSmall_StripWithTimestamp(t *testing.T) {
+	bin := buildBinary(t)
+	examples := examplesDir(t)
+	inputDir := filepath.Join(examples, "small")
+
+	outPath := filepath.Join(t.TempDir(), "out.log")
+	_, _, err := runLogmerge(t, bin, "-o", outPath, "-s", "-t", inputDir)
+	if err != nil {
+		t.Fatalf("logmerge failed: %v", err)
+	}
+
+	got, _ := os.ReadFile(outPath)
+	lines := strings.Split(strings.TrimRight(string(got), "\n"), "\n")
+
+	for i, line := range lines {
+		if len(line) < 30 {
+			t.Errorf("line %d too short for unified timestamp: %q", i, line)
+			continue
+		}
+		// After the 30-char unified timestamp, original should be stripped
+		rest := line[30:]
+		if strings.Contains(rest, "2025-01-01") {
+			t.Errorf("line %d: original timestamp not stripped from rest: %q", i, line)
+		}
+	}
+}
+
+func TestIntegration_ExamplesLarger_RunsSuccessfully(t *testing.T) {
+	bin := buildBinary(t)
+	examples := examplesDir(t)
+
+	for _, dirName := range []string{"application_1773399255368_0037", "application_1766646997565_0051"} {
+		inputDir := filepath.Join(examples, dirName)
+		if _, err := os.Stat(inputDir); os.IsNotExist(err) {
+			continue
+		}
+
+		t.Run(dirName, func(t *testing.T) {
+			outPath := filepath.Join(t.TempDir(), "out.log")
+			_, stderr, err := runLogmerge(t, bin,
+				"-o", outPath,
+				"-t",
+				"--ignore-archives",
+				inputDir)
+			if err != nil {
+				t.Fatalf("logmerge failed: %v\nstderr: %s", err, stderr)
+			}
+
+			got, _ := os.ReadFile(outPath)
+			lines := strings.Split(strings.TrimRight(string(got), "\n"), "\n")
+			if len(lines) < 10 {
+				t.Fatalf("expected substantial output, got %d lines", len(lines))
+			}
+
+			// Count lines with valid timestamps — most should have one
+			withTS := 0
+			for _, line := range lines {
+				if len(line) >= 19 && line[4] == '-' && line[10] == ' ' {
+					withTS++
+				}
+			}
+			ratio := float64(withTS) / float64(len(lines))
+			if ratio < 0.5 {
+				t.Errorf("only %.0f%% of %d lines have timestamps (expected >50%%)", ratio*100, len(lines))
+			}
+		})
+	}
+}
+
+func TestIntegration_ExamplesLarger_WithStrip(t *testing.T) {
+	bin := buildBinary(t)
+	examples := examplesDir(t)
+
+	inputDir := filepath.Join(examples, "application_1773399255368_0037")
+	if _, err := os.Stat(inputDir); os.IsNotExist(err) {
+		t.Skip("example directory not present")
+	}
+
+	outPath := filepath.Join(t.TempDir(), "out.log")
+	_, stderr, err := runLogmerge(t, bin,
+		"-o", outPath,
+		"-t", "-s",
+		"--ignore-archives",
+		inputDir)
+	if err != nil {
+		t.Fatalf("logmerge failed: %v\nstderr: %s", err, stderr)
+	}
+
+	got, _ := os.ReadFile(outPath)
+	lines := strings.Split(strings.TrimRight(string(got), "\n"), "\n")
+	if len(lines) < 10 {
+		t.Fatalf("expected substantial output, got %d lines", len(lines))
+	}
+}

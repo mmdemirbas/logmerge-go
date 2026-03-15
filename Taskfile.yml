@@ -68,22 +68,17 @@ tasks:
         cmd:
           GOOS={{.ITEM.os}} GOARCH={{.ITEM.arch}} go build -pgo={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -ldflags="-s -w" -o {{.DIST_DIR}}/{{.BINARY_NAME}}-pgo-{{.ITEM.os}}-{{.ITEM.arch}}{{if eq .ITEM.os "windows"}}.exe{{end}} ./cmd/logmerge
 
-  test-unit:
-    desc: "Run unit tests"
-    cmds:
-      - go test -v -count=1 -run 'Test[^I]' ./...
-
-  test-integration:
-    desc: "Run integration tests"
-    cmds:
-      - go test -v -count=1 -run TestIntegration ./...
-
   test:
     desc: "Run all tests"
     cmds:
-      - go test -v -count=1 ./...
+      - go test -count=1 ./...
 
-  benchmark:
+  test:v:
+    desc: "Run all tests with verbose output"
+    cmds:
+      - go test -v count=1 ./...
+
+  bench:
     desc: "Run benchmark tests and capture CPU and memory profiles"
     cmds:
       - mkdir -p {{.OUT_DIR}}

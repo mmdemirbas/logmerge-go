@@ -287,9 +287,15 @@ func writeLine(c *MergeConfig, m *metrics.MergeMetrics, ws *writeState, writer *
 		// Write prefix bytes before the timestamp section
 		var lastPrefixByte byte
 		if file.LineTimestampStart > 0 {
-			var prefixBuf [16]byte
 			prefixLen := file.LineTimestampStart
-			prefix := file.Buffer.PeekSlice(prefixBuf[:prefixLen:prefixLen])
+			var prefixBuf [16]byte
+			var prefixSlice []byte
+			if prefixLen <= 16 {
+				prefixSlice = prefixBuf[:prefixLen:prefixLen]
+			} else {
+				prefixSlice = make([]byte, prefixLen)
+			}
+			prefix := file.Buffer.PeekSlice(prefixSlice)
 			lastPrefixByte = prefix[len(prefix)-1]
 			n, err := writer.Write(prefix)
 			if err != nil {
