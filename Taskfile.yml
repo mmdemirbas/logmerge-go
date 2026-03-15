@@ -88,7 +88,7 @@ tasks:
     cmds:
       - mkdir -p {{.OUT_DIR}}
       - go test -bench=. -benchmem ./internal/core/ -run=^$ -benchtime=5s -cpuprofile={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -memprofile={{.OUT_DIR}}/{{.MEM_PROF_FILE}} -trace={{.OUT_DIR}}/{{.TRACE_FILE}}
-      - mv logmerge.test {{.OUT_DIR}}/logmerge.test || true
+      - mv core.test {{.OUT_DIR}}/core.test || true
 
   profile:
     desc: "Run benchmark and immediately open CPU flame graph"
