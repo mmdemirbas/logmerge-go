@@ -488,7 +488,7 @@ func TestParseTimestamp_EndToEnd_SmallBuffer(t *testing.T) {
 	}
 }
 
-func TestParseTimestampWithEnd_Stripping(t *testing.T) {
+func TestParseTimestampForStrip_Stripping(t *testing.T) {
 	c := &ParseTimestampConfig{
 		ShortestTimestampLen:    15,
 		TimestampSearchEndIndex: 250,
@@ -541,7 +541,7 @@ func TestParseTimestampWithEnd_Stripping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ts, tsStart, tsEnd := ParseTimestampWithEnd(c, []byte(tt.input))
+			ts, tsStart, tsEnd := ParseTimestampForStrip(c, []byte(tt.input))
 			if ts == ZeroTimestamp {
 				t.Fatalf("expected valid timestamp for %q", tt.input)
 			}
@@ -616,7 +616,7 @@ func TestParseTimestamp_CtimeFormat(t *testing.T) {
 	}
 }
 
-func TestParseTimestampWithEnd_CtimeStripping(t *testing.T) {
+func TestParseTimestampForStrip_CtimeStripping(t *testing.T) {
 	c := &ParseTimestampConfig{
 		ShortestTimestampLen:    15,
 		TimestampSearchEndIndex: 250,
@@ -648,7 +648,7 @@ func TestParseTimestampWithEnd_CtimeStripping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, tsStart, tsEnd := ParseTimestampWithEnd(c, []byte(tt.input))
+			_, tsStart, tsEnd := ParseTimestampForStrip(c, []byte(tt.input))
 			testutil.AssertEquals(t, tt.tsStart, tsStart)
 			testutil.AssertEquals(t, tt.tsEnd, tsEnd)
 			testutil.AssertEquals(t, tt.remaining, tt.input[tsEnd:])

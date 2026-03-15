@@ -370,7 +370,7 @@ func Run() error {
 		writer,
 		logFile,
 		func(file *fsutil.FileHandle) error {
-			return core.UpdateTimestamp(config.ParseTimestampConfig, file)
+			return core.UpdateTimestamp(config.ParseTimestampConfig, file, config.MergeConfig.StripOriginalTimestamp)
 		},
 	)
 

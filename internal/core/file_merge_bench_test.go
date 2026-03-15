@@ -85,7 +85,7 @@ func BenchmarkProcessFiles_Saturation(b *testing.B) {
 			writer,
 			&fsutil.WritableFile{File: os.Stderr},
 			func(f *fsutil.FileHandle) error {
-				return core.UpdateTimestamp(tsConfig, f)
+				return core.UpdateTimestamp(tsConfig, f, false)
 			},
 		)
 		if err != nil {

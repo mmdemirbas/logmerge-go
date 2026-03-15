@@ -38,8 +38,10 @@ var tsConfig = &logtime.ParseTimestampConfig{
 	TimestampSearchEndIndex: 250,
 }
 
+var stripEnabled bool
+
 func updateTS(f *fsutil.FileHandle) error {
-	return UpdateTimestamp(tsConfig, f)
+	return UpdateTimestamp(tsConfig, f, stripEnabled)
 }
 
 func runMerge(t *testing.T, c *MergeConfig, files []*fsutil.FileHandle) string {
@@ -48,6 +50,8 @@ func runMerge(t *testing.T, c *MergeConfig, files []*fsutil.FileHandle) string {
 	writer := bufio.NewWriter(&buf)
 	m := metrics.NewMergeMetrics()
 	logFile := &fsutil.WritableFile{File: os.NewFile(0, os.DevNull)}
+	stripEnabled = c.StripOriginalTimestamp
+	defer func() { stripEnabled = false }()
 
 	err := ProcessFiles(c, m, files, writer, logFile, updateTS)
 	if err != nil {

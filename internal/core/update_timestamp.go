@@ -9,7 +9,9 @@ import (
 
 // UpdateTimestamp reads the next line's prefix from file's buffer and parses
 // a timestamp, setting file.LineTimestamp and file.LineTimestampParsed.
-func UpdateTimestamp(c *logtime.ParseTimestampConfig, file *fsutil.FileHandle) error {
+// When computeStripPositions is true, it also computes the prefix/trailing
+// delimiter boundaries for timestamp stripping.
+func UpdateTimestamp(c *logtime.ParseTimestampConfig, file *fsutil.FileHandle, computeStripPositions bool) error {
 	bufLen := file.Buffer.Len()
 	if bufLen < c.TimestampSearchEndIndex {
 		startTime := file.Metrics.Start("FillBuffer")
@@ -38,10 +40,18 @@ func UpdateTimestamp(c *logtime.ParseTimestampConfig, file *fsutil.FileHandle) e
 	buf := file.Buffer.PeekSlice(peekBuf[:])
 	file.Metrics.Stop(startTime)
 
-	timestamp, tsStart, tsEnd := logtime.ParseTimestampWithEnd(c, buf)
+	var timestamp logtime.Timestamp
+	if computeStripPositions {
+		var tsStart, tsEnd int
+		timestamp, tsStart, tsEnd = logtime.ParseTimestampForStrip(c, buf)
+		file.LineTimestampStart = tsStart
+		file.LineTimestampEnd = tsEnd
+	} else {
+		var tsEnd int
+		timestamp, tsEnd = logtime.ParseTimestampWithEnd(c, buf)
+		file.LineTimestampEnd = tsEnd
+	}
 	file.LineTimestampParsed = true
 	file.LineTimestamp = timestamp
-	file.LineTimestampStart = tsStart
-	file.LineTimestampEnd = tsEnd
 	return nil
 }
