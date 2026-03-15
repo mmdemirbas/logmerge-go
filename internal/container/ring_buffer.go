@@ -6,19 +6,24 @@ import (
 )
 
 // indexCRorLF finds the first '\r' or '\n' in buf, returning its index or -1.
-// Optimized to avoid bytes.IndexAny's per-call ASCII bitset construction.
-// Searches for '\n' first (SIMD-accelerated, stops early since '\n' is common),
-// then only scans the short prefix before it for '\r'.
+// Searches for '\n' first (SIMD-accelerated), then checks for a preceding '\r'
+// (CRLF) before falling back to scanning the prefix for standalone '\r'.
 func indexCRorLF(buf []byte) int {
 	lf := bytes2.IndexByte(buf, '\n')
-	// Only scan for '\r' in the portion before the '\n' (or the full buffer if no '\n')
-	searchLen := lf
 	if lf == -1 {
-		searchLen = len(buf)
+		// No LF found — scan for standalone CR
+		return bytes2.IndexByte(buf, '\r')
 	}
-	cr := bytes2.IndexByte(buf[:searchLen], '\r')
-	if cr != -1 {
-		return cr
+	// Fast check: is there a CR immediately before the LF? (CRLF case)
+	if lf > 0 && buf[lf-1] == '\r' {
+		return lf - 1
+	}
+	// Rare: scan for standalone CR before the LF position
+	if lf > 1 {
+		cr := bytes2.IndexByte(buf[:lf-1], '\r')
+		if cr != -1 {
+			return cr
+		}
 	}
 	return lf
 }

@@ -160,10 +160,15 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 		return ZeroTimestamp, n
 	}
 
-	for j := i + c.ShortestTimestampLen - 1; j >= i; j-- {
-		b := buffer[j]
-		if b == '\n' || b == '\r' {
-			return ZeroTimestamp, j + 1
+	// Check for newlines within the timestamp window. When i == 0
+	// (timestamp at line start), the buffer begins at the current line
+	// boundary so no newline can precede the timestamp — skip the scan.
+	if i > 0 {
+		for j := i + c.ShortestTimestampLen - 1; j >= i; j-- {
+			b := buffer[j]
+			if b == '\n' || b == '\r' {
+				return ZeroTimestamp, j + 1
+			}
 		}
 	}
 
