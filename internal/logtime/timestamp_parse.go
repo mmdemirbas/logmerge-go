@@ -150,6 +150,83 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 		return ZeroTimestamp, n
 	}
 
+	// Fast path: common YYYY-MM-DD HH:MM:SS format starting at position i.
+	// Checks the separator pattern first (cheap), then parses digits inline
+	// without individual parseMax2Digits/parseDigits calls.
+	if n >= i+19 &&
+		buffer[i+4] == '-' && buffer[i+7] == '-' &&
+		(buffer[i+10] == ' ' || buffer[i+10] == 'T' || buffer[i+10] == '_') &&
+		buffer[i+13] == ':' && buffer[i+16] == ':' {
+
+		year := int(buffer[i]-'0')*1000 + int(buffer[i+1]-'0')*100 + int(buffer[i+2]-'0')*10 + int(buffer[i+3]-'0')
+		month := int(buffer[i+5]-'0')*10 + int(buffer[i+6]-'0')
+		day := int(buffer[i+8]-'0')*10 + int(buffer[i+9]-'0')
+		hour := int(buffer[i+11]-'0')*10 + int(buffer[i+12]-'0')
+		minute := int(buffer[i+14]-'0')*10 + int(buffer[i+15]-'0')
+		second := int(buffer[i+17]-'0')*10 + int(buffer[i+18]-'0')
+
+		if year >= 1969 && year <= 2050 &&
+			month >= 1 && month <= 12 && day >= 1 && day <= 31 &&
+			hour <= 23 && minute <= 59 && second <= 59 {
+
+			j := i + 19
+			var nsec int
+			if j < n && (buffer[j] == '.' || buffer[j] == ',') {
+				j++
+				// Inline fractional seconds: parse up to 9 digits without function call
+				ncount := 0
+				for ncount < 9 && j < n {
+					d := buffer[j] - '0'
+					if d > 9 {
+						break
+					}
+					nsec = nsec*10 + int(d)
+					ncount++
+					j++
+				}
+				for ncount < 9 {
+					nsec *= 10
+					ncount++
+				}
+			} else {
+				nsec, j = parseSpaceSeparatedMillis(buffer, n, j)
+			}
+
+			// Inline timezone: avoid parseTimezone function call overhead
+			var tzSign, tzHour, tzMin int
+			if !c.IgnoreTimezoneInfo && j < n {
+				switch buffer[j] {
+				case 'Z':
+					j++
+				case '+', '-':
+					tzSign = int(',') - int(buffer[j])
+					j++
+					if j+2 <= n {
+						h1, h2 := buffer[j]-'0', buffer[j+1]-'0'
+						if h1 <= 9 && h2 <= 9 {
+							tzHour = int(h1)*10 + int(h2)
+							j += 2
+							if j < n && buffer[j] == ':' {
+								j++
+							}
+							if j+2 <= n {
+								m1, m2 := buffer[j]-'0', buffer[j+1]-'0'
+								if m1 <= 9 && m2 <= 9 {
+									tzMin = int(m1)*10 + int(m2)
+									j += 2
+								}
+							}
+						}
+					}
+				default:
+					j++ // consume non-timezone byte (matches parseTimezone behavior)
+				}
+			}
+
+			return NewTimestamp(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin), j
+		}
+	}
+
 	var hitNewline bool
 	i, hitNewline = skipToFirstDigit(buffer, n, i)
 	if hitNewline {

@@ -68,12 +68,19 @@ func (r *RingBuffer) IsEmpty() bool {
 
 // IsFull returns true if the buffer is full.
 func (r *RingBuffer) IsFull() bool {
-	return (r.writeIndex+1)%r.cap == r.readIndex
+	next := r.writeIndex + 1
+	if next >= r.cap {
+		next = 0
+	}
+	return next == r.readIndex
 }
 
 // Len returns the number of bytes in the buffer.
+// Uses a conditional add instead of modulo to avoid integer division.
 func (r *RingBuffer) Len() int {
-	return (r.writeIndex - r.readIndex + r.cap) % r.cap
+	diff := r.writeIndex - r.readIndex
+	// Branchless: add cap when diff is negative (writeIndex wrapped past readIndex)
+	return diff + (diff>>63)&r.cap
 }
 
 // Peek returns the byte at the given index starting from the read position without advancing the read/write positions.
