@@ -24,10 +24,16 @@ func ParseTimestamp(c *ParseTimestampConfig, buffer []byte) Timestamp {
 func ParseTimestampWithEnd(c *ParseTimestampConfig, buffer []byte) (Timestamp, int) {
 	n := min(len(buffer), c.TimestampSearchEndIndex)
 
-	// Find the first newline — the end offset is only meaningful within the
-	// first line. If the parser finds a timestamp past a newline, that
-	// timestamp belongs to a later line and should not cause stripping of
-	// the current line.
+	// Fast path: try parsing from position 0. If tryParseTimestamp succeeds,
+	// the timestamp is guaranteed to be on the first line because
+	// skipToFirstDigit (called internally) bails on newlines.
+	timestamp, end := tryParseTimestamp(c, buffer, 0, n)
+	if timestamp != ZeroTimestamp {
+		return timestamp, end
+	}
+
+	// Slow path: first attempt failed. Continue scanning, but track the
+	// first newline to avoid returning timestamps from subsequent lines.
 	firstNewline := n
 	for j := 0; j < n; j++ {
 		if buffer[j] == '\n' || buffer[j] == '\r' {
@@ -36,21 +42,16 @@ func ParseTimestampWithEnd(c *ParseTimestampConfig, buffer []byte) (Timestamp, i
 		}
 	}
 
-	var timestamp Timestamp
-	var end int
-	for i := 0; timestamp == ZeroTimestamp && i < n; {
+	for i := end; timestamp == ZeroTimestamp && i < n; {
 		timestamp, i = tryParseTimestamp(c, buffer, i, n)
 		end = i
 	}
 	if end > firstNewline {
-		// Timestamp found past the first newline belongs to a later line.
 		if timestamp != ZeroTimestamp {
 			timestamp = ZeroTimestamp
 		}
-		// Try ctime format within the current line
 		timestamp, _, end = tryParseCtimeTimestamp(c, buffer, firstNewline)
 	} else if timestamp == ZeroTimestamp {
-		// No numeric timestamp found at all — try ctime within the current line
 		timestamp, _, end = tryParseCtimeTimestamp(c, buffer, firstNewline)
 	}
 	if timestamp == ZeroTimestamp {
@@ -65,6 +66,15 @@ func ParseTimestampWithEnd(c *ParseTimestampConfig, buffer []byte) (Timestamp, i
 func ParseTimestampForStrip(c *ParseTimestampConfig, buffer []byte) (Timestamp, int, int) {
 	n := min(len(buffer), c.TimestampSearchEndIndex)
 
+	// Fast path: try parsing from position 0.
+	timestamp, end := tryParseTimestamp(c, buffer, 0, n)
+	if timestamp != ZeroTimestamp {
+		tsStart, _ := skipToFirstDigit(buffer, n, 0)
+		prefixStart, tsEnd := computeStripBounds(buffer, n, n, tsStart, end)
+		return timestamp, prefixStart, tsEnd
+	}
+
+	// Slow path: continue scanning with newline tracking.
 	firstNewline := n
 	for j := 0; j < n; j++ {
 		if buffer[j] == '\n' || buffer[j] == '\r' {
@@ -73,10 +83,8 @@ func ParseTimestampForStrip(c *ParseTimestampConfig, buffer []byte) (Timestamp, 
 		}
 	}
 
-	var timestamp Timestamp
-	var end int
 	var lastI int
-	for i := 0; timestamp == ZeroTimestamp && i < n; {
+	for i := end; timestamp == ZeroTimestamp && i < n; {
 		lastI = i
 		timestamp, i = tryParseTimestamp(c, buffer, i, n)
 		end = i
@@ -97,9 +105,12 @@ func ParseTimestampForStrip(c *ParseTimestampConfig, buffer []byte) (Timestamp, 
 	if timestamp == ZeroTimestamp {
 		return timestamp, 0, 0
 	}
+	prefixStart, tsEnd := computeStripBounds(buffer, n, firstNewline, tsStart, end)
+	return timestamp, prefixStart, tsEnd
+}
 
+func computeStripBounds(buffer []byte, n int, firstNewline int, tsStart int, end int) (int, int) {
 	// Strip trailing delimiters after the timestamp (up to 3 chars).
-	// Only closers and separators — not openers like '[' or '(' which start new sections.
 	tsEnd := end
 	for scanned := 0; tsEnd < n && tsEnd <= firstNewline && scanned < 3; scanned++ {
 		b := buffer[tsEnd]
@@ -112,7 +123,7 @@ func ParseTimestampForStrip(c *ParseTimestampConfig, buffer []byte) (Timestamp, 
 	}
 doneTrailing:
 
-	// Look backward from tsStart for opening brackets (up to 3 chars)
+	// Look backward from tsStart for opening brackets (up to 3 chars).
 	prefixStart := tsStart
 	for back := 0; prefixStart > 0 && back < 3; back++ {
 		b := buffer[prefixStart-1]
@@ -124,15 +135,14 @@ doneTrailing:
 		}
 	}
 donePrefix:
-	// Only strip prefix brackets if we reached start-of-line or a space/tab boundary
 	if prefixStart > 0 {
 		b := buffer[prefixStart-1]
 		if b != ' ' && b != '\t' {
-			prefixStart = tsStart // revert: no valid boundary found
+			prefixStart = tsStart
 		}
 	}
 
-	return timestamp, prefixStart, tsEnd
+	return prefixStart, tsEnd
 }
 
 func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Timestamp, int) {
