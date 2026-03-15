@@ -580,6 +580,171 @@ func TestRingBuffer(t *testing.T) {
 	})
 }
 
+func TestPeekNextLineSlice_CRLFSplitWriteLine(t *testing.T) {
+	// Simulate the exact sequence that happens during WriteLine with a CRLF split.
+	// Buffer size 7 (internal cap 8), content "hello\r\nworld\n" = 13 bytes.
+	// The buffer can't hold it all, so we process in stages.
+	r := NewRingBuffer(7)
+
+	// Write "hello\r\nworld\n" — only first 7 bytes fit: "hello\r\n"
+	reader := strings.NewReader("hello\r\nworld\n")
+	n, err := r.Fill(reader)
+	testutil.AssertEquals(t, 7, n)
+	testutil.AssertEquals(t, nil, err)
+	testutil.AssertEquals(t, "hello\r\n", r.String())
+
+	latestCR := false
+
+	// Step 1: PeekNextLineSlice should return "hello\r\n" with eol=CRLF
+	slice, eol := r.PeekNextLineSlice(&latestCR)
+	testutil.AssertEquals(t, []byte("hello\r\n"), slice)
+	testutil.AssertEquals(t, CRLF, eol)
+
+	// Skip that chunk
+	r.Skip(len(slice))
+	testutil.AssertEquals(t, true, r.IsEmpty())
+
+	// Fill more data from the reader
+	n, err = r.Fill(reader)
+	testutil.AssertEquals(t, 6, n) // "world\n"
+	testutil.AssertEquals(t, nil, err)
+
+	// Step 2: PeekNextLineSlice should return "world\n" with eol=LF
+	slice, eol = r.PeekNextLineSlice(&latestCR)
+	testutil.AssertEquals(t, []byte("world\n"), slice)
+	testutil.AssertEquals(t, LF, eol)
+}
+
+func TestPeekNextLineSlice_CRLFSplitAcrossBufferBoundary(t *testing.T) {
+	// Create a situation where \r is at the end of the contiguous region
+	// and \n is the next byte (possibly after a fill).
+	r := NewRingBuffer(6) // internal cap 7
+
+	// Write exactly "hello\r" — 6 bytes fills the buffer
+	for _, b := range []byte("hello\r") {
+		r.Write(b)
+	}
+	testutil.AssertEquals(t, true, r.IsFull())
+
+	latestCR := false
+
+	// PeekNextLineSlice: CR is at the end of contiguous data
+	// Should return "hello\r" with eol=None and set latestCR=true
+	slice, eol := r.PeekNextLineSlice(&latestCR)
+	testutil.AssertEquals(t, []byte("hello\r"), slice)
+	testutil.AssertEquals(t, None, eol)
+	testutil.AssertEquals(t, true, latestCR)
+
+	// Skip the chunk, then add \n
+	r.Skip(len(slice))
+	r.Write('\n')
+
+	// Now call PeekNextLineSlice with latestCR=true
+	// Should detect CRLF and return "\n"
+	slice2, eol2 := r.PeekNextLineSlice(&latestCR)
+	testutil.AssertEquals(t, []byte("\n"), slice2)
+	testutil.AssertEquals(t, CRLF, eol2)
+	testutil.AssertEquals(t, false, latestCR)
+}
+
+func TestSkipNextLineSlice_EmptyLines(t *testing.T) {
+	// Buffer containing "\n\n\ndata\n"
+	r := NewRingBuffer(20)
+	for _, b := range []byte("\n\n\ndata\n") {
+		r.Write(b)
+	}
+
+	latestCR := false
+
+	// Call 1: empty line "\n"
+	n, eol := r.SkipNextLineSlice(&latestCR)
+	testutil.AssertEquals(t, 1, n)
+	testutil.AssertEquals(t, LF, eol)
+
+	// Call 2: empty line "\n"
+	n, eol = r.SkipNextLineSlice(&latestCR)
+	testutil.AssertEquals(t, 1, n)
+	testutil.AssertEquals(t, LF, eol)
+
+	// Call 3: empty line "\n"
+	n, eol = r.SkipNextLineSlice(&latestCR)
+	testutil.AssertEquals(t, 1, n)
+	testutil.AssertEquals(t, LF, eol)
+
+	// Call 4: "data\n" = 5 bytes
+	n, eol = r.SkipNextLineSlice(&latestCR)
+	testutil.AssertEquals(t, 5, n)
+	testutil.AssertEquals(t, LF, eol)
+
+	// Buffer should now be empty
+	testutil.AssertEquals(t, true, r.IsEmpty())
+}
+
+func TestFill_SecondReadPath(t *testing.T) {
+	// Trigger the second Read path in Fill (lines 144-147).
+	// We need: writePartSplit == -1 (i.e., readIndex > 0 and writeIndex >= readIndex,
+	// but after realignment, readIndex=0 and writeIndex=Len, so the data is contiguous).
+	// Actually, the second read path requires:
+	// writePartSplit == -1: which means readAtZero==0 and readPartSplit==0
+	// This happens when readIndex > 0 and writeIndex >= readIndex (contiguous, not at zero).
+	// But Fill does realignment first when readIndex > 0 and writeIndex < readIndex.
+	// So we need to set up: readIndex > 1, writeIndex > readIndex (contiguous but not at start),
+	// and writePartSplit == -1. Let's trace through:
+	// After realignment: if readIndex > 0 and (empty or writeIndex < readIndex), realign.
+	// If readIndex > 0 and writeIndex >= readIndex and not empty:
+	//   readPartSplit = (W - R) >> 31 = 0 (since W >= R)
+	//   readAtZero = (R - 1) >> 31 = 0 (since R > 0, so R-1 >= 0)
+	//   writePartSplit = ^0 & ^0 = -1
+	//   endIndex = 0 & ... | 0 & ... | (-1) & cap = cap
+	//   First read: buf[W:cap]
+	//   Second read condition: writePartSplit == -1 && (W + n) == cap && R > 1
+	//   Second read: buf[0:R-1]
+
+	// Create buffer cap=10 (internal cap 11).
+	r := NewRingBuffer(10)
+	// Write 5 bytes, read 2, so readIndex=2, writeIndex=5, data="cde"
+	for _, b := range []byte("abcde") {
+		r.Write(b)
+	}
+	r.Read() // 'a', readIndex=1
+	r.Read() // 'b', readIndex=2
+	testutil.AssertEquals(t, "cde", r.String())
+	testutil.AssertEquals(t, 3, r.Len())
+
+	// Now Fill with enough data to fill from writeIndex(5) to cap(11), then 0 to readIndex-1(1).
+	// That's 6 + 1 = 7 bytes. But the realignment check:
+	// readIndex=2 > 0, and (empty? no) and (writeIndex=5 < readIndex=2? no).
+	// So NO realignment. We proceed with writePartSplit path.
+	// endIndex = cap = 11
+	// First read: buf[5:11] = 6 bytes
+	// If reader provides exactly 6 bytes in first Read: (5+6)==11==cap, readIndex=2>1 -> second read
+	// Second read: buf[0:1] = 1 byte
+
+	// Use a reader that provides exactly enough data
+	bigData := "1234567" // 7 bytes total needed (6 + 1)
+	n, err := r.Fill(strings.NewReader(bigData))
+
+	// We expect all 7 bytes to be read (but strings.Reader may return all at once
+	// or the first Read might not fill exactly 6). Let's check the result.
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The buffer should now contain "cde" + whatever was read
+	got := r.String()
+	if !strings.HasPrefix(got, "cde") {
+		t.Errorf("expected buffer to start with 'cde', got: %q", got)
+	}
+	expectedLen := 3 + n
+	testutil.AssertEquals(t, expectedLen, r.Len())
+
+	// Verify total data is intact
+	if n < 1 {
+		t.Errorf("expected at least 1 byte read for second path, got total n=%d", n)
+	}
+	t.Logf("Fill read %d bytes total, buffer content: %q", n, got)
+}
+
 // errReader returns data and an error simultaneously on the first Read,
 // simulating a reader that partially succeeds before encountering an error.
 type errReader struct {

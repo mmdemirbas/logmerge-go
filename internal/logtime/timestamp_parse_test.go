@@ -287,6 +287,85 @@ func TestParseTimestamp_MultipleTimestampsInLine(t *testing.T) {
 	}
 }
 
+func TestParseTimestamp_RepeatedParsingInLine(t *testing.T) {
+	// "port 8080" has "8080" which looks like a year candidate but is > 2050.
+	// The parser should skip past it and find the real timestamp.
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	input := "port 8080 at 2024-01-15 10:30:00 done"
+	ts := ParseTimestamp(c, []byte(input))
+	testutil.AssertNotEquals(t, ZeroTimestamp, ts)
+	testutil.AssertEquals(t, "2024-01-15 10:30:00.000000000 ", ts.String())
+}
+
+func TestParseTimestamp_TimestampWithMicroseconds(t *testing.T) {
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+		nsec     int
+	}{
+		{
+			name:     "microsecond precision",
+			input:    "2024-01-15 10:30:00.123456",
+			expected: "2024-01-15 10:30:00.123456000 ",
+			nsec:     123456000,
+		},
+		{
+			name:     "single fractional digit",
+			input:    "2024-01-15 10:30:00.1",
+			expected: "2024-01-15 10:30:00.100000000 ",
+			nsec:     100000000,
+		},
+		{
+			name:     "six fractional digits with leading zeros",
+			input:    "2024-01-15 10:30:00.000001",
+			expected: "2024-01-15 10:30:00.000001000 ",
+			nsec:     1000,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := ParseTimestamp(c, []byte(tt.input))
+			testutil.AssertNotEquals(t, ZeroTimestamp, ts)
+			testutil.AssertEquals(t, tt.expected, ts.String())
+		})
+	}
+}
+
+func TestParseTimestamp_AdjacentTimestamps(t *testing.T) {
+	// Two timestamps back-to-back with no separator.
+	// The parser should find the first timestamp (10:30:00).
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	input := "2024-01-15 10:30:002024-01-15 11:00:00"
+	ts := ParseTimestamp(c, []byte(input))
+	testutil.AssertNotEquals(t, ZeroTimestamp, ts)
+
+	// The first timestamp should be parsed. The "2024" after "00" would be
+	// consumed as fractional seconds or ignored.
+	got := ts.String()
+	// The parser sees "00" then "2024" — after parsing seconds "00", it checks
+	// for '.' or ',' for fractional seconds. The next char is '2' which is neither,
+	// so no fractional seconds. Then it checks for timezone. '2' is not Z/+/-.
+	// So the timestamp should be 10:30:00 with no fractional part.
+	if !strings.HasPrefix(got, "2024-01-15 10:30:00") {
+		t.Errorf("expected first timestamp 10:30:00, got: %s", got)
+	}
+}
+
 func TestParseTimestamp_YearOutOfRange(t *testing.T) {
 	c := &ParseTimestampConfig{
 		ShortestTimestampLen:    15,

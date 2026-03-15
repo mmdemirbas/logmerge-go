@@ -7,10 +7,6 @@ import (
 	"github.com/mmdemirbas/logmerge/internal/logtime"
 )
 
-// peekBuf is reused across UpdateTimestamp calls to avoid per-call allocation
-// when the ring buffer is wrapped and PeekSlice needs a contiguous copy.
-var peekBuf [250]byte
-
 // UpdateTimestamp reads the next line's prefix from file's buffer and parses
 // a timestamp, setting file.LineTimestamp and file.LineTimestampParsed.
 func UpdateTimestamp(c *logtime.ParseTimestampConfig, file *fsutil.FileHandle) error {
@@ -35,7 +31,10 @@ func UpdateTimestamp(c *logtime.ParseTimestampConfig, file *fsutil.FileHandle) e
 	// Use PeekSlice to get a contiguous view of the buffer data.
 	// PeekNextLineSlice only returns the first contiguous segment, which
 	// can miss the timestamp when the line spans the ring buffer wrap boundary.
+	// Stack-allocated array avoids heap allocation; 250 bytes covers all
+	// real-world timestamp formats (timestamps are at the start of lines).
 	startTime := file.Metrics.Start("BufferAsSlice")
+	var peekBuf [250]byte
 	buf := file.Buffer.PeekSlice(peekBuf[:])
 	file.Metrics.Stop(startTime)
 

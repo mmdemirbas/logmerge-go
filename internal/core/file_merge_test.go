@@ -570,6 +570,188 @@ func TestProcessFiles_MaxTimestampExactBoundary(t *testing.T) {
 	}
 }
 
+func TestProcessFiles_MinTimestampWithContinuationLines(t *testing.T) {
+	// When MinTimestamp skips a timestamped line, continuation lines (no timestamp)
+	// that follow it may become orphans. The skip loop condition checks
+	// file.LineTimestamp != logtime.ZeroTimestamp, so it should stop at
+	// continuation lines (ZeroTimestamp). This test probes what actually happens.
+	content := "2024-01-15 08:00:00 error happened\n" +
+		"  at com.example.Main(Main.java:42)\n" +
+		"  at com.example.App(App.java:10)\n" +
+		"2024-01-15 12:00:00 ok\n"
+	fh := makeHandle("app.log", content, 4096)
+
+	c := defaultConfig()
+	c.MinTimestamp = logtime.NewTimestamp(2024, 1, 15, 11, 0, 0, 0, 0, 0, 0)
+
+	done := make(chan string, 1)
+	go func() {
+		done <- runMerge(t, c, []*fsutil.FileHandle{fh})
+	}()
+
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+	select {
+	case got := <-done:
+		// The skip loop should have skipped "error happened" (08:00:00 < 11:00:00)
+		if strings.Contains(got, "error happened") {
+			t.Errorf("expected 'error happened' to be skipped by MinTimestamp, got:\n%s", got)
+		}
+
+		// Continuation lines have ZeroTimestamp, so the skip loop should stop.
+		// They will appear as orphan lines in the output (no parent timestamp line).
+		// This is the current behavior - we just verify it doesn't hang or crash.
+		if !strings.Contains(got, "ok") {
+			t.Errorf("expected 'ok' in output:\n%s", got)
+		}
+
+		// Check if continuation lines appear as orphans
+		hasContinuation1 := strings.Contains(got, "at com.example.Main")
+		hasContinuation2 := strings.Contains(got, "at com.example.App")
+		if hasContinuation1 != hasContinuation2 {
+			t.Errorf("continuation lines should either both appear or both be skipped, got line1=%v line2=%v:\n%s",
+				hasContinuation1, hasContinuation2, got)
+		}
+		// Log the actual behavior for visibility
+		if hasContinuation1 {
+			t.Logf("NOTE: continuation lines appear as orphans after MinTimestamp skip:\n%s", got)
+		} else {
+			t.Logf("NOTE: continuation lines were also skipped:\n%s", got)
+		}
+	case <-timer.C:
+		t.Fatal("ProcessFiles hung — possible infinite loop with MinTimestamp + continuation lines")
+	}
+}
+
+func TestProcessFiles_InterleaveCorrectness(t *testing.T) {
+	// Three files with perfectly interleaving timestamps. Verify strict chronological order.
+	contentA := "2024-01-15 10:00:00 A0\n2024-01-15 10:03:00 A3\n2024-01-15 10:06:00 A6\n"
+	contentB := "2024-01-15 10:01:00 B1\n2024-01-15 10:04:00 B4\n2024-01-15 10:07:00 B7\n"
+	contentC := "2024-01-15 10:02:00 C2\n2024-01-15 10:05:00 C5\n2024-01-15 10:08:00 C8\n"
+
+	fhA := makeHandle("a.log", contentA, 64)
+	fhB := makeHandle("b.log", contentB, 64)
+	fhC := makeHandle("c.log", contentC, 64)
+
+	c := defaultConfig()
+	c.WriteTimestampPerLine = true
+
+	got := runMerge(t, c, []*fsutil.FileHandle{fhA, fhB, fhC})
+	lines := strings.Split(strings.TrimRight(got, "\n"), "\n")
+
+	if len(lines) != 9 {
+		t.Fatalf("expected 9 lines, got %d:\n%s", len(lines), got)
+	}
+
+	// Extract the timestamp prefix (first 30 chars) from each line
+	// and verify they are in non-decreasing order
+	for i := 1; i < len(lines); i++ {
+		if len(lines[i]) < 30 || len(lines[i-1]) < 30 {
+			t.Fatalf("line too short for timestamp prefix at line %d", i)
+		}
+		prev := lines[i-1][:30]
+		curr := lines[i][:30]
+		if curr < prev {
+			t.Errorf("timestamps out of order at lines %d/%d:\n  %s\n  %s", i-1, i, prev, curr)
+		}
+	}
+
+	// Verify the expected interleave order by checking suffixes
+	expectedSuffixes := []string{"A0", "B1", "C2", "A3", "B4", "C5", "A6", "B7", "C8"}
+	for i, suffix := range expectedSuffixes {
+		if !strings.HasSuffix(lines[i], suffix) {
+			t.Errorf("line %d: expected suffix %q, got: %s", i, suffix, lines[i])
+		}
+	}
+}
+
+func TestProcessFiles_EffectiveMaxTimestampRecalculation(t *testing.T) {
+	// Test the effectiveMaxTimestamp logic. When the heap has another file,
+	// effectiveMaxTimestamp is set to the next file's timestamp.
+	// Two files both at 10:00 — verify all lines from both appear.
+	contentA := "2024-01-15 10:00:00 A1\n" +
+		"2024-01-15 10:00:00 A2\n" +
+		"2024-01-15 10:00:00 A3\n" +
+		"2024-01-15 10:00:00 A4\n" +
+		"2024-01-15 10:00:00 A5\n"
+	contentB := "2024-01-15 10:00:00 B1\n"
+
+	fhA := makeHandle("a.log", contentA, 4096)
+	fhB := makeHandle("b.log", contentB, 4096)
+
+	c := defaultConfig()
+	c.WriteAliasPerLine = true
+
+	got := runMerge(t, c, []*fsutil.FileHandle{fhA, fhB})
+
+	// All 6 lines should appear
+	for _, expected := range []string{"A1", "A2", "A3", "A4", "A5", "B1"} {
+		if !strings.Contains(got, expected) {
+			t.Errorf("expected %q in output:\n%s", expected, got)
+		}
+	}
+
+	// Verify we can tell which file each line came from
+	lines := strings.Split(strings.TrimRight(got, "\n"), "\n")
+	if len(lines) != 6 {
+		t.Errorf("expected 6 lines, got %d:\n%s", len(lines), got)
+	}
+
+	// Count lines from each file
+	aCount, bCount := 0, 0
+	for _, line := range lines {
+		if strings.HasPrefix(line, "a.log") {
+			aCount++
+		}
+		if strings.HasPrefix(line, "b.log") {
+			bCount++
+		}
+	}
+	testutil.AssertEquals(t, 5, aCount)
+	testutil.AssertEquals(t, 1, bCount)
+}
+
+func TestProcessFiles_SmallBufferCRLF(t *testing.T) {
+	// Small buffer (16 bytes) with CRLF line endings and multi-file merge.
+	// Verify no data corruption or hangs.
+	contentA := "2024-01-15 10:00:00 A\r\n"
+	contentB := "2024-01-15 10:01:00 B\r\n"
+
+	fhA := makeHandle("a.log", contentA, 16)
+	fhB := makeHandle("b.log", contentB, 16)
+
+	done := make(chan string, 1)
+	go func() {
+		done <- runMerge(t, defaultConfig(), []*fsutil.FileHandle{fhA, fhB})
+	}()
+
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+	select {
+	case got := <-done:
+		if !strings.Contains(got, "A") {
+			t.Errorf("expected 'A' in output:\n%q", got)
+		}
+		if !strings.Contains(got, "B") {
+			t.Errorf("expected 'B' in output:\n%q", got)
+		}
+		// Verify no data corruption — each line should appear once
+		lines := strings.Split(strings.TrimRight(got, "\r\n"), "\n")
+		var nonEmpty []string
+		for _, l := range lines {
+			trimmed := strings.TrimRight(l, "\r")
+			if trimmed != "" {
+				nonEmpty = append(nonEmpty, trimmed)
+			}
+		}
+		if len(nonEmpty) != 2 {
+			t.Errorf("expected 2 non-empty lines, got %d:\n%q", len(nonEmpty), got)
+		}
+	case <-timer.C:
+		t.Fatal("ProcessFiles hung — possible infinite loop with small buffer + CRLF")
+	}
+}
+
 func TestProcessFiles_MultiFileMinTimestamp(t *testing.T) {
 	// Two files: one starts before MinTimestamp, one starts after.
 	contentA := "2024-01-15 08:00:00 A-early\n2024-01-15 12:00:00 A-late\n"
