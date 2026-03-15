@@ -394,3 +394,96 @@ func TestParseTimestamp_YearOutOfRange(t *testing.T) {
 		})
 	}
 }
+
+func TestParseTimestamp_SparkDebugLogLine(t *testing.T) {
+	line := `2026-03-14 22:20:10,722 | DEBUG | [Executor task launch worker for task 0.0 in stage 0.0 (TID 0)] | Cannot find class for token kind STORE_DELEGATION_TOKEN | org.apache.hadoop.security.token.Token.getClassForIdentifier(Token.java:159)`
+
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	ts := ParseTimestamp(c, []byte(line))
+
+	if ts == ZeroTimestamp {
+		t.Fatal("expected a valid timestamp, got ZeroTimestamp")
+	}
+
+	expected := "2026-03-14 22:20:10.722000000 "
+	actual := ts.String()
+	testutil.AssertEquals(t, expected, actual)
+
+	// Verify via NewTimestamp too
+	expectedTs := NewTimestamp(2026, 3, 14, 22, 20, 10, 722000000, 0, 0, 0)
+	testutil.AssertEquals(t, expectedTs, ts)
+}
+
+func TestParseTimestamp_SparkLogVariants(t *testing.T) {
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			"pipe-delimited with comma millis",
+			"2026-03-14 22:20:10,722 | DEBUG | message",
+			"2026-03-14 22:20:10.722000000 ",
+		},
+		{
+			"pipe-delimited with dot millis",
+			"2026-03-14 22:20:10.722 | DEBUG | message",
+			"2026-03-14 22:20:10.722000000 ",
+		},
+		{
+			"pipe-delimited no millis",
+			"2026-03-14 22:20:10 | DEBUG | message",
+			"2026-03-14 22:20:10.000000000 ",
+		},
+		{
+			"task 0.0 doesn't confuse parser",
+			"2026-03-14 22:20:10,722 | [task 0.0 in stage 0.0 (TID 0)]",
+			"2026-03-14 22:20:10.722000000 ",
+		},
+		{
+			"version numbers after timestamp",
+			"2026-03-14 22:20:10,722 | Token.java:159",
+			"2026-03-14 22:20:10.722000000 ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := ParseTimestamp(c, []byte(tt.input))
+			if ts == ZeroTimestamp {
+				t.Fatalf("expected valid timestamp for input %q, got ZeroTimestamp", tt.input)
+			}
+			testutil.AssertEquals(t, tt.expected, ts.String())
+		})
+	}
+}
+
+func TestParseTimestamp_EndToEnd_SmallBuffer(t *testing.T) {
+	// Simulate PeekSlice with various sizes — timestamp must be parsed from partial views
+	line := "2026-03-14 22:20:10,722 | DEBUG | Cannot find class for token kind STORE_DELEGATION_TOKEN\n"
+	c := &ParseTimestampConfig{
+		ShortestTimestampLen:    15,
+		TimestampSearchEndIndex: 250,
+	}
+
+	fullTs := ParseTimestamp(c, []byte(line))
+	testutil.AssertEquals(t, "2026-03-14 22:20:10.722000000 ", fullTs.String())
+
+	// "2026-03-14 22:20:10,722" is 23 chars — need at least 24 bytes to see the comma+digits
+	for _, sz := range []int{24, 30, 40, 50, 100} {
+		t.Run(fmt.Sprintf("peek=%d", sz), func(t *testing.T) {
+			view := line[:min(sz, len(line))]
+			ts := ParseTimestamp(c, []byte(view))
+			testutil.AssertEquals(t, fullTs, ts)
+		})
+	}
+}
