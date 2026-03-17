@@ -117,7 +117,7 @@ func TestIntegration_DirectoryInput(t *testing.T) {
 	outPath := filepath.Join(dir, "out.log")
 	_, _, err := runLogmerge(t, bin,
 		"-o", outPath,
-		"-i", "out.log", // ignore the output file itself
+		"-e", "out.log", // ignore the output file itself
 		dir)
 	if err != nil {
 		t.Fatalf("logmerge failed: %v", err)
@@ -173,7 +173,7 @@ func TestIntegration_WriteLineAlias(t *testing.T) {
 	_, _, err := runLogmerge(t, bin,
 		"-o", outPath,
 		"-a",
-		"-i", "out.log",
+		"-e", "out.log",
 		dir) // pass directory so aliases are relative filenames
 	if err != nil {
 		t.Fatalf("logmerge failed: %v", err)
@@ -208,7 +208,7 @@ func TestIntegration_WriteBlockAlias(t *testing.T) {
 	_, _, err := runLogmerge(t, bin,
 		"-o", outPath,
 		"-b",
-		"-i", "out.log",
+		"-e", "out.log",
 		dir) // pass directory so aliases are relative filenames
 	if err != nil {
 		t.Fatalf("logmerge failed: %v", err)
@@ -265,8 +265,8 @@ func TestIntegration_IgnorePattern(t *testing.T) {
 	outPath := filepath.Join(dir, "out.log")
 	_, _, err := runLogmerge(t, bin,
 		"-o", outPath,
-		"-i", "debug*",
-		"-i", "out.log",
+		"-e", "debug*",
+		"-e", "out.log",
 		dir)
 	if err != nil {
 		t.Fatalf("logmerge failed: %v", err)
@@ -294,8 +294,8 @@ func TestIntegration_IgnoreFile(t *testing.T) {
 	_, _, err := runLogmerge(t, bin,
 		"-o", outPath,
 		"--ignore-file", filepath.Join(dir, ".logignore"),
-		"-i", "out.log",
-		"-i", ".logignore",
+		"-e", "out.log",
+		"-e", ".logignore",
 		dir)
 	if err != nil {
 		t.Fatalf("logmerge failed: %v", err)
@@ -430,7 +430,7 @@ func TestIntegration_CombinedFlags(t *testing.T) {
 	_, _, err := runLogmerge(t, bin,
 		"-o", outPath,
 		"-t", "-a", "-b",
-		"-i", "out.log",
+		"-e", "out.log",
 		dir) // pass directory so aliases are relative filenames
 	if err != nil {
 		t.Fatalf("logmerge failed: %v", err)
@@ -678,7 +678,7 @@ func TestIntegration_ExamplesSmall_StripTimestamp(t *testing.T) {
 
 	// Content must be preserved
 	output := string(got)
-	for _, want := range []string{"Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"} {
+	for _, want := range []string{"INFO", "WARN", "ERROR", "application started", "Worker stopped"} {
 		if !strings.Contains(output, want) {
 			t.Errorf("missing content %q after stripping", want)
 		}

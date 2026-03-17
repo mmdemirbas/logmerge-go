@@ -14,11 +14,11 @@ func generateBashCompletion(w io.Writer) {
 
     # Flags that take a file/directory argument
     case "$prev" in
-        -o|--out|-l|--log|--config|--ignore-file)
+        -i|--in|-o|--out|-l|--log|--config|--ignore-file)
             COMPREPLY=( $(compgen -f -- "$cur") )
             return 0
             ;;
-        -i|--ignore|--alias|--since|--until|--min-ts-len|--ts-search-limit|--buf-read|--buf-write)
+        -e|--exclude|--alias|--since|--until|--min-ts-len|--ts-search-limit|--buf-read|--buf-write)
             return 0
             ;;
         --completions)
@@ -30,14 +30,16 @@ func generateBashCompletion(w io.Writer) {
     # Complete flags
     if [[ "$cur" == -* ]]; then
         opts="
+            -i --in
             -o --out
             -l --log
             --config
-            -i --ignore
+            -e --exclude
             --ignore-file
             --ignore-archives
             --alias
             -t --write-timestamp
+            -s --strip-timestamp
             -b --write-block-alias
             -a --write-line-alias
             --since
@@ -50,6 +52,7 @@ func generateBashCompletion(w io.Writer) {
             --metrics
             --profile
             -p --progress
+            -v --version
             --completions
         "
         COMPREPLY=( $(compgen -W "$opts" -- "$cur") )
@@ -70,14 +73,16 @@ func generateZshCompletion(w io.Writer) {
 
 _logmerge() {
     _arguments -s -S \
+        '*'{-i,--in}'[Input file or directory]:path:_files' \
         '(-o --out)'{-o,--out}'[Output file path]:file:_files' \
         '(-l --log)'{-l,--log}'[Log/stats file path]:file:_files' \
         '--config[Base YAML configuration file]:file:_files -g "*.yaml *.yml"' \
-        '*'{-i,--ignore}'[Gitignore-style ignore pattern]:pattern:' \
-        '--ignore-file[File containing ignore patterns]:file:_files' \
+        '*'{-e,--exclude}'[Gitignore-style exclude pattern]:pattern:' \
+        '--ignore-file[File containing exclude patterns]:file:_files' \
         '--ignore-archives[Auto-ignore archive files]' \
         '*--alias[File alias mapping (pat=name)]:alias:' \
         '(-t --write-timestamp)'{-t,--write-timestamp}'[Prepend normalized timestamp to each line]' \
+        '(-s --strip-timestamp)'{-s,--strip-timestamp}'[Remove original timestamp from each line]' \
         '(-b --write-block-alias)'{-b,--write-block-alias}'[Insert separator when file source changes]' \
         '(-a --write-line-alias)'{-a,--write-line-alias}'[Prepend file alias to each line]' \
         '--since[Minimum timestamp (RFC3339)]:timestamp:' \
@@ -90,6 +95,7 @@ _logmerge() {
         '--metrics[Enable detailed metrics tree]' \
         '--profile[Enable CPU/memory profiling]' \
         '(-p --progress)'{-p,--progress}'[Show progress bar]' \
+        '(-v --version)'{-v,--version}'[Print version and exit]' \
         '--completions[Generate shell completion script]:shell:(bash zsh fish powershell)' \
         '*:input path:_files -/'
 }
@@ -100,14 +106,16 @@ _logmerge "$@"
 
 func generateFishCompletion(w io.Writer) {
 	fmt.Fprint(w, `# Fish completions for logmerge
+complete -c logmerge -s i -l in -r -F -d 'Input file or directory'
 complete -c logmerge -s o -l out -r -F -d 'Output file path'
 complete -c logmerge -s l -l log -r -F -d 'Log/stats file path'
 complete -c logmerge -l config -r -F -d 'Base YAML configuration file'
-complete -c logmerge -s i -l ignore -r -d 'Gitignore-style ignore pattern'
-complete -c logmerge -l ignore-file -r -F -d 'File containing ignore patterns'
+complete -c logmerge -s e -l exclude -r -d 'Gitignore-style exclude pattern'
+complete -c logmerge -l ignore-file -r -F -d 'File containing exclude patterns'
 complete -c logmerge -l ignore-archives -d 'Auto-ignore archive files'
 complete -c logmerge -l alias -r -d 'File alias mapping (pat=name)'
 complete -c logmerge -s t -l write-timestamp -d 'Prepend normalized timestamp to each line'
+complete -c logmerge -s s -l strip-timestamp -d 'Remove original timestamp from each line'
 complete -c logmerge -s b -l write-block-alias -d 'Insert separator when file source changes'
 complete -c logmerge -s a -l write-line-alias -d 'Prepend file alias to each line'
 complete -c logmerge -l since -r -d 'Minimum timestamp (RFC3339)'
@@ -120,6 +128,7 @@ complete -c logmerge -l buf-write -r -d 'Write buffer size in bytes'
 complete -c logmerge -l metrics -d 'Enable detailed metrics tree'
 complete -c logmerge -l profile -d 'Enable CPU/memory profiling'
 complete -c logmerge -s p -l progress -d 'Show progress bar'
+complete -c logmerge -s v -l version -d 'Print version and exit'
 complete -c logmerge -l completions -r -f -a 'bash zsh fish powershell' -d 'Generate shell completion script'
 `)
 }
@@ -129,18 +138,22 @@ func generatePowershellCompletion(w io.Writer) {
     param($wordToComplete, $commandAst, $cursorPosition)
 
     $flags = @(
+        @{ Name = '-i';                  Desc = 'Input file or directory (short)';                  Kind = 'file' }
+        @{ Name = '--in';                Desc = 'Input file or directory';                          Kind = 'file' }
         @{ Name = '-o';                  Desc = 'Output file path (short)';                         Kind = 'file' }
         @{ Name = '--out';               Desc = 'Output file path';                                 Kind = 'file' }
         @{ Name = '-l';                  Desc = 'Log/stats file path (short)';                      Kind = 'file' }
         @{ Name = '--log';               Desc = 'Log/stats file path';                              Kind = 'file' }
         @{ Name = '--config';            Desc = 'Base YAML configuration file';                     Kind = 'file' }
-        @{ Name = '-i';                  Desc = 'Gitignore-style ignore pattern (short)';           Kind = 'value' }
-        @{ Name = '--ignore';            Desc = 'Gitignore-style ignore pattern';                   Kind = 'value' }
-        @{ Name = '--ignore-file';       Desc = 'File containing ignore patterns';                  Kind = 'file' }
+        @{ Name = '-e';                  Desc = 'Gitignore-style exclude pattern (short)';          Kind = 'value' }
+        @{ Name = '--exclude';           Desc = 'Gitignore-style exclude pattern';                  Kind = 'value' }
+        @{ Name = '--ignore-file';       Desc = 'File containing exclude patterns';                 Kind = 'file' }
         @{ Name = '--ignore-archives';   Desc = 'Auto-ignore archive files';                        Kind = 'switch' }
         @{ Name = '--alias';             Desc = 'File alias mapping (pat=name)';                    Kind = 'value' }
         @{ Name = '-t';                  Desc = 'Prepend normalized timestamp (short)';             Kind = 'switch' }
         @{ Name = '--write-timestamp';   Desc = 'Prepend normalized timestamp to each line';        Kind = 'switch' }
+        @{ Name = '-s';                  Desc = 'Remove original timestamp (short)';                Kind = 'switch' }
+        @{ Name = '--strip-timestamp';   Desc = 'Remove original timestamp from each line';         Kind = 'switch' }
         @{ Name = '-b';                  Desc = 'Insert separator on source change (short)';        Kind = 'switch' }
         @{ Name = '--write-block-alias'; Desc = 'Insert separator when file source changes';        Kind = 'switch' }
         @{ Name = '-a';                  Desc = 'Prepend file alias to each line (short)';          Kind = 'switch' }
@@ -156,6 +169,8 @@ func generatePowershellCompletion(w io.Writer) {
         @{ Name = '--profile';           Desc = 'Enable CPU/memory profiling';                      Kind = 'switch' }
         @{ Name = '-p';                  Desc = 'Show progress bar (short)';                        Kind = 'switch' }
         @{ Name = '--progress';          Desc = 'Show progress bar';                                Kind = 'switch' }
+        @{ Name = '-v';                  Desc = 'Print version and exit (short)';                   Kind = 'switch' }
+        @{ Name = '--version';           Desc = 'Print version and exit';                           Kind = 'switch' }
         @{ Name = '--completions';       Desc = 'Generate shell completion script';                 Kind = 'completions' }
     )
 
@@ -164,7 +179,7 @@ func generatePowershellCompletion(w io.Writer) {
     $prev = if ($tokens.Count -ge 2) { $tokens[-1] } else { '' }
 
     # If the previous token is a flag that takes a file, complete files
-    $fileFlags = @('-o', '--out', '-l', '--log', '--config', '--ignore-file')
+    $fileFlags = @('-i', '--in', '-o', '--out', '-l', '--log', '--config', '--ignore-file')
     if ($prev -in $fileFlags) {
         Get-ChildItem -Path "$wordToComplete*" -ErrorAction SilentlyContinue | ForEach-Object {
             $path = $_.Name

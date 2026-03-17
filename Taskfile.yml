@@ -8,6 +8,9 @@ vars:
   CPU_PROF_FILE: cpu.prof
   MEM_PROF_FILE: mem.prof
   TRACE_FILE: trace.out
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+  LDFLAGS: -s -w -X github.com/mmdemirbas/logmerge/internal/cli.Version={{.VERSION}}
 
 env:
   # Statically link binaries globally
@@ -42,7 +45,7 @@ tasks:
       - "{{.BIN_DIR}}/{{.BINARY_NAME}}{{exeExt}}"
     cmds:
       - mkdir -p {{.BIN_DIR}}
-      - go build -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}}{{exeExt}} ./cmd/logmerge
+      - go build -ldflags="{{.LDFLAGS}}" -o {{.BIN_DIR}}/{{.BINARY_NAME}}{{exeExt}} ./cmd/logmerge
 
   build-pgo:
     desc: "Build the binary for the current OS with PGO"
@@ -54,7 +57,7 @@ tasks:
       - "{{.BIN_DIR}}/{{.BINARY_NAME}}-pgo{{exeExt}}"
     cmds:
       - mkdir -p {{.BIN_DIR}}
-      - go build -pgo={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}}-pgo{{exeExt}} ./cmd/logmerge
+      - go build -pgo={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -ldflags="{{.LDFLAGS}}" -o {{.BIN_DIR}}/{{.BINARY_NAME}}-pgo{{exeExt}} ./cmd/logmerge
 
   dist:
     desc: "Cross-compile binaries with PGO for all target platforms"
@@ -66,7 +69,7 @@ tasks:
             os: [ darwin, linux, windows ]
             arch: [ amd64, arm64 ]
         cmd:
-          GOOS={{.ITEM.os}} GOARCH={{.ITEM.arch}} go build -pgo={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -ldflags="-s -w" -o {{.DIST_DIR}}/{{.BINARY_NAME}}-pgo-{{.ITEM.os}}-{{.ITEM.arch}}{{if eq .ITEM.os "windows"}}.exe{{end}} ./cmd/logmerge
+          GOOS={{.ITEM.os}} GOARCH={{.ITEM.arch}} go build -pgo={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -ldflags="{{.LDFLAGS}}" -o {{.DIST_DIR}}/{{.BINARY_NAME}}-pgo-{{.ITEM.os}}-{{.ITEM.arch}}{{if eq .ITEM.os "windows"}}.exe{{end}} ./cmd/logmerge
 
   test:
     desc: "Run all tests"
@@ -97,7 +100,7 @@ tasks:
       CONF_FILE: '{{default "conf/default.yaml" .CONF_FILE}}'
     cmds:
       - mkdir -p {{.BIN_DIR}}
-      - go build -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}}{{exeExt}} ./cmd/logmerge
+      - go build -ldflags="{{.LDFLAGS}}" -o {{.BIN_DIR}}/{{.BINARY_NAME}}{{exeExt}} ./cmd/logmerge
       - "{{.BIN_DIR}}/{{.BINARY_NAME}}{{exeExt}} {{.CONF_FILE}}"
 
   trace:

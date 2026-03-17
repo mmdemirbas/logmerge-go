@@ -10,6 +10,32 @@ architectures and Go's concurrency primitives.
 logmerge ./logs -o merged.log
 ```
 
+## 📦 Installation
+
+**Pre-built binaries** — download from [GitHub Releases](https://github.com/mmdemirbas/logmerge/releases):
+
+```bash
+# Linux (amd64)
+curl -L -o logmerge https://github.com/mmdemirbas/logmerge/releases/latest/download/logmerge-linux-amd64
+chmod +x logmerge
+
+# macOS (Apple Silicon)
+curl -L -o logmerge https://github.com/mmdemirbas/logmerge/releases/latest/download/logmerge-darwin-arm64
+chmod +x logmerge
+```
+
+**From source** (requires Go 1.21+):
+
+```bash
+go install github.com/mmdemirbas/logmerge/cmd/logmerge@latest
+```
+
+**Verify installation:**
+
+```bash
+logmerge --version
+```
+
 ## 📖 Usage
 
 LogMerge supports both CLI flags and an optional YAML configuration file. CLI flags override YAML
@@ -31,17 +57,20 @@ values, and input paths are passed as positional arguments.
 ### 2. Filtering Examples
 
 ```bash
-# Ignore backup and temp files using gitignore-style patterns
-./logmerge -i "*.bak" -i "*temp*" /var/log/myapp
+# Exclude backup and temp files using gitignore-style patterns
+./logmerge -e "*.bak" -e "*temp*" /var/log/myapp
 
 # Auto-ignore all archive files (.zip, .gz, .tar, etc.)
 ./logmerge --ignore-archives /var/log/myapp
 
-# Load ignore patterns from a file
+# Load exclude patterns from a file
 ./logmerge --ignore-file .logmergeignore /var/log/myapp
 
 # Combine: ignore archives + custom patterns
-./logmerge --ignore-archives -i "*.old" /var/log/myapp
+./logmerge --ignore-archives -e "*.old" /var/log/myapp
+
+# Use -i/--in for input paths (equivalent to positional args)
+./logmerge -i /var/log/app1 -i /var/log/app2 -o merged.log
 ```
 
 ### 3. Formatting Examples
@@ -86,7 +115,8 @@ MergeConfig:
 
 ### 5. Key Flags
 
-* **`-i, --ignore <pattern>`**: Gitignore-style glob patterns to exclude files. Repeatable. Prefix
+* **`-i, --in <path>`**: Input file or directory. Repeatable. Added to positional args.
+* **`-e, --exclude <pattern>`**: Gitignore-style glob patterns to exclude files. Repeatable. Prefix
   with `!` to negate.
 * **`--ignore-archives`**: Shorthand to ignore `.zip`, `.gz`, `.tar`, `.rar`, `.7z`, `.tgz`, `.bz2`,
   `.tbz2`, `.xz`, `.txz`.
@@ -110,7 +140,7 @@ LogMerge automatically handles compressed and archived files during file discove
 
 Archive files are processed transparently — no extraction step is needed. Virtual paths for
 multi-entry archives use the format `path/to/archive.tar.gz!/entry/name.log`, which also works
-with `--alias` and `--ignore` patterns.
+with `--alias` and `--exclude` patterns.
 
 To skip all archive/compressed files entirely, use `--ignore-archives`.
 
@@ -151,7 +181,7 @@ necessary) to ensure a standard width.
 
 Current benchmarks on Apple M1 Max hardware:
 
-- **Throughput:** ~34 GB/s (In-memory simulation)
+- **Throughput:** ~1.2 GB/s (in-memory), ~1 GB/s (from disk)
 - **Memory Profile:** Near-zero allocations in the hot path.
 - **Scaling:** Parallel pre-fetching utilizes all available CPU cores.
 

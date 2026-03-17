@@ -3,18 +3,22 @@
 # logmerge configuration example
 # Copy this file and adjust to your needs.
 # All fields are optional unless noted. CLI flags override values set here.
+#
+# Quick start:
+#   logmerge --config conf/example.yaml
+#
+# This will merge the small example logs and write the result to examples/small.log.
 
 # Directories or files to scan for log files (required).
 # Can also be passed as positional CLI arguments.
 InputPaths:
-  - /var/log/myapp
-  - /var/log/myapp-worker
+  - examples/small
 
 # Merged output destination. Omit or leave empty for stdout.
-OutputFile: /tmp/merged.log
+OutputFile: examples/small.log
 
 # Stats and diagnostics destination. Omit or leave empty for stderr.
-LogFile: /tmp/stats.log
+LogFile: examples/small.err
 
 # Write CPU and memory profiles to out/cpu.prof and out/mem.prof.
 ProfilingEnabled: false
@@ -26,13 +30,11 @@ ListFilesConfig:
   # Lines starting with # are comments. Empty lines are skipped.
   # IgnoreFile: /path/to/.logmergeignore
 
-  # Gitignore-style glob patterns for filtering discovered files.
+  # Gitignore-style glob patterns for excluding discovered files.
   # A matching pattern excludes the file. Prefix with ! to negate (re-include).
   # Rules are evaluated in order; the last matching rule wins.
-  IgnorePatterns:
-    - "*temp*"        # exclude files containing "temp"
-    - "*.bak"         # exclude backup files
-    - "!important.bak" # but keep this specific one
+  # CLI equivalent: -e / --exclude
+  IgnorePatterns: []
 
   # Shorthand: automatically ignore common archive extensions
   # (.zip, .tar, .gz, .rar, .7z, .tgz, .bz2, .tbz2, .xz, .txz).
@@ -40,15 +42,12 @@ ListFilesConfig:
 
   # Map glob patterns or relative paths to short display names.
   # Used in block separators (--write-block-alias) and per-line prefixes (--write-line-alias).
-  FileAliases:
-    "console.log": "driver"
-    "*/worker/*.log": "worker"
-    "status.log": "status"
+  FileAliases: {}
 
 # --- Timestamp parsing ---
 ParseTimestampConfig:
 
-  # Ignore timezone offsets in parsed timestamps (treat everything as UTC).
+  # Ignore timezone offsets in parsed timestamps (treat everything as local time).
   IgnoreTimezoneInfo: false
 
   # Minimum number of characters for a string to be considered a timestamp.
@@ -68,15 +67,18 @@ MergeConfig:
   WriteAliasPerBlock: true
 
   # Prepend the file alias to every output line.
-  WriteAliasPerLine: false
+  WriteAliasPerLine: true
 
   # Prepend the normalized timestamp to every output line.
   WriteTimestampPerLine: true
 
+  # Remove the original timestamp from each line.
+  StripOriginalTimestamp: false
+
   # Only include lines within this time window (RFC3339 format).
   # Omit either to leave that side unbounded.
-  MinTimestamp: "2025-01-17T00:00:00Z"
-  MaxTimestamp: "2025-01-18T00:00:00Z"
+  # MinTimestamp: "2025-01-01T00:00:00Z"
+  # MaxTimestamp: "2025-01-02T00:00:00Z"
 
   # I/O buffer sizes in bytes.
   # Read buffer is divided equally among all discovered files.
@@ -87,7 +89,7 @@ MergeConfig:
 PrintProgressConfig:
 
   # Show a progress bar on stderr during merge.
-  PrintProgressEnabled: true
+  PrintProgressEnabled: false
 
   # Wait this many milliseconds before showing the first progress update.
   # Useful to avoid flicker on fast merges.

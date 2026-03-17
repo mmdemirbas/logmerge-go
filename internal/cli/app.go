@@ -15,6 +15,10 @@ import (
 	"github.com/mmdemirbas/logmerge/internal/metrics"
 )
 
+// Version is set at build time via -ldflags="-X ...cli.Version=v1.0.0".
+// When empty, "dev" is shown.
+var Version = "dev"
+
 // stringSliceFlag implements flag.Value for repeated string flags.
 type stringSliceFlag []string
 
@@ -75,9 +79,13 @@ func Run() error {
 
 	configFlag := flag.String("config", "", "")
 
-	var ignoreFlags stringSliceFlag
-	flag.Var(&ignoreFlags, "ignore", "")
-	flag.Var(&ignoreFlags, "i", "")
+	var inputFlags stringSliceFlag
+	flag.Var(&inputFlags, "in", "")
+	flag.Var(&inputFlags, "i", "")
+
+	var excludeFlags stringSliceFlag
+	flag.Var(&excludeFlags, "exclude", "")
+	flag.Var(&excludeFlags, "e", "")
 
 	ignoreFileFlag := flag.String("ignore-file", "", "")
 	ignoreArchivesFlag := flag.Bool("ignore-archives", false, "")
@@ -113,17 +121,20 @@ func Run() error {
 	flag.BoolVar(progressFlag, "p", false, "")
 
 	completionsFlag := flag.String("completions", "", "")
+	versionFlag := flag.Bool("version", false, "")
+	flag.BoolVar(versionFlag, "v", false, "")
 
 	flag.Usage = func() {
 		w := flag.CommandLine.Output()
 		fmt.Fprintf(w, "Usage: %s [flags] <path>...\n", os.Args[0])
 		fmt.Fprintf(w, "\nMerge multiple log files into a single chronologically-ordered stream.\n")
 		fmt.Fprintf(w, "\nI/O:\n")
+		fmt.Fprintf(w, "  -i, --in <path>           Input file or directory (repeatable, added to positional args)\n")
 		fmt.Fprintf(w, "  -o, --out <path>          Output file path (default: stdout)\n")
 		fmt.Fprintf(w, "  -l, --log <path>          Log/stats file path (default: stderr)\n")
 		fmt.Fprintf(w, "\nFiltering:\n")
-		fmt.Fprintf(w, "  -i, --ignore <pattern>    Gitignore-style ignore pattern (repeatable)\n")
-		fmt.Fprintf(w, "      --ignore-file <path>  File containing ignore patterns (one per line)\n")
+		fmt.Fprintf(w, "  -e, --exclude <pattern>   Gitignore-style exclude pattern (repeatable)\n")
+		fmt.Fprintf(w, "      --ignore-file <path>  File containing exclude patterns (one per line)\n")
 		fmt.Fprintf(w, "      --ignore-archives     Auto-ignore archive files (.zip, .gz, .tar, etc.)\n")
 		fmt.Fprintf(w, "      --alias <pat>=<name>  File alias mapping (repeatable)\n")
 		fmt.Fprintf(w, "\nFormatting:\n")
@@ -146,11 +157,18 @@ func Run() error {
 		fmt.Fprintf(w, "\nDisplay:\n")
 		fmt.Fprintf(w, "  -p, --progress            Show progress bar\n")
 		fmt.Fprintf(w, "\nSystem:\n")
+		fmt.Fprintf(w, "  -v, --version             Print version and exit\n")
 		fmt.Fprintf(w, "      --config <path>       Base YAML configuration file (flags override YAML values)\n")
 		fmt.Fprintf(w, "      --completions <shell> Generate shell completion script (bash, zsh, fish, powershell)\n")
 	}
 
 	flag.Parse()
+
+	// Handle --version early exit
+	if *versionFlag {
+		fmt.Printf("logmerge %s\n", Version)
+		return nil
+	}
 
 	// Handle --completions early exit
 	if *completionsFlag != "" {
@@ -266,8 +284,8 @@ func Run() error {
 		config.ListFilesConfig.IgnoreArchives = *ignoreArchivesFlag
 	}
 
-	// Append --ignore flags to IgnorePatterns
-	config.ListFilesConfig.IgnorePatterns = append(config.ListFilesConfig.IgnorePatterns, ignoreFlags...)
+	// Append --exclude flags to IgnorePatterns
+	config.ListFilesConfig.IgnorePatterns = append(config.ListFilesConfig.IgnorePatterns, excludeFlags...)
 
 	// Parse --alias flags (pattern=alias)
 	for _, a := range aliasFlags {
@@ -278,10 +296,11 @@ func Run() error {
 		config.ListFilesConfig.FileAliases[parts[0]] = parts[1]
 	}
 
-	// Positional args become input paths
+	// Positional args + --in flags become input paths
 	if args := flag.Args(); len(args) > 0 {
 		config.InputPaths = args
 	}
+	config.InputPaths = append(config.InputPaths, inputFlags...)
 
 	// Read ignore file if provided (from CLI or YAML)
 	ignoreFile := config.ListFilesConfig.IgnoreFile

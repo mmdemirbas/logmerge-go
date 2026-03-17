@@ -2,11 +2,16 @@
 *.log
 *.out
 *.test
+.DS_Store
+
 /.idea/
 /.task/
 /build/
 /dist/
-/examples/application*
 /log/
 /out/
 /vendor/
+
+/conf/default.yaml
+
+!/examples/small**
