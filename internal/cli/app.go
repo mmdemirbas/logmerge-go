@@ -120,6 +120,9 @@ func Run() error {
 	progressFlag := flag.Bool("progress", false, "")
 	flag.BoolVar(progressFlag, "p", false, "")
 
+	dryRunFlag := flag.Bool("dry-run", false, "")
+	followSymlinksFlag := flag.Bool("follow-symlinks", false, "")
+
 	completionsFlag := flag.String("completions", "", "")
 	versionFlag := flag.Bool("version", false, "")
 	flag.BoolVar(versionFlag, "v", false, "")
@@ -154,6 +157,9 @@ func Run() error {
 		fmt.Fprintf(w, "      --buf-write <bytes>   Write buffer size (default: 100 MB)\n")
 		fmt.Fprintf(w, "      --metrics             Enable detailed metrics tree\n")
 		fmt.Fprintf(w, "      --profile             Enable CPU/memory profiling\n")
+		fmt.Fprintf(w, "\nFile discovery:\n")
+		fmt.Fprintf(w, "      --dry-run             List matched files without merging\n")
+		fmt.Fprintf(w, "      --follow-symlinks     Follow symbolic links during directory traversal\n")
 		fmt.Fprintf(w, "\nDisplay:\n")
 		fmt.Fprintf(w, "  -p, --progress            Show progress bar\n")
 		fmt.Fprintf(w, "\nSystem:\n")
@@ -283,6 +289,9 @@ func Run() error {
 	if explicitlySet["ignore-archives"] {
 		config.ListFilesConfig.IgnoreArchives = *ignoreArchivesFlag
 	}
+	if explicitlySet["follow-symlinks"] {
+		config.ListFilesConfig.FollowSymlinks = *followSymlinksFlag
+	}
 
 	// Append --exclude flags to IgnorePatterns
 	config.ListFilesConfig.IgnorePatterns = append(config.ListFilesConfig.IgnorePatterns, excludeFlags...)
@@ -356,6 +365,15 @@ func Run() error {
 	)
 	if err != nil {
 		return fmt.Errorf("failed to list files: %w", err)
+	}
+
+	// Handle --dry-run: list matched files and exit
+	if *dryRunFlag {
+		for _, f := range files {
+			fmt.Fprintln(outputFile, f.File.Name())
+			f.Close()
+		}
+		return nil
 	}
 
 	// Configure per-file metrics based on MetricsTreeEnabled

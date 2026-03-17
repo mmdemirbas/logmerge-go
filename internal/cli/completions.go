@@ -51,6 +51,8 @@ func generateBashCompletion(w io.Writer) {
             --buf-write
             --metrics
             --profile
+            --dry-run
+            --follow-symlinks
             -p --progress
             -v --version
             --completions

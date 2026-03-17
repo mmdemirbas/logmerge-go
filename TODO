@@ -1,8 +1,6 @@
 - Usability
   - Include timestamp-less entries always regardless of the MinTimestamp setting
   - Use the file modification time as the fallback timestamp if no timestamp is present in the line
-  - Dry-run mode (list matched files without merging)
-  - Including / excluding symlinks during directory traversal
 
 - Output formatting
   - Add unified log level support to format output logs in IDE better (print log level just like timestamp)
