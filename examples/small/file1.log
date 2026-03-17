@@ -1,0 +1,15 @@
+2025-01-01 00:00:00,000 | INFO  | Zero - application started
+2025-01-01 01:01:01,001 | INFO  | One - loaded configuration from /etc/app/config.yaml
+2025-01-01 02:30:00,500 | WARN  | Connection to database timed out after 30s
+  retrying in 5 seconds...
+  attempt 2 of 3
+2025-01-01 02:30:06,100 | INFO  | Database connection re-established
+2025-01-01 05:05:05,005 | INFO  | Five - periodic health check passed
+2025-01-01 05:05:05,005 | DEBUG | Memory usage: 245 MB / 512 MB (47%)
+2025-01-01 08:00:00,000 | ERROR | Unhandled exception in request handler
+  java.lang.NullPointerException: Cannot invoke method on null object
+    at com.example.api.UserController.getUser(UserController.java:42)
+    at com.example.api.Router.dispatch(Router.java:118)
+    at com.example.Main.main(Main.java:15)
+2025-01-01 08:00:00,050 | INFO  | Error reported to monitoring system
+2025-01-01 10:10:10,010 | INFO  | Graceful shutdown initiated

@@ -1,0 +1,28 @@
+2025-01-01 00:00:00.000000000 file1.log - 2025-01-01 00:00:00,000 | INFO  | Zero - application started
+2025-01-01 01:01:01.001000000 file1.log - 2025-01-01 01:01:01,001 | INFO  | One - loaded configuration from /etc/app/config.yaml
+2025-01-01 01:01:01.001000000 file2.log - 2025-01-01 01:01:01,001 | INFO  | One - worker started on port 8081
+2025-01-01 02:02:02.002000000 file2.log - 2025-01-01 02:02:02,002 | INFO  | Two - registered with service discovery
+2025-01-01 02:30:00.500000000 file1.log - 2025-01-01 02:30:00,500 | WARN  | Connection to database timed out after 30s
+2025-01-01 02:30:00.500000000 file1.log -   retrying in 5 seconds...
+2025-01-01 02:30:00.500000000 file1.log -   attempt 2 of 3
+2025-01-01 02:30:01.200000000 file2.log - 2025-01-01 02:30:01,200 | WARN  | Lost heartbeat from coordinator (172.16.0.10)
+2025-01-01 02:30:06.100000000 file1.log - 2025-01-01 02:30:06,100 | INFO  | Database connection re-established
+2025-01-01 03:03:03.003000000 file2.log - 2025-01-01 03:03:03,003 | INFO  | Three - processing batch job #4417
+2025-01-01 04:04:04.004000000 file2.log - 2025-01-01 04:04:04,004 | INFO  | Four - batch job #4417 completed (1204 records, 3.2s)
+2025-01-01 05:05:05.005000000 file2.log - 2025-01-01 05:05:05,005 | INFO  | Five - periodic health check passed
+2025-01-01 05:05:05.005000000 file2.log - 2025-01-01 05:05:05,005 | INFO  | Five - synced state with peer node
+2025-01-01 05:05:05.005000000 file1.log - 2025-01-01 05:05:05,005 | INFO  | Five - periodic health check passed
+2025-01-01 05:05:05.005000000 file1.log - 2025-01-01 05:05:05,005 | DEBUG | Memory usage: 245 MB / 512 MB (47%)
+2025-01-01 06:06:06.006000000 file2.log - 2025-01-01 06:06:06,006 | INFO  | Six - cache invalidation sweep (12 entries evicted)
+2025-01-01 07:07:07.007000000 file2.log - 2025-01-01 07:07:07,007 | INFO  | Seven - TLS certificate renewal scheduled for 2025-02-01
+2025-01-01 08:00:00.000000000 file1.log - 2025-01-01 08:00:00,000 | ERROR | Unhandled exception in request handler
+2025-01-01 08:00:00.000000000 file1.log -   java.lang.NullPointerException: Cannot invoke method on null object
+2025-01-01 08:00:00.000000000 file1.log -     at com.example.api.UserController.getUser(UserController.java:42)
+2025-01-01 08:00:00.000000000 file1.log -     at com.example.api.Router.dispatch(Router.java:118)
+2025-01-01 08:00:00.000000000 file1.log -     at com.example.Main.main(Main.java:15)
+2025-01-01 08:00:00.050000000 file1.log - 2025-01-01 08:00:00,050 | INFO  | Error reported to monitoring system
+2025-01-01 08:08:08.008000000 file2.log - 2025-01-01 08:08:08,008 | INFO  | Eight - log rotation triggered (previous: app.log.1)
+2025-01-01 09:09:09.009000000 file2.log - 2025-01-01 09:09:09,009 | INFO  | Nine - received SIGTERM, starting graceful shutdown
+2025-01-01 09:09:10.500000000 file2.log - 2025-01-01 09:09:10,500 | INFO  | Drained 3 in-flight requests
+2025-01-01 09:09:10.501000000 file2.log - 2025-01-01 09:09:10,501 | INFO  | Worker stopped
+2025-01-01 10:10:10.010000000 file1.log - 2025-01-01 10:10:10,010 | INFO  | Graceful shutdown initiated
