@@ -8,6 +8,7 @@ import (
 type patternRule struct {
 	pattern  string
 	negation bool // true means "include if matched"
+	rootOnly bool // true when pattern had a leading / (match from root only)
 }
 
 type Matcher struct {
@@ -45,7 +46,16 @@ func NewMatcher(patterns []string) *Matcher {
 		if p == "" {
 			continue
 		}
-		rules = append(rules, patternRule{pattern: p, negation: negation})
+		// Leading / means root-relative: strip and flag
+		rootOnly := false
+		if strings.HasPrefix(p, "/") {
+			rootOnly = true
+			p = p[1:]
+		}
+		if p == "" {
+			continue
+		}
+		rules = append(rules, patternRule{pattern: p, negation: negation, rootOnly: rootOnly})
 	}
 	return &Matcher{rules: rules}
 }
@@ -68,7 +78,7 @@ func (m *Matcher) ShouldInclude(filePath string) (included bool) {
 	_, name := filepath.Split(filePath)
 	included = true // default: include if no rules match
 	for _, rule := range m.rules {
-		if matchGitignorePattern(rule.pattern, filePath, name) {
+		if matchGitignorePattern(rule.pattern, filePath, name, rule.rootOnly) {
 			included = rule.negation
 		}
 	}
@@ -76,12 +86,23 @@ func (m *Matcher) ShouldInclude(filePath string) (included bool) {
 }
 
 // matchGitignorePattern matches a gitignore-style pattern against a file path.
-//   - Patterns without '/' are matched against the filename only.
+//   - Patterns without '/' are matched against the filename only (unless rootOnly).
 //   - Patterns containing '**' use gitignore-style doublestar matching where
 //     '**' matches zero or more directory segments.
+//   - rootOnly patterns (originally prefixed with /) match only against the full
+//     path from the input root — they don't try sub-path suffixes.
 //   - Other patterns with '/' are matched against the full path, with each
 //     sub-path suffix tried to emulate "match anywhere in path" behavior.
-func matchGitignorePattern(pattern, filePath, name string) bool {
+func matchGitignorePattern(pattern, filePath, name string, rootOnly bool) bool {
+	if rootOnly {
+		// Root-relative: match only against the full path from root
+		if strings.Contains(pattern, "**") {
+			return matchDoublestar(pattern, filePath)
+		}
+		matched, _ := filepath.Match(pattern, filePath)
+		return matched
+	}
+
 	if !strings.Contains(pattern, "/") {
 		matched, _ := filepath.Match(pattern, name)
 		return matched

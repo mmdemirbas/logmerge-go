@@ -124,6 +124,24 @@ func TestMatcherShouldInclude(t *testing.T) {
 		{"**/*.log matches root", []string{"**/*.log"}, "app.log", false},
 		{"**/*.log no match wrong ext", []string{"**/*.log"}, "a/b/c/app.txt", true},
 
+		// ── Leading / for root-relative matching ─────────────────────
+		// "If there is a separator at the beginning of the pattern, then the
+		//  pattern is relative to the directory level of the .gitignore file"
+		// In our tool, "root" = the input directory.
+		{"/foo matches at root", []string{"/foo"}, "foo", false},
+		{"/foo does not match nested", []string{"/foo"}, "a/foo", true},
+		{"/foo does not match deep nested", []string{"/foo"}, "a/b/foo", true},
+		{"/dir/file matches at root", []string{"/dir/file"}, "dir/file", false},
+		{"/dir/file does not match nested", []string{"/dir/file"}, "a/dir/file", true},
+		{"/*.log matches root files", []string{"/*.log"}, "app.log", false},
+		{"/*.log does not match nested", []string{"/*.log"}, "a/app.log", true},
+		{"/dir/*.log matches root dir files", []string{"/dir/*.log"}, "dir/app.log", false},
+		{"/dir/*.log does not match nested dir", []string{"/dir/*.log"}, "a/dir/app.log", true},
+
+		// Leading / with negation
+		{"/root negation re-includes", []string{"*.log", "!/important.log"}, "important.log", true},
+		{"/root negation no deep re-include", []string{"*.log", "!/important.log"}, "a/important.log", false},
+
 		// ── Real-world: yarn/spark include, nm exclude ────────────────
 		{"yarn+spark real case", []string{"*", "!**/yarn/**", "!**/spark/**", "**/nm/**"},
 			"app/172.16.240.143/yarn/rm/hadoop.log", true},
