@@ -119,12 +119,9 @@ func ParseLevel(buffer []byte, tsStart int, tsEnd int) ParseResult {
 			return ParseResult{Level: lvl, Start: start, End: end}
 		}
 
-		// Not a level — skip to next delimiter to try again
-		for i < searchEnd && buffer[i] != ' ' && buffer[i] != '\t' &&
-			buffer[i] != '|' && buffer[i] != '[' && buffer[i] != ']' &&
-			buffer[i] != ':' {
-			i++
-		}
+		// Not a level — the first non-delimiter, non-level word means we've
+		// entered message content. Stop searching to avoid false positives.
+		return ParseResult{Level: Unknown}
 	}
 
 	return ParseResult{Level: Unknown}

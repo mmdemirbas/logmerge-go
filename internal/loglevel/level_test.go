@@ -64,6 +64,71 @@ func TestParseLevel(t *testing.T) {
 		{"no match INFORMATION", "2025-01-15 10:00:00 INFORMATION msg", 0, 20, Unknown},
 		{"no match ERRORS", "2025-01-15 10:00:00 ERRORS msg", 0, 20, Unknown},
 		{"no match WARNING2", "2025-01-15 10:00:00 WARNING2 msg", 0, 20, Unknown},
+		{"no match INFORMED", "2025-01-15 10:00:00 INFORMED msg", 0, 20, Unknown},
+		{"no match DEBUGGER", "2025-01-15 10:00:00 DEBUGGER msg", 0, 20, Unknown},
+		{"no match TRACED", "2025-01-15 10:00:00 TRACED msg", 0, 20, Unknown},
+		{"no match FATALITY", "2025-01-15 10:00:00 FATALITY msg", 0, 20, Unknown},
+		{"no match NOTICE_ID", "2025-01-15 10:00:00 NOTICE_ID msg", 0, 20, Unknown},
+		{"no match SEVERITY", "2025-01-15 10:00:00 SEVERITY msg", 0, 20, Unknown},
+		{"no match WARN3", "2025-01-15 10:00:00 WARN3 msg", 0, 20, Unknown},
+		{"no match ERROR_CODE", "2025-01-15 10:00:00 ERROR_CODE msg", 0, 20, Unknown},
+
+		// ── glog false positives: letter prefix must be at line start ─
+		{"no glog mid-word I", "xI20250115 19:29:15.463310 3239941", 2, 26, Unknown},
+		{"no glog after letter", "XI20250115 19:29:15.463310 3239941", 2, 26, Unknown},
+		{"glog after space is ok", " I20250115 19:29:15.463310 3239941", 2, 26, Info},
+
+		// ── Level word appears in message, not in level position ──────
+		{"ERROR in message only", "2025-01-15 10:00:00 3239941 got ERROR in request", 0, 20, Unknown},
+		{"WARN far from timestamp", "2025-01-15 10:00:00 some very long prefix text before WARN appears", 0, 20, Unknown},
+
+		// ── Multiple level-like words: first one wins ────────────────
+		{"first level wins", "2025-01-15 10:00:00 WARN ERROR msg", 0, 20, Warn},
+		{"first level wins bracket", "[2025-01-09 20:27:27] [INFO] [ERROR] msg", 0, 22, Info},
+
+		// ── Edge cases with empty/short lines ────────────────────────
+		{"empty line", "", 0, 0, Unknown},
+		{"just a newline", "\n", 0, 0, Unknown},
+		{"tsEnd at end of line", "2025-01-15 10:00:00", 0, 19, Unknown},
+		{"tsEnd past line", "2025-01-15 10:00:00", 0, 50, Unknown},
+		{"single char line", "X", 0, 0, Unknown},
+
+		// ── Level immediately after timestamp (no space) ─────────────
+		{"level glued to timestamp", "2025-01-15 10:00:00INFO msg", 0, 19, Info},
+		{"level glued with bracket", "2025-01-15 10:00:00[INFO] msg", 0, 19, Info},
+
+		// ── Levels with various delimiters ────────────────────────────
+		{"level after colon", "2025-01-15 10:00:00: INFO msg", 0, 20, Info},
+		{"level after tab", "2025-01-15 10:00:00\tINFO\tmsg", 0, 19, Info},
+		{"level after multiple pipes", "2025-01-15 10:00:00 || INFO || msg", 0, 20, Info},
+		{"level in parens", "2025-01-15 10:00:00 (ERROR) msg", 0, 20, Error},
+		{"level after mixed delims", "2025-01-15 10:00:00 | [WARN] | msg", 0, 20, Warn},
+
+		// ── Level with newline boundary ──────────────────────────────
+		{"level before newline", "2025-01-15 10:00:00 INFO\n", 0, 20, Info},
+		{"no scan past newline", "2025-01-15 10:00:00 data\nINFO msg", 0, 20, Unknown},
+
+		// ── Syslog-style prefix before timestamp ─────────────────────
+		{"syslog prefix no glog", "<165> 2024-08-04T12:00:01Z INFO msg", 6, 27, Info},
+
+		// ── Java exception lines (no level) ──────────────────────────
+		{"java stack trace", "\tat java.lang.Thread.run(Thread.java:748)", 0, 0, Unknown},
+		{"caused by", "Caused by: java.io.IOException: Connection reset", 0, 0, Unknown},
+		{"continuation indent", "    at org.apache.spark.executor.Executor(Executor.scala:42)", 0, 0, Unknown},
+
+		// ── GC log tags (not levels) ─────────────────────────────────
+		{"gc tag not a level", "[2026-03-09T20:37:17.105+0800][gc,init] CardTable", 0, 34, Unknown},
+
+		// ── Python logging format ────────────────────────────────────
+		{"python WARNING", "2025-01-15 10:00:00 WARNING msg", 0, 20, Warn},
+		{"python CRITICAL", "2025-01-15 10:00:00 CRITICAL msg", 0, 20, Fatal},
+
+		// ── Shell script formats ─────────────────────────────────────
+		// Level after non-level content (script path) is not detected to avoid
+		// false positives. The first non-delimiter, non-level word stops the scan.
+		{"shell INFO after context - not detected", "CST 2026-03-13 17:38:40 [omsconfig.sh:867] INFO Start config", 4, 24, Unknown},
+		// But if the level is right after the timestamp, it works
+		{"shell INFO right after ts", "CST 2026-03-13 17:38:40 INFO Start config", 4, 24, Info},
 
 		// ── Real log lines from examples ─────────────────────────────
 		{
