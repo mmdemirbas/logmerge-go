@@ -37,6 +37,7 @@ func writeFile(t *testing.T, dir, name, content string) string {
 }
 
 // runLogmerge runs the binary with the given args and returns stdout, stderr, and any error.
+// On failure, stderr is automatically logged to help diagnose CI issues.
 func runLogmerge(t *testing.T, bin string, args ...string) (stdout, stderr string, err error) {
 	t.Helper()
 	cmd := exec.Command(bin, args...)
@@ -44,7 +45,18 @@ func runLogmerge(t *testing.T, bin string, args ...string) (stdout, stderr strin
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf
 	err = cmd.Run()
-	return outBuf.String(), errBuf.String(), err
+	stdout = outBuf.String()
+	stderr = errBuf.String()
+	if err != nil {
+		t.Logf("logmerge args: %v", args)
+		if stderr != "" {
+			t.Logf("stderr:\n%s", stderr)
+		}
+		if stdout != "" {
+			t.Logf("stdout:\n%s", stdout)
+		}
+	}
+	return stdout, stderr, err
 }
 
 func TestIntegration_SingleFile(t *testing.T) {
@@ -349,9 +361,10 @@ func TestIntegration_YAMLConfig(t *testing.T) {
 	outPath := filepath.Join(dir, "out.log")
 	logPath := filepath.Join(dir, "metrics.log")
 
+	// Use forward slashes in YAML to avoid Windows backslash escaping issues
 	writeFile(t, dir, "config.yaml", `
-OutputFile: "`+outPath+`"
-LogFile: "`+logPath+`"
+OutputFile: "`+filepath.ToSlash(outPath)+`"
+LogFile: "`+filepath.ToSlash(logPath)+`"
 MergeConfig:
   WriteAliasPerLine: true
   BufferSizeForRead: 1048576
