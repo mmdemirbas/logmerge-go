@@ -99,6 +99,9 @@ func Run() error {
 	stripTimestamp := flag.Bool("strip-timestamp", false, "")
 	flag.BoolVar(stripTimestamp, "s", false, "")
 
+	writeLevel := flag.Bool("write-level", false, "")
+	stripLevel := flag.Bool("strip-level", false, "")
+
 	writeBlockAlias := flag.Bool("write-block-alias", false, "")
 	flag.BoolVar(writeBlockAlias, "b", false, "")
 
@@ -143,6 +146,8 @@ func Run() error {
 		fmt.Fprintf(w, "\nFormatting:\n")
 		fmt.Fprintf(w, "  -t, --write-timestamp     Prepend normalized timestamp to each line\n")
 		fmt.Fprintf(w, "  -s, --strip-timestamp     Remove original timestamp from each line\n")
+		fmt.Fprintf(w, "      --write-level         Prepend normalized log level (TRACE/DEBUG/INFO/WARN/ERROR/FATAL)\n")
+		fmt.Fprintf(w, "      --strip-level         Remove original log level from each line\n")
 		fmt.Fprintf(w, "  -b, --write-block-alias   Insert separator when file source changes\n")
 		fmt.Fprintf(w, "  -a, --write-line-alias    Prepend file alias to each line\n")
 		fmt.Fprintf(w, "\nTime range:\n")
@@ -236,6 +241,12 @@ func Run() error {
 	}
 	if explicitlySet["strip-timestamp"] || explicitlySet["s"] {
 		config.MergeConfig.StripOriginalTimestamp = *stripTimestamp
+	}
+	if explicitlySet["write-level"] {
+		config.MergeConfig.WriteLevelPerLine = *writeLevel
+	}
+	if explicitlySet["strip-level"] {
+		config.MergeConfig.StripOriginalLevel = *stripLevel
 	}
 	if explicitlySet["write-block-alias"] || explicitlySet["b"] {
 		config.MergeConfig.WriteAliasPerBlock = *writeBlockAlias

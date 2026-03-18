@@ -50,6 +50,9 @@ type FileHandle struct {
 	LineTimestamp       logtime.Timestamp     // The timestamp for the current line
 	LineTimestampStart  int                   // Byte offset where the timestamp section starts (including leading delimiters)
 	LineTimestampEnd    int                   // Byte offset where the timestamp section ends (including trailing delimiters)
+	LineLevel           byte                  // Detected log level for the current line (loglevel.Level)
+	LineLevelStart      int                   // Byte offset where the level token starts
+	LineLevelEnd        int                   // Byte offset where the level token ends
 	BlockTimestamp      logtime.Timestamp     // The timestamp for the current block, i.e. the last non-zero timestamp
 	Metrics             *metrics.MetricsTree
 	MergeMetrics        *metrics.MergeMetrics

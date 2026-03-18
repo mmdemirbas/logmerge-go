@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/mmdemirbas/logmerge/internal/fsutil"
+	"github.com/mmdemirbas/logmerge/internal/loglevel"
 	"github.com/mmdemirbas/logmerge/internal/logtime"
 )
 
@@ -64,5 +65,12 @@ func UpdateTimestamp(c *logtime.ParseTimestampConfig, file *fsutil.FileHandle, c
 	}
 	file.LineTimestampParsed = true
 	file.LineTimestamp = timestamp
+
+	// Detect log level in the region around the timestamp
+	lvl := loglevel.ParseLevel(buf, file.LineTimestampStart, file.LineTimestampEnd)
+	file.LineLevel = byte(lvl.Level)
+	file.LineLevelStart = lvl.Start
+	file.LineLevelEnd = lvl.End
+
 	return nil
 }

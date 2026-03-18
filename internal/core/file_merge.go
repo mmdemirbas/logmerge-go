@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mmdemirbas/logmerge/internal/fsutil"
+	"github.com/mmdemirbas/logmerge/internal/loglevel"
 	"github.com/mmdemirbas/logmerge/internal/logtime"
 	"github.com/mmdemirbas/logmerge/internal/metrics"
 )
@@ -20,7 +21,9 @@ type MergeConfig struct {
 	WriteAliasPerBlock     bool `yaml:"WriteAliasPerBlock"`
 	WriteAliasPerLine      bool `yaml:"WriteAliasPerLine"`
 	WriteTimestampPerLine  bool `yaml:"WriteTimestampPerLine"`
+	WriteLevelPerLine      bool `yaml:"WriteLevelPerLine"`
 	StripOriginalTimestamp bool `yaml:"StripOriginalTimestamp"`
+	StripOriginalLevel     bool `yaml:"StripOriginalLevel"`
 
 	MinTimestamp logtime.Timestamp `yaml:"MinTimestamp"`
 	MaxTimestamp logtime.Timestamp `yaml:"MaxTimestamp"`
@@ -283,6 +286,14 @@ func writeLine(c *MergeConfig, m *metrics.MergeMetrics, ws *writeState, writer *
 			mt.Stop(startTime)
 		}
 	}
+	if c.WriteLevelPerLine {
+		label := loglevel.Level(file.LineLevel).Label()
+		n, err := writer.Write(label)
+		if err != nil {
+			return fmt.Errorf("failed to write level: %v", err)
+		}
+		m.BytesWrittenForTimestamps += int64(n) // reuse timestamp counter for overhead
+	}
 	if c.WriteAliasPerLine {
 		var startTime time.Time
 		if mt != nil {
@@ -344,6 +355,45 @@ func writeLine(c *MergeConfig, m *metrics.MergeMetrics, ws *writeState, writer *
 
 		if mt != nil {
 			mt.Stop(startTime)
+		}
+	}
+
+	// Strip the original log level from the line if configured.
+	// Level positions are relative to the original buffer. After timestamp
+	// stripping, the buffer has advanced by LineTimestampEnd bytes, so we
+	// adjust the level positions accordingly.
+	if c.StripOriginalLevel && file.LineLevelEnd > 0 {
+		// Calculate how many bytes were already consumed (by timestamp strip or not)
+		consumed := 0
+		if c.StripOriginalTimestamp && file.LineTimestampEnd > 0 {
+			consumed = file.LineTimestampEnd
+		}
+		// Only strip if the level region is after the already-consumed portion
+		levelStart := file.LineLevelStart - consumed
+		levelEnd := file.LineLevelEnd - consumed
+		if levelStart > 0 && levelEnd > levelStart {
+			// Write bytes before the level
+			var beforeBuf [64]byte
+			var beforeSlice []byte
+			if levelStart <= 64 {
+				beforeSlice = beforeBuf[:levelStart:levelStart]
+			} else {
+				beforeSlice = make([]byte, levelStart)
+			}
+			before := file.Buffer.PeekSlice(beforeSlice)
+			n, err := writer.Write(before)
+			if err != nil {
+				return fmt.Errorf("failed to write pre-level content: %v", err)
+			}
+			m.BytesWrittenForRawData += int64(n)
+		}
+		if levelEnd > 0 {
+			skipBytes := levelEnd
+			if skipBytes < 0 {
+				skipBytes = 0
+			}
+			file.Buffer.Skip(skipBytes)
+			m.BytesReadAndSkipped += int64(skipBytes)
 		}
 	}
 
