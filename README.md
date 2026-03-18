@@ -1,5 +1,9 @@
 # LogMerge: High-Performance Sequential Log Aggregator
 
+[![CI](https://github.com/mmdemirbas/logmerge/actions/workflows/ci.yml/badge.svg)](https://github.com/mmdemirbas/logmerge/actions/workflows/ci.yml)
+[![Go](https://img.shields.io/github/go-mod/go-version/mmdemirbas/logmerge)](https://go.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 LogMerge is a specialized systems tool designed to merge multiple, massive log files into a single
 chronologically ordered stream. It is engineered for extreme throughput, leveraging modern CPU
 architectures and Go's concurrency primitives.
@@ -82,8 +86,23 @@ values, and input paths are passed as positional arguments.
 # Prepend file alias to every line
 ./logmerge -a --alias "console.log=driver" --alias "*/worker/*.log=worker" /var/log/myapp
 
+# Strip original timestamps, prepend normalized ones
+./logmerge -t -s /var/log/myapp
+
+# Prepend normalized log level column (TRACE/DEBUG/INFO/WARN/ERROR/FATAL)
+./logmerge --write-level /var/log/myapp
+
+# Strip original timestamps and levels, prepend normalized ones
+./logmerge -t -s --write-level --strip-level /var/log/myapp
+
 # Filter by time range
 ./logmerge --since 2025-01-17T13:00:00Z --until 2025-01-17T14:00:00Z /var/log/myapp
+
+# List matched files without merging (dry run)
+./logmerge --dry-run /var/log/myapp
+
+# Follow symbolic links during directory traversal
+./logmerge --follow-symlinks /var/log/myapp
 ```
 
 ### 4. YAML Configuration
@@ -116,12 +135,22 @@ MergeConfig:
 ### 5. Key Flags
 
 * **`-i, --in <path>`**: Input file or directory. Repeatable. Added to positional args.
+* **`-o, --out <path>`**: Output file (default: stdout).
+* **`-t, --write-timestamp`**: Prepend a normalized timestamp to each output line.
+* **`-s, --strip-timestamp`**: Remove the original timestamp from each output line.
+* **`--write-level`**: Prepend a normalized log level column (`TRACE`/`DEBUG`/`INFO`/`WARN`/`ERROR`/`FATAL`).
+* **`--strip-level`**: Remove the original log level token from each output line.
+* **`-b, --write-block-alias`**: Insert a `--- filename ---` separator when the source file changes.
+* **`-a, --write-line-alias`**: Prepend the source file alias to each output line.
 * **`-e, --exclude <pattern>`**: Gitignore-style glob patterns to exclude files. Repeatable. Prefix
   with `!` to negate.
 * **`--ignore-archives`**: Shorthand to ignore `.zip`, `.gz`, `.tar`, `.rar`, `.7z`, `.tgz`, `.bz2`,
   `.tbz2`, `.xz`, `.txz`.
+* **`--dry-run`**: List matched files without merging.
+* **`--follow-symlinks`**: Follow symbolic links during directory traversal.
+* **`--since / --until <timestamp>`**: Filter output to a time range (RFC3339 format).
 * **`--config <path>`**: Load a YAML configuration file as base. CLI flags override YAML values.
-* **`--buf-read <bytes>`**: Increase for high-latency storage (network mounts). Default: 100 MB.
+* **`-v, --version`**: Print version and exit.
 
 ## 📦 Transparent Decompression
 

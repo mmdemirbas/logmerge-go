@@ -40,6 +40,10 @@ ListFilesConfig:
   # (.zip, .tar, .gz, .rar, .7z, .tgz, .bz2, .tbz2, .xz, .txz).
   IgnoreArchives: true
 
+  # Follow symbolic links when traversing directories.
+  # Detects and skips symlink cycles automatically.
+  FollowSymlinks: false
+
   # Map glob patterns or relative paths to short display names.
   # Used in block separators (--write-block-alias) and per-line prefixes (--write-line-alias).
   FileAliases: {}
@@ -74,6 +78,13 @@ MergeConfig:
 
   # Remove the original timestamp from each line.
   StripOriginalTimestamp: false
+
+  # Prepend a normalized log level column (TRACE/DEBUG/INFO/WARN/ERROR/FATAL).
+  # Detected from the line content near the timestamp position.
+  WriteLevelPerLine: false
+
+  # Remove the original log level token from each line.
+  StripOriginalLevel: false
 
   # Only include lines within this time window (RFC3339 format).
   # Omit either to leave that side unbounded.
