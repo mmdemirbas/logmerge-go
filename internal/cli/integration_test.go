@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -12,7 +13,11 @@ import (
 // It uses t.TempDir so the binary is automatically cleaned up.
 func buildBinary(t *testing.T) string {
 	t.Helper()
-	binPath := filepath.Join(t.TempDir(), "logmerge")
+	binName := "logmerge"
+	if runtime.GOOS == "windows" {
+		binName = "logmerge.exe"
+	}
+	binPath := filepath.Join(t.TempDir(), binName)
 	cmd := exec.Command("go", "build", "-o", binPath, "github.com/mmdemirbas/logmerge/cmd/logmerge")
 	out, err := cmd.CombinedOutput()
 	if err != nil {

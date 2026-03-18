@@ -1,6 +1,7 @@
 package fsutil
 
 import (
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -75,7 +76,10 @@ func trimTrailingUnescapedSpaces(s string) string {
 // ShouldInclude returns whether filePath passes the filter rules. Rules are
 // evaluated in order; the last matching rule wins. Default is include.
 func (m *Matcher) ShouldInclude(filePath string) (included bool) {
-	_, name := filepath.Split(filePath)
+	// Normalize to forward slashes for consistent gitignore-style matching.
+	// Gitignore patterns always use '/', even on Windows.
+	filePath = filepath.ToSlash(filePath)
+	_, name := splitLast(filePath)
 	included = true // default: include if no rules match
 	for _, rule := range m.rules {
 		if matchGitignorePattern(rule.pattern, filePath, name, rule.rootOnly) {
@@ -83,6 +87,15 @@ func (m *Matcher) ShouldInclude(filePath string) (included bool) {
 		}
 	}
 	return included
+}
+
+// splitLast returns the directory and file name parts of a slash-separated path.
+func splitLast(path string) (string, string) {
+	i := strings.LastIndex(path, "/")
+	if i < 0 {
+		return "", path
+	}
+	return path[:i], path[i+1:]
 }
 
 // matchGitignorePattern matches a gitignore-style pattern against a file path.
@@ -99,12 +112,12 @@ func matchGitignorePattern(pattern, filePath, name string, rootOnly bool) bool {
 		if strings.Contains(pattern, "**") {
 			return matchDoublestar(pattern, filePath)
 		}
-		matched, _ := filepath.Match(pattern, filePath)
+		matched, _ := path.Match(pattern, filePath)
 		return matched
 	}
 
 	if !strings.Contains(pattern, "/") {
-		matched, _ := filepath.Match(pattern, name)
+		matched, _ := path.Match(pattern, name)
 		return matched
 	}
 
@@ -115,13 +128,13 @@ func matchGitignorePattern(pattern, filePath, name string, rootOnly bool) bool {
 
 	// Pattern contains '/' but no ** — try matching against the full path
 	// and every suffix starting at a path separator.
-	if matched, _ := filepath.Match(pattern, filePath); matched {
+	if matched, _ := path.Match(pattern, filePath); matched {
 		return true
 	}
 	for i := 0; i < len(filePath); i++ {
-		if filePath[i] == filepath.Separator || filePath[i] == '/' {
+		if filePath[i] == '/' {
 			sub := filePath[i+1:]
-			if matched, _ := filepath.Match(pattern, sub); matched {
+			if matched, _ := path.Match(pattern, sub); matched {
 				return true
 			}
 		}
@@ -138,16 +151,16 @@ func matchGitignorePattern(pattern, filePath, name string, rootOnly bool) bool {
 //	"**/yarn/**"    matches any file under a "yarn" directory at any depth
 //	"**/*.log"      matches any .log file at any depth
 //	"foo/**/bar"    matches foo/bar, foo/x/bar, foo/x/y/bar, etc.
-func matchDoublestar(pattern, path string) bool {
+func matchDoublestar(pattern, filePath string) bool {
 	patParts := splitPath(pattern)
-	pathParts := splitPath(path)
+	pathParts := splitPath(filePath)
 	return matchSegments(patParts, pathParts)
 }
 
 // matchSegments recursively matches pattern segments against path segments,
 // where a "**" pattern segment matches zero or more path segments.
-func matchSegments(pat, path []string) bool {
-	for len(pat) > 0 && len(path) > 0 {
+func matchSegments(pat, segs []string) bool {
+	for len(pat) > 0 && len(segs) > 0 {
 		if pat[0] == "**" {
 			pat = pat[1:]
 			// Skip consecutive ** segments
@@ -158,20 +171,20 @@ func matchSegments(pat, path []string) bool {
 				return true // trailing ** matches everything
 			}
 			// Try matching remaining pattern at every position in path
-			for i := 0; i <= len(path); i++ {
-				if matchSegments(pat, path[i:]) {
+			for i := 0; i <= len(segs); i++ {
+				if matchSegments(pat, segs[i:]) {
 					return true
 				}
 			}
 			return false
 		}
 
-		matched, _ := filepath.Match(pat[0], path[0])
+		matched, _ := path.Match(pat[0], segs[0])
 		if !matched {
 			return false
 		}
 		pat = pat[1:]
-		path = path[1:]
+		segs = segs[1:]
 	}
 
 	// If path is exhausted but pattern has only trailing ** left:
@@ -182,11 +195,11 @@ func matchSegments(pat, path []string) bool {
 		hasTrailingStar = true
 		pat = pat[1:]
 	}
-	if hasTrailingStar && len(path) == 0 {
+	if hasTrailingStar && len(segs) == 0 {
 		return false
 	}
 
-	return len(pat) == 0 && len(path) == 0
+	return len(pat) == 0 && len(segs) == 0
 }
 
 // splitPath splits a path by '/' separator, filtering out empty segments.
