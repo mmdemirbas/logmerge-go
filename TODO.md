@@ -46,3 +46,10 @@ Ideas and future work. Not in priority order. Some may never be implemented.
 - **Simplify the merge loop** — `sequentialProcessFiles` handles I/O, timestamp parsing, alias
   formatting, and heap management in one place. Extracting output formatting into a separate layer
   would make the code easier to extend and test.
+
+
+---
+
+- Consider implementing loser tree
+- Manual testing of all functionality to see gaps, problems, bad ux etc.
+- Add an actual folder to test (maybe a zip of many logs for more realistic testing)
