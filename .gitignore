@@ -36,7 +36,6 @@ desktop.ini
 
 # Project-specific
 /.task/
-/vendor/
 /conf/default.yaml
 /examples/application_*/
 /files.txt
