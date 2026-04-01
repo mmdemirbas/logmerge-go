@@ -57,7 +57,7 @@ func runMerge(t *testing.T, c *MergeConfig, files []*fsutil.FileHandle) string {
 	if err != nil {
 		t.Fatalf("ProcessFiles failed: %v", err)
 	}
-	writer.Flush()
+	_ = writer.Flush()
 	return buf.String()
 }
 
@@ -475,7 +475,7 @@ func TestProcessFiles_PrefetchError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ProcessFiles should not fail due to a single file error: %v", err)
 	}
-	writer.Flush()
+	_ = writer.Flush()
 	got := buf.String()
 
 	// The good file's content should still appear
@@ -866,7 +866,7 @@ func TestProcessFiles_BytesReadMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ProcessFiles failed: %v", err)
 	}
-	writer.Flush()
+	_ = writer.Flush()
 
 	// Aggregate per-file metrics
 	m.Merge(fh.MergeMetrics)

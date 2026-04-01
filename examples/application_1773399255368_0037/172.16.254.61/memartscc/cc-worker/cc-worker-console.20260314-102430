@@ -1,0 +1,50 @@
+configuration.cpp:77 [CONF][INFO] Start config monitor thread.
+CCWORKER INIT STEP 0, Conf init SUCCESS.
+The log dir is /var/log/Bigdata/memartscc/cc-worker
+The log level is INFO
+CCWORKER INIT STEP 1, Log init SUCCESS.
+CCWORKER INIT STEP 2, Audit Log init SUCCESS.
+CCWORKER INIT STEP 3, Worker thread parse SUCCESS.
+CCWORKER INIT STEP 4, Cluster info init SUCCESS.
+CCWORKER INIT STEP 5, Dump thead stack signal init SUCCESS.
+<loglevel:ERROR>[DiagAgentLogin] Diagnose agent login failed.
+CCWORKER INIT STEP 6, Diagnose init SUCCESS.
+CCWORKER INIT STEP 7, Ftds init SUCCESS.
+CCWORKER INIT STEP 8, Lwt init SUCCESS.
+CCWORKER INIT STEP 9, Local store init SUCCESS.
+CCWORKER INIT STEP 10, Thread pool init SUCCESS.
+CCWORKER INIT STEP 11, Worker metrics init SUCCESS.
+CCWORKER INIT STEP 12, Cache worker init SUCCESS.
+CCWORKER INIT STEP 13, Obs init SUCCESS.
+CCWORKER INIT STEP 14, Auth init SUCCESS.
+CCWORKER INIT STEP 15, Safety auth init SUCCESS.
+CCWORKER INIT STEP 16, Network client init SUCCESS.
+CCWORKER INIT STEP 17, Domain socket init SUCCESS.
+Zk endpoint is 172-16-254-61:24002,172-16-240-143:24002,172-16-175-150:24002
+2026-03-14 10:24:31,054:3880844(0x7f1f7ee9b640):ZOO_INFO@log_env@1250: Client environment:zookeeper.version=zookeeper C client 3.7.0
+2026-03-14 10:24:31,055:3880844(0x7f1f7ee9b640):ZOO_INFO@log_env@1254: Client environment:host.name=172-16-254-61
+2026-03-14 10:24:31,055:3880844(0x7f1f7ee9b640):ZOO_INFO@log_env@1261: Client environment:os.name=Linux
+2026-03-14 10:24:31,055:3880844(0x7f1f7ee9b640):ZOO_INFO@log_env@1262: Client environment:os.arch=5.10.0-60.18.0.50.oe2203.x86_64
+2026-03-14 10:24:31,055:3880844(0x7f1f7ee9b640):ZOO_INFO@log_env@1263: Client environment:os.version=#1 SMP Wed Mar 30 03:12:24 UTC 2022
+2026-03-14 10:24:31,055:3880844(0x7f1f7ee9b640):ZOO_INFO@log_env@1271: Client environment:user.name=root
+2026-03-14 10:24:31,055:3880844(0x7f1f7ee9b640):ZOO_INFO@log_env@1279: Client environment:user.home=/home/omm
+2026-03-14 10:24:31,055:3880844(0x7f1f7ee9b640):ZOO_INFO@log_env@1291: Client environment:user.dir=/
+2026-03-14 10:24:31,055:3880844(0x7f1f7ee9b640):ZOO_INFO@zookeeper_init_internal@1344: Initiating client connection, host=172-16-254-61:24002,172-16-240-143:24002,172-16-175-150:24002 sessionTimeout=4000 watcher=0x5608049de6f0 sessionId=0 sessionPasswd=<null> context=0x5608143db320 flags=0
+2026-03-14 10:24:31,056:3880844(0x7f1f7e69a640):ZOO_INFO@check_events@2988: initiated connection to server 172.16.254.61:24002
+2026-03-14 10:24:31,105:3880844(0x7f1f7e69a640):ZOO_INFO@finalize_session_establishment@2868: session establishment complete on server 172.16.254.61:24002, sessionId=0x4f01f57df8b6535c, negotiated timeout=4000 
+Cm connect success.
+Cm connect with slaver.
+CCWORKER INIT STEP 18, CM, Shard view and Async network init SUCCESS.
+start nonblock sync server
+
+CCWORKER INIT STEP 19, SecretKey Manager init SUCCESS.
+CCWORKER INIT STEP 20, Http server init SUCCESS.
+CCWORKER INIT STEP 21, Delete redundant data task SUCCESS.
+CCWORKER INIT SUCCESS.
+Could not format log message at /data/fuxi_ci_workspace/69b1dee21d32e549d6c6560c/src/cc_worker/cache_core/conf_negotiate_server.cpp:267 (max=511, MAX_LOG_BUF=512)
+Could not format log message at /data/fuxi_ci_workspace/69b1dee21d32e549d6c6560c/src/cc_worker/cache_core/conf_negotiate_server.cpp:267 (max=511, MAX_LOG_BUF=512)
+Could not format log message at /data/fuxi_ci_workspace/69b1dee21d32e549d6c6560c/src/cc_worker/cache_core/conf_negotiate_server.cpp:267 (max=511, MAX_LOG_BUF=512)
+Could not format log message at /data/fuxi_ci_workspace/69b1dee21d32e549d6c6560c/src/cc_worker/cache_core/conf_negotiate_server.cpp:267 (max=511, MAX_LOG_BUF=512)
+Could not format log message at /data/fuxi_ci_workspace/69b1dee21d32e549d6c6560c/src/cc_worker/cache_core/conf_negotiate_server.cpp:267 (max=511, MAX_LOG_BUF=512)
+Could not format log message at /data/fuxi_ci_workspace/69b1dee21d32e549d6c6560c/src/cc_worker/cache_core/conf_negotiate_server.cpp:267 (max=511, MAX_LOG_BUF=512)
+Could not format log message at /data/fuxi_ci_workspace/69b1dee21d32e549d6c6560c/src/cc_worker/cache_core/conf_negotiate_server.cpp:267 (max=511, MAX_LOG_BUF=512)

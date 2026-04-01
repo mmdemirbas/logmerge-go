@@ -18,7 +18,9 @@ var (
 func BenchmarkPeekSlice_Contiguous(b *testing.B) {
 	rb := NewRingBuffer(4096)
 	data := []byte("2026-03-13 01:21:22.000000000 [INFO] Simulation log line 174182528200\n")
-	rb.Fill(bytes.NewReader(data))
+	if _, err := rb.Fill(bytes.NewReader(data)); err != nil {
+		b.Fatal(err)
+	}
 	var peekBuf [250]byte
 	var result []byte
 	for i := 0; i < b.N; i++ {
@@ -32,11 +34,15 @@ func BenchmarkPeekSlice_Wrapped(b *testing.B) {
 	rb := NewRingBuffer(128)
 	// Fill to near end of buffer
 	filler := make([]byte, 100)
-	rb.Fill(bytes.NewReader(filler))
+	if _, err := rb.Fill(bytes.NewReader(filler)); err != nil {
+		b.Fatal(err)
+	}
 	rb.Skip(90) // advance read position near end
 	// Write new data that wraps
 	data := []byte("2026-03-13 01:21:22.000000000 [INFO] Simulation log line 174182528200\n")
-	rb.Fill(bytes.NewReader(data))
+	if _, err := rb.Fill(bytes.NewReader(data)); err != nil {
+		b.Fatal(err)
+	}
 	var peekBuf [250]byte
 	var result []byte
 	for i := 0; i < b.N; i++ {
@@ -50,11 +56,15 @@ func BenchmarkPeekSlice_Wrapped(b *testing.B) {
 func BenchmarkSkip_Small(b *testing.B) {
 	rb := NewRingBuffer(4096)
 	data := make([]byte, 4000)
-	rb.Fill(bytes.NewReader(data))
+	if _, err := rb.Fill(bytes.NewReader(data)); err != nil {
+		b.Fatal(err)
+	}
 	for i := 0; i < b.N; i++ {
 		rb.Skip(1)
 		if rb.IsEmpty() {
-			rb.Fill(bytes.NewReader(data))
+			if _, err := rb.Fill(bytes.NewReader(data)); err != nil {
+		b.Fatal(err)
+	}
 		}
 	}
 }
@@ -62,11 +72,15 @@ func BenchmarkSkip_Small(b *testing.B) {
 func BenchmarkSkip_LineLength(b *testing.B) {
 	rb := NewRingBuffer(4096)
 	data := make([]byte, 4000)
-	rb.Fill(bytes.NewReader(data))
+	if _, err := rb.Fill(bytes.NewReader(data)); err != nil {
+		b.Fatal(err)
+	}
 	for i := 0; i < b.N; i++ {
 		rb.Skip(60)
 		if rb.Len() < 60 {
-			rb.Fill(bytes.NewReader(data))
+			if _, err := rb.Fill(bytes.NewReader(data)); err != nil {
+		b.Fatal(err)
+	}
 		}
 	}
 }
@@ -81,7 +95,9 @@ func BenchmarkPeekNextLineSlice_ShortLine(b *testing.B) {
 	for buf.Len() < 3000 {
 		buf.Write(line)
 	}
-	rb.Fill(&buf)
+	if _, err := rb.Fill(&buf); err != nil {
+		b.Fatal(err)
+	}
 	var result []byte
 	var eol EOLType
 	latestCharWasCR := false
@@ -95,7 +111,9 @@ func BenchmarkPeekNextLineSlice_ShortLine(b *testing.B) {
 			for buf.Len() < 3000 {
 				buf.Write(line)
 			}
-			rb.Fill(&buf)
+			if _, err := rb.Fill(&buf); err != nil {
+				b.Fatal(err)
+			}
 		}
 	}
 	sinkSlice, sinkEOL = result, eol
@@ -112,7 +130,9 @@ func BenchmarkPeekNextLineSlice_LongLine(b *testing.B) {
 	for buf.Len() < 7000 {
 		buf.Write(line)
 	}
-	rb.Fill(&buf)
+	if _, err := rb.Fill(&buf); err != nil {
+		b.Fatal(err)
+	}
 	var result []byte
 	var eol EOLType
 	latestCharWasCR := false
@@ -126,7 +146,9 @@ func BenchmarkPeekNextLineSlice_LongLine(b *testing.B) {
 			for buf.Len() < 7000 {
 				buf.Write(line)
 			}
-			rb.Fill(&buf)
+			if _, err := rb.Fill(&buf); err != nil {
+				b.Fatal(err)
+			}
 		}
 	}
 	sinkSlice, sinkEOL = result, eol
@@ -140,7 +162,9 @@ func BenchmarkFill_1KB(b *testing.B) {
 	b.SetBytes(1024)
 	for i := 0; i < b.N; i++ {
 		rb.Skip(rb.Len()) // drain
-		rb.Fill(bytes.NewReader(data))
+		if _, err := rb.Fill(bytes.NewReader(data)); err != nil {
+		b.Fatal(err)
+	}
 	}
 }
 
@@ -150,7 +174,9 @@ func BenchmarkFill_1MB(b *testing.B) {
 	b.SetBytes(int64(len(data)))
 	for i := 0; i < b.N; i++ {
 		rb.Skip(rb.Len())
-		rb.Fill(bytes.NewReader(data))
+		if _, err := rb.Fill(bytes.NewReader(data)); err != nil {
+		b.Fatal(err)
+	}
 	}
 }
 
@@ -162,7 +188,9 @@ func BenchmarkPeek_Sequential(b *testing.B) {
 	for j := range data {
 		data[j] = byte(j)
 	}
-	rb.Fill(bytes.NewReader(data))
+	if _, err := rb.Fill(bytes.NewReader(data)); err != nil {
+		b.Fatal(err)
+	}
 	var result byte
 	for i := 0; i < b.N; i++ {
 		result = rb.Peek(i % rb.Len())

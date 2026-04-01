@@ -24,7 +24,7 @@ func BenchmarkProcessFiles_Saturation(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	paths := make([]string, numFiles)
 	var totalBytes int64
@@ -45,8 +45,12 @@ func BenchmarkProcessFiles_Saturation(b *testing.B) {
 			n, _ := writer.WriteString(line)
 			totalBytes += int64(n)
 		}
-		writer.Flush()
-		f.Close()
+		if err := writer.Flush(); err != nil {
+			b.Fatal(err)
+		}
+		if err := f.Close(); err != nil {
+			b.Fatal(err)
+		}
 	}
 
 	config := &core.MergeConfig{
@@ -93,6 +97,6 @@ func BenchmarkProcessFiles_Saturation(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		writer.Flush()
+		_ = writer.Flush()
 	}
 }

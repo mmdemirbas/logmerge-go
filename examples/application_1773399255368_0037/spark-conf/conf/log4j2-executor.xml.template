@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Properties>
+        <Property name="spark.yarn.app.container.log.dir">${sys:spark.yarn.app.container.log.dir}</Property>
+    </Properties>
+
+    <Appenders>
+        <RollingFile name="sparklog" fileName="${spark.yarn.app.container.log.dir}/stdout"
+                     filePattern="${spark.yarn.app.container.log.dir}/stdout-%d{yyyy-MM-dd}-%i.log.gz">
+            <UsPatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss,SSS} | %-5p | [%t] | %m | %c.%M(%F:%L)%n"/>
+            <Policies>
+                <SizeBasedTriggeringPolicy size="50MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="10"/>
+        </RollingFile>
+
+        <RollingFile name="rangerAudit" fileName="${spark.yarn.app.container.log.dir}/ranger-audit.log"
+                     filePattern="${spark.yarn.app.container.log.dir}/ranger-audit-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss,SSS} | %-5p | [%t] | %m | %c.%M(%F:%L)%n"/>
+            <Policies>
+                <SizeBasedTriggeringPolicy size="20MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="20">
+                <PosixViewAttribute basePath="${spark.yarn.app.container.log.dir}/" filePermissions="r--r--r--">
+				    <IfFileName glob="*log.gz" />
+				</PosixViewAttribute>
+            </DefaultRolloverStrategy>
+        </RollingFile>
+    </Appenders>
+
+    <Loggers>
+        <Root level="info">
+            <AppenderRef ref="sparklog"/>
+        </Root>
+
+        <Logger name="org.sparkproject.jetty" level="warn"/>
+        <Logger name="org.apache.spark.repl.SparkIMain$exprTyper" level="info"/>
+        <Logger name="org.apache.hadoop.hive.ql.metadata.multiversion.MultiVersionFactory" level="fatal"/>
+        <Logger name="org.apache.ranger.audit.provider.AuditProviderFactory" level="error"/>
+        <Logger name="org.sparkproject.jetty.util.component.AbstractLifeCycle" level="error"/>
+        <Logger name="com.obs" level="warn"/>
+        <Logger name="xaaudit" level="info" additivity="false">
+            <AppenderRef ref="rangerAudit"/>
+        </Logger>
+        <Logger name="org.apache.hadoop.fs.obs" level="warn"/>
+        <Logger name="com.huawei.hadoop.dynalogger.DynaLog4jWatcher" level="off"/>
+        <Logger name="org.apache.spark.repl.SparkILoop$SparkILoopInterpreter" level="info"/>
+    </Loggers>
+</Configuration>

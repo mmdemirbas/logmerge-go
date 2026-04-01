@@ -131,7 +131,9 @@ func sequentialProcessFiles(
 			file.MergeMetrics.BytesRead += int64(file.BytesRead)
 			file.MergeMetrics.BytesNotRead += int64(file.Size - file.BytesRead)
 			file.Done = true
-			file.Close()
+			if err := file.Close(); err != nil {
+				fmt.Fprintf(logFile, "failed to close file %s: %v\n", file.File.Name(), err)
+			}
 			continue
 		}
 		if file.LineTimestampParsed {
@@ -141,7 +143,9 @@ func sequentialProcessFiles(
 			file.MergeMetrics.BytesRead += int64(file.BytesRead)
 			file.MergeMetrics.BytesNotRead += int64(file.Size - file.BytesRead)
 			file.Done = true
-			file.Close()
+			if err := file.Close(); err != nil {
+				fmt.Fprintf(logFile, "failed to close file %s: %v\n", file.File.Name(), err)
+			}
 		}
 	}
 

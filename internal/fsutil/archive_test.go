@@ -32,8 +32,12 @@ func createTar(t *testing.T, dir string, entries map[string]string) string {
 			t.Fatal(err)
 		}
 	}
-	tw.Close()
-	f.Close()
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 	return path
 }
 
@@ -56,9 +60,15 @@ func createTarGz(t *testing.T, dir string, entries map[string]string) string {
 			t.Fatal(err)
 		}
 	}
-	tw.Close()
-	gw.Close()
-	f.Close()
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 	return path
 }
 
@@ -88,9 +98,15 @@ func createTarXz(t *testing.T, dir string, entries map[string]string) string {
 			t.Fatal(err)
 		}
 	}
-	tw.Close()
-	xw.Close()
-	f.Close()
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := xw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 	return path
 }
 
@@ -106,8 +122,12 @@ func createGz(t *testing.T, dir, name, content string) string {
 	if _, err := gw.Write([]byte(content)); err != nil {
 		t.Fatal(err)
 	}
-	gw.Close()
-	f.Close()
+	if err := gw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 	return path
 }
 
@@ -126,8 +146,12 @@ func createXz(t *testing.T, dir, name, content string) string {
 	if _, err := xw.Write([]byte(content)); err != nil {
 		t.Fatal(err)
 	}
-	xw.Close()
-	f.Close()
+	if err := xw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 	return path
 }
 
@@ -149,8 +173,12 @@ func createZip(t *testing.T, dir string, entries map[string]string) string {
 			t.Fatal(err)
 		}
 	}
-	zw.Close()
-	f.Close()
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 	return path
 }
 
@@ -242,7 +270,9 @@ func TestArchiveFormats(t *testing.T) {
 				if err != nil {
 					t.Errorf("FillBuffer failed for %s: %v", string(fh.Alias), err)
 				}
-				fh.Close()
+				if err := fh.Close(); err != nil {
+					t.Errorf("close failed: %v", err)
+				}
 			}
 		})
 	}
@@ -284,7 +314,9 @@ func TestArchiveFiltering(t *testing.T) {
 		if strings.Contains(string(fh.Alias), "debug.tmp") {
 			t.Errorf("debug.tmp should have been filtered out")
 		}
-		fh.Close()
+		if err := fh.Close(); err != nil {
+			t.Errorf("close failed: %v", err)
+		}
 	}
 }
 
@@ -310,7 +342,11 @@ func TestTarEntryContent(t *testing.T) {
 	}
 
 	fh := files[0]
-	defer fh.Close()
+	defer func() {
+		if err := fh.Close(); err != nil {
+			t.Errorf("close failed: %v", err)
+		}
+	}()
 
 	// Read content through the buffer
 	err = fh.FillBuffer()
@@ -343,11 +379,21 @@ func TestTgzAlias(t *testing.T) {
 	gw := gzip.NewWriter(f)
 	tw := tar.NewWriter(gw)
 	hdr := &tar.Header{Name: "app.log", Mode: 0644, Size: 4}
-	tw.WriteHeader(hdr)
-	tw.Write([]byte("test"))
-	tw.Close()
-	gw.Close()
-	f.Close()
+	if err := tw.WriteHeader(hdr); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tw.Write([]byte("test")); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	cfg := &ListFilesConfig{
 		IgnorePatterns: []string{},
@@ -368,7 +414,9 @@ func TestTgzAlias(t *testing.T) {
 	if !strings.Contains(name, "!/") {
 		t.Errorf("expected virtual path with !/ delimiter, got %q", name)
 	}
-	files[0].Close()
+	if err := files[0].Close(); err != nil {
+		t.Errorf("close failed: %v", err)
+	}
 }
 
 func TestIgnoreArchivesIncludesNewFormats(t *testing.T) {
@@ -378,10 +426,14 @@ func TestIgnoreArchivesIncludesNewFormats(t *testing.T) {
 	// Create files of various archive types
 	archiveNames := []string{"a.tar", "b.tar.gz", "c.tgz", "d.tar.bz2", "e.tbz2", "f.tar.xz", "g.txz", "h.bz2", "i.xz"}
 	for _, name := range archiveNames {
-		os.WriteFile(filepath.Join(dir, name), []byte("dummy"), 0644)
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("dummy"), 0600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	// Create a plain log file
-	os.WriteFile(filepath.Join(dir, "app.log"), []byte("2025-01-17 13:00:00 keep\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "app.log"), []byte("2025-01-17 13:00:00 keep\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
 
 	cfg := &ListFilesConfig{
 		IgnoreArchives: false,
@@ -404,6 +456,8 @@ func TestIgnoreArchivesIncludesNewFormats(t *testing.T) {
 		t.Errorf("expected 1 file (app.log only), got %d: %v", len(files), names)
 	}
 	for _, fh := range files {
-		fh.Close()
+		if err := fh.Close(); err != nil {
+			t.Errorf("close failed: %v", err)
+		}
 	}
 }

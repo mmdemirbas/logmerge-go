@@ -89,8 +89,10 @@ func BenchmarkUpdateTimestamp_NumericAtStart(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		fh.Buffer.Skip(fh.Buffer.Len())
 		vf.(*memFile).Reader = bytes.NewReader([]byte(content))
-		fh.FillBuffer()
-		UpdateTimestamp(c, fh, false)
+		if err := fh.FillBuffer(); err != nil {
+			b.Fatal(err)
+		}
+		_ = UpdateTimestamp(c, fh, false)
 	}
 }
 
@@ -107,8 +109,10 @@ func BenchmarkUpdateTimestamp_WithStripPositions(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		fh.Buffer.Skip(fh.Buffer.Len())
 		vf.(*memFile).Reader = bytes.NewReader([]byte(content))
-		fh.FillBuffer()
-		UpdateTimestamp(c, fh, true)
+		if err := fh.FillBuffer(); err != nil {
+			b.Fatal(err)
+		}
+		_ = UpdateTimestamp(c, fh, true)
 	}
 }
 
@@ -202,7 +206,7 @@ func benchProcessFilesN(b *testing.B, numFiles, linesPerFile int, config *MergeC
 		logFile := &bytes.Buffer{}
 
 		strip := config.StripOriginalTimestamp
-		ProcessFiles(
+		if err := ProcessFiles(
 			config,
 			m,
 			files,
@@ -211,7 +215,9 @@ func benchProcessFilesN(b *testing.B, numFiles, linesPerFile int, config *MergeC
 			func(f *fsutil.FileHandle) error {
 				return UpdateTimestamp(tsConfig, f, strip)
 			},
-		)
-		writer.Flush()
+		); err != nil {
+			b.Fatal(err)
+		}
+		_ = writer.Flush()
 	}
 }

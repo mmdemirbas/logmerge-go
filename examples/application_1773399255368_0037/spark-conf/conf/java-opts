@@ -1,0 +1,1 @@
+-Djava.security.krb5.conf=/opt/client-md/KrbClient/kerberos/var/krb5kdc/krb5.conf -Dzookeeper.server.principal=zookeeper/hadoop.4f051880_a5f9_f68b_9a19_27e0d0f6fe02.com -Djava.security.auth.login.config=/opt/client-md/Spark/spark/conf/jaas.conf -Dzookeeper.kinit=/opt/client-md/KrbClient/kerberos/bin/kinit -Djava.io.tmpdir=/opt/client-md/Spark/tmp

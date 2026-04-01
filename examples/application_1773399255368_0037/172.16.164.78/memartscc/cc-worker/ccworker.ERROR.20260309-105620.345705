@@ -1,0 +1,35 @@
+Log file created at: 2026/03/09 10:56:20
+Running on machine: 172-16-164-78
+Running duration (h:mm:ss): 49:28:36
+Log line format: [IWEF]yyyymmdd hh:mm:ss.uuuuuu threadid file:line] msg
+E20260309 10:56:20.687469 345863 glogger.cpp:71] zk_lock.cpp:32 [CM][ERROR] Lock watcher callback, get conning state, don't need callback.
+E20260309 10:56:20.687781 345863 glogger.cpp:71] conn_event.cpp:234 [CM][ERROR] Zk is connecting. This may affect IO.
+E20260309 10:56:26.301631 1761143 glogger.cpp:71] conn_event.cpp:162 [CM][ERROR][logCnt=1] Connecting Timer wait timeout, disconnect.
+E20260309 10:56:26.301764 1761143 glogger.cpp:71] client_impl.cpp:187 [CM][ERROR][logCnt=1] Cm disconnect with adapter, ret is 1281.
+E20260309 10:56:55.836805 345867 glogger.cpp:71] zk_lock.cpp:193 [CM][ERROR] Zk lock get child path failed, type is -1, state is 3.
+E20260309 10:56:55.836958 345867 glogger.cpp:71] zk_lock.cpp:241 [CM][ERROR] Lock handle slaver wait failed, ret is 8.
+E20260309 10:56:55.837057 345867 glogger.cpp:71] zk_lock.cpp:125 [CM][ERROR] Zk lock handle failed, caused by lock option failed, ret is 8.
+E20260309 10:56:55.837095 345867 glogger.cpp:71] zk_lock.cpp:101 [CM][ERROR] Zk lock failed, caused by lock handle failed, ret is 8.
+E20260309 10:56:55.837155 345867 glogger.cpp:71] event_mgt.cpp:119 [CM][ERROR] Local service elect failed, ret is 8, distributed service (cc01), local service (172.16.164.78_virtNodeNum:30).
+E20260309 10:56:55.837190 345867 glogger.cpp:71] client_impl.cpp:351 [CM][ERROR] Electing local service elect failed, ret is -2, restart!
+E20260309 10:56:55.839424 1768198 glogger.cpp:71] zk_monitor.cpp:267 [CM][ERROR] Get view failed, invalid distributed service path.
+E20260309 10:56:55.839530 1768198 glogger.cpp:71] zk_client.cpp:184 [CM][ERROR] Get view failed, caused by monitor get view failed, ret is -255.
+E20260309 10:56:55.839556 1768198 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is -255, distributed service is cc01.
+E20260309 10:56:55.839951 1768198 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.839983 1768198 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.840293 1768198 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.840416 1768198 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.840723 1768198 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.840749 1768198 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.841048 1768198 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.841075 1768198 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.841352 1768198 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.841408 1768198 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.841573 1762060 glogger.cpp:71] view_mgt.cpp:236 [CM][ERROR] Unsubscribe all view failed, find subscribe, distributed service is cc01, callback close state.
+E20260309 10:56:55.841619 1762060 glogger.cpp:71] shard_view.cpp:214 [SHARD_VIEW][ERROR] Subscribe view failed, ret is -14, exist is 1.
+E20260309 10:56:56.097587 1768220 glogger.cpp:71] worker_init_cm.cpp:62 [CC][ERROR] Cm client disconn handle start.
+E20260309 10:56:56.160506 1768220 glogger.cpp:71] shard_view.cpp:150 [SHARD_VIEW][ERROR] Restart shard view success!
+E20260310 09:20:58.082012 1768223 glogger.cpp:71] zk_lock.cpp:32 [CM][ERROR] Lock watcher callback, get conning state, don't need callback.
+E20260310 09:20:58.082271 1768223 glogger.cpp:71] conn_event.cpp:234 [CM][ERROR] Zk is connecting. This may affect IO.
+E20260310 09:21:04.143476 4164526 glogger.cpp:71] conn_event.cpp:162 [CM][ERROR][logCnt=2] Connecting Timer wait timeout, disconnect.
+E20260310 09:21:04.143603 4164526 glogger.cpp:71] client_impl.cpp:187 [CM][ERROR][logCnt=2] Cm disconnect with adapter, ret is 1281.

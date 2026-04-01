@@ -1,0 +1,431 @@
+Log file created at: 2026/03/07 18:02:44
+Running on machine: 172-16-25-123
+Running duration (h:mm:ss): 8:34:57
+Log line format: [IWEF]yyyymmdd hh:mm:ss.uuuuuu threadid file:line] msg
+E20260307 18:02:44.759917 857325 glogger.cpp:71] delegation_token_mgr.cpp:82 [CACHE_CORE][ERROR] Init delegation token mgr failed, token is empty.
+E20260307 18:02:44.760121 857325 glogger.cpp:71] auth_mgr.cpp:75 [CC][ERROR] Delegation token mgr init fail, ret: -10, dt len: 0.
+E20260307 18:02:44.760157 857325 glogger.cpp:71] cache_worker.cpp:642 [CACHE_CORE][ERROR] Verify token failed.
+E20260307 18:02:44.901017 857327 glogger.cpp:71] delegation_token_mgr.cpp:82 [CACHE_CORE][ERROR] Init delegation token mgr failed, token is empty.
+E20260307 18:02:44.901106 857327 glogger.cpp:71] auth_mgr.cpp:75 [CC][ERROR] Delegation token mgr init fail, ret: -10, dt len: 0.
+E20260307 18:02:44.901125 857327 glogger.cpp:71] cache_worker.cpp:642 [CACHE_CORE][ERROR] Verify token failed.
+E20260307 18:21:11.396626 857320 glogger.cpp:71] delegation_token_mgr.cpp:82 [CACHE_CORE][ERROR] Init delegation token mgr failed, token is empty.
+E20260307 18:21:11.396761 857320 glogger.cpp:71] auth_mgr.cpp:75 [CC][ERROR] Delegation token mgr init fail, ret: -10, dt len: 0.
+E20260307 18:21:11.396783 857320 glogger.cpp:71] cache_worker.cpp:642 [CACHE_CORE][ERROR] Verify token failed.
+E20260307 18:21:11.851261 857322 glogger.cpp:71] delegation_token_mgr.cpp:82 [CACHE_CORE][ERROR] Init delegation token mgr failed, token is empty.
+E20260307 18:21:11.851370 857322 glogger.cpp:71] auth_mgr.cpp:75 [CC][ERROR] Delegation token mgr init fail, ret: -10, dt len: 0.
+E20260307 18:21:11.851393 857322 glogger.cpp:71] cache_worker.cpp:642 [CACHE_CORE][ERROR] Verify token failed.
+E20260309 10:56:20.687927 857462 glogger.cpp:71] zk_lock.cpp:32 [CM][ERROR] Lock watcher callback, get conning state, don't need callback.
+E20260309 10:56:20.688179 857462 glogger.cpp:71] conn_event.cpp:234 [CM][ERROR] Zk is connecting. This may affect IO.
+E20260309 10:56:25.467971 3415859 glogger.cpp:71] conn_event.cpp:162 [CM][ERROR][logCnt=1] Connecting Timer wait timeout, disconnect.
+E20260309 10:56:25.468101 3415859 glogger.cpp:71] client_impl.cpp:187 [CM][ERROR][logCnt=1] Cm disconnect with adapter, ret is 1281.
+E20260309 10:56:55.835119 857515 glogger.cpp:71] zk_lock.cpp:193 [CM][ERROR] Zk lock get child path failed, type is -1, state is 3.
+E20260309 10:56:55.835222 857515 glogger.cpp:71] zk_lock.cpp:241 [CM][ERROR] Lock handle slaver wait failed, ret is 8.
+E20260309 10:56:55.835245 857515 glogger.cpp:71] zk_lock.cpp:125 [CM][ERROR] Zk lock handle failed, caused by lock option failed, ret is 8.
+E20260309 10:56:55.835265 857515 glogger.cpp:71] zk_lock.cpp:101 [CM][ERROR] Zk lock failed, caused by lock handle failed, ret is 8.
+E20260309 10:56:55.835317 857515 glogger.cpp:71] event_mgt.cpp:119 [CM][ERROR] Local service elect failed, ret is 8, distributed service (cc01), local service (172.16.25.123_virtNodeNum:30).
+E20260309 10:56:55.835362 857515 glogger.cpp:71] client_impl.cpp:351 [CM][ERROR] Electing local service elect failed, ret is -2, restart!
+E20260309 10:56:55.839766 3425243 glogger.cpp:71] zk_monitor.cpp:267 [CM][ERROR] Get view failed, invalid distributed service path.
+E20260309 10:56:55.839872 3425243 glogger.cpp:71] zk_client.cpp:184 [CM][ERROR] Get view failed, caused by monitor get view failed, ret is -255.
+E20260309 10:56:55.839915 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is -255, distributed service is cc01.
+E20260309 10:56:55.840065 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.840299 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.840325 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.840363 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.840433 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.840667 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.840691 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.840732 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.840740 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.841068 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.841091 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.841291 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.841346 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.841454 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.841481 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.841642 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.841686 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.841845 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.841876 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.841951 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.841995 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.842262 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.842327 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.842339 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.842357 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.842625 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.842701 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.842712 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.842756 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.842998 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.843098 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.843132 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.843077 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.843468 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.843475 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.843515 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.843523 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.843804 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.843799 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.843848 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.843909 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.844121 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.844165 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.844177 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.844238 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.844440 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.844460 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.844475 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.844525 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.844684 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.844712 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.844759 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.844801 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.845013 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.845036 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.845064 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.845112 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.845317 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.845340 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.845391 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.845451 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.845641 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.845664 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.845713 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.845769 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.845978 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.845999 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.846045 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.846102 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.846305 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.846335 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.846356 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.846405 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.846611 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.846637 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.846648 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.846702 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.846923 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.846946 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.846971 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.847025 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.847232 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.847255 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.847270 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.847306 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.847536 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.847632 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.847766 3425243 glogger.cpp:71] zk_client.cpp:178 [CM][ERROR] Get view failed, caused by get owner failed, ret is 1.
+E20260309 10:56:55.847795 3425243 glogger.cpp:71] view_mgt.cpp:191 [CM][ERROR] Subscribe local service view get view to user failed, caused by client get view failed, ret is 1, distributed service is cc01.
+E20260309 10:56:55.850167 3416924 glogger.cpp:71] view_mgt.cpp:236 [CM][ERROR] Unsubscribe all view failed, find subscribe, distributed service is cc01, callback close state.
+E20260309 10:56:55.850636 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.850709 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.850953 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.851001 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.851293 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.851337 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.851584 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.851624 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.852020 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.852051 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.852264 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.852294 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.852505 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.852533 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.852768 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.852810 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.853055 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.853088 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.853318 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.853348 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.853737 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.853782 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.854030 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.854058 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.854285 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.854314 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.854563 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.854601 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.854902 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.854946 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.855239 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.855297 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.855549 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.855595 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.855842 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.855885 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.856130 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.856186 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.856433 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.856490 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.856729 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.856770 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.857021 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.857064 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.857317 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.857362 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.857653 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.857723 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.858093 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.858137 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.858481 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.858526 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.858768 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.858798 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.859056 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.859104 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.861124 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.861199 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.861456 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.861498 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.861748 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.861788 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.862164 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.862215 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.862464 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.862514 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.862736 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.862774 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.863013 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.863051 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.863284 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.863327 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.863554 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.863593 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.863796 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.863849 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.864079 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.864130 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.864372 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.864410 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.864641 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.864681 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.864907 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.864946 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.865180 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.865231 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.865499 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.865540 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.865763 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.865828 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.866058 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.866098 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.866333 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.866375 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.866597 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.866636 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.866863 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.866902 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.867127 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.867182 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.867429 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.867470 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.867702 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.867743 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.867986 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.868034 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.868261 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.868304 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.868532 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.868572 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.868803 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.868857 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.869084 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.869124 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.869372 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.869414 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.869644 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.869685 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.869911 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.869951 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.870175 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.870225 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.870448 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.870487 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.870708 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.870748 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.870980 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.871027 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.871277 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.871322 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.872071 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.872120 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.873836 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.873888 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.874421 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.874467 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.874698 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.874738 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.874962 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.875002 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.875248 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.875291 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.875643 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.875685 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.875911 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.875952 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.876186 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.876230 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.876456 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.876495 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.876726 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.876767 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.877023 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.877063 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.877287 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.877329 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.877552 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.877590 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.877823 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.877877 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.878113 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.878168 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.878393 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.878432 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.878669 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.878715 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.878944 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.878984 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.879186 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.879227 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.879449 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.879489 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.879711 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.879750 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.879973 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.880014 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.880239 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.880280 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.880510 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.880549 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.880772 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.880812 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.881047 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.881088 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.881319 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.881361 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.881585 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.881626 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.881860 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.881901 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.882133 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.882191 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.882397 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.882437 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.882669 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.882709 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.882932 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.882972 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.883176 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.883216 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.883440 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.883479 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.883713 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.883765 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.884002 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.884042 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.884285 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.884327 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.884547 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.884585 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.884770 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.884809 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.886305 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.886355 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.886583 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.886641 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.886865 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.886905 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.887128 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.887189 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.887413 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.887465 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.887692 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.887732 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.887959 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.888000 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.891037 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.891180 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.891443 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.891481 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.891736 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.891783 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.892031 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.892067 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.892305 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.892346 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.892570 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.892607 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.892957 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.892999 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.893257 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.893302 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.893527 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.893563 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.893783 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.893841 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.894063 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.894114 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.894356 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.894394 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.894616 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.894652 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.894876 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.894922 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.895165 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.895208 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.895428 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.895465 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.895685 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.895721 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.895949 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.895987 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.896209 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.896247 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.896466 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.896502 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.897257 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.897328 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.897591 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.897635 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.897883 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.897925 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.898195 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.898240 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.898497 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.898540 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.898790 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.898839 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.899101 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.899161 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.899407 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.899461 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.899688 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.899731 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.899963 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.900000 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.900183 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.900233 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.900458 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.900499 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.900729 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.900781 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.901036 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.901077 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.901316 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.901356 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.901600 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.901640 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.901870 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.901912 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.902179 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.902227 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.902377 3416924 glogger.cpp:71] shard_view.cpp:214 [SHARD_VIEW][ERROR] Subscribe view failed, ret is -14, exist is 1.
+E20260309 10:56:55.902514 3425244 glogger.cpp:71] zk_kv.cpp:133 [CM][ERROR] Zk kv get failed, caused by zoo aget failed, ret is -5.
+E20260309 10:56:55.902617 3425244 glogger.cpp:71] kv_mgt.cpp:282 [CM][ERROR] Sub Kv need to retry, ret(8) path(/memartscc/key).
+E20260309 10:56:55.902981 3425244 glogger.cpp:71] kv_mgt.cpp:268 [CM][ERROR] Is not DsSub path:/memartscc/key
+E20260309 10:56:55.903195 3425254 glogger.cpp:71] worker_init_cm.cpp:62 [CC][ERROR] Cm client disconn handle start.
+E20260309 10:56:56.024282 3425254 glogger.cpp:71] shard_view.cpp:150 [SHARD_VIEW][ERROR] Restart shard view success!
+E20260310 09:20:58.082118 3425257 glogger.cpp:71] zk_lock.cpp:32 [CM][ERROR] Lock watcher callback, get conning state, don't need callback.
+E20260310 09:20:58.082382 3425257 glogger.cpp:71] conn_event.cpp:234 [CM][ERROR] Zk is connecting. This may affect IO.
+E20260310 09:21:02.773898 830591 glogger.cpp:71] conn_event.cpp:162 [CM][ERROR][logCnt=2] Connecting Timer wait timeout, disconnect.
+E20260310 09:21:02.774037 830591 glogger.cpp:71] client_impl.cpp:187 [CM][ERROR][logCnt=2] Cm disconnect with adapter, ret is 1281.

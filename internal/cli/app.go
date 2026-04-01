@@ -350,7 +350,7 @@ func Run() error {
 		if err != nil {
 			fmt.Fprintf(config.LogFile, "could not create CPU profile: %v\n", err)
 		} else {
-			defer cpuFile.Close()
+			defer func() { _ = cpuFile.Close() }()
 			if err := pprof.StartCPUProfile(cpuFile); err != nil {
 				fmt.Fprintf(config.LogFile, "could not start CPU profile: %v\n", err)
 			} else {
@@ -382,7 +382,7 @@ func Run() error {
 	if *dryRunFlag {
 		for _, f := range files {
 			fmt.Fprintln(outputFile, f.File.Name())
-			f.Close()
+			_ = f.Close()
 		}
 		return nil
 	}
@@ -412,8 +412,8 @@ func Run() error {
 
 	writer := bufio.NewWriterSize(outputFile, config.MergeConfig.BufferSizeForWrite)
 	defer func() {
-		writer.Flush()
-		outputFile.Close()
+		_ = writer.Flush()
+		_ = outputFile.Close()
 	}()
 
 	// Process files
@@ -440,7 +440,7 @@ func Run() error {
 		if err != nil {
 			fmt.Fprintf(config.LogFile, "could not create memory profile: %v\n", err)
 		} else {
-			defer memFile.Close()
+			defer func() { _ = memFile.Close() }()
 			if err := pprof.WriteHeapProfile(memFile); err != nil {
 				fmt.Fprintf(config.LogFile, "could not write memory profile: %v\n", err)
 			}

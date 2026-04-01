@@ -79,7 +79,9 @@ func TestToYAML_RoundTrip(t *testing.T) {
 
 	// Write to temp file and reload
 	yamlPath := filepath.Join(tmpDir, "roundtrip.yaml")
-	os.WriteFile(yamlPath, []byte(yamlStr), 0644)
+	if err := os.WriteFile(yamlPath, []byte(yamlStr), 0600); err != nil {
+		t.Fatalf("failed to write temp YAML: %v", err)
+	}
 
 	cfg2 := &MainConfig{
 		OutputFile:           &fsutil.WritableFile{File: os.Stdout},
@@ -124,7 +126,11 @@ func TestWritableFile_Initialize_CreatesFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Initialize failed: %v", err)
 	}
-	defer wf.Close()
+	defer func() {
+		if err := wf.Close(); err != nil {
+			t.Errorf("close failed: %v", err)
+		}
+	}()
 
 	// File should exist
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -160,7 +166,9 @@ func TestLoadYAML_InvalidPath(t *testing.T) {
 func TestLoadYAML_InvalidYAML(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "bad.yaml")
-	os.WriteFile(path, []byte("{{{{not yaml"), 0644)
+	if err := os.WriteFile(path, []byte("{{{{not yaml"), 0600); err != nil {
+		t.Fatalf("failed to write temp YAML: %v", err)
+	}
 
 	cfg := &MainConfig{
 		OutputFile:           &fsutil.WritableFile{File: os.Stdout},

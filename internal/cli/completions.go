@@ -6,7 +6,7 @@ import (
 )
 
 func generateBashCompletion(w io.Writer) {
-	fmt.Fprint(w, `_logmerge() {
+	_, _ = fmt.Fprint(w, `_logmerge() {
     local cur prev opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
@@ -71,7 +71,7 @@ complete -o filenames -F _logmerge logmerge
 }
 
 func generateZshCompletion(w io.Writer) {
-	fmt.Fprint(w, `#compdef logmerge
+	_, _ = fmt.Fprint(w, `#compdef logmerge
 
 _logmerge() {
     _arguments -s -S \
@@ -107,7 +107,7 @@ _logmerge "$@"
 }
 
 func generateFishCompletion(w io.Writer) {
-	fmt.Fprint(w, `# Fish completions for logmerge
+	_, _ = fmt.Fprint(w, `# Fish completions for logmerge
 complete -c logmerge -s i -l in -r -F -d 'Input file or directory'
 complete -c logmerge -s o -l out -r -F -d 'Output file path'
 complete -c logmerge -s l -l log -r -F -d 'Log/stats file path'
@@ -136,7 +136,7 @@ complete -c logmerge -l completions -r -f -a 'bash zsh fish powershell' -d 'Gene
 }
 
 func generatePowershellCompletion(w io.Writer) {
-	fmt.Fprint(w, `Register-ArgumentCompleter -Native -CommandName logmerge -ScriptBlock {
+	_, _ = fmt.Fprint(w, `Register-ArgumentCompleter -Native -CommandName logmerge -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
 
     $flags = @(

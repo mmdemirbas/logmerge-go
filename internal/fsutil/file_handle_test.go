@@ -88,7 +88,9 @@ func TestSkipLine_SingleLine(t *testing.T) {
 	content := "line one\nline two\n"
 	vf := newMemFile("test.log", content)
 	fh, _ := NewFileHandle(vf, "test", 4096)
-	fh.FillBuffer()
+	if err := fh.FillBuffer(); err != nil {
+		t.Fatal(err)
+	}
 
 	bytesCount, eolLen, err := fh.SkipLine()
 	if err != nil {
@@ -108,7 +110,9 @@ func TestSkipLine_CRLF(t *testing.T) {
 	content := "line one\r\nline two\r\n"
 	vf := newMemFile("test.log", content)
 	fh, _ := NewFileHandle(vf, "test", 4096)
-	fh.FillBuffer()
+	if err := fh.FillBuffer(); err != nil {
+		t.Fatal(err)
+	}
 
 	bytesCount, eolLen, err := fh.SkipLine()
 	if err != nil {
@@ -128,7 +132,9 @@ func TestWriteLine_Basic(t *testing.T) {
 	content := "hello world\nsecond line\n"
 	vf := newMemFile("test.log", content)
 	fh, _ := NewFileHandle(vf, "test", 4096)
-	fh.FillBuffer()
+	if err := fh.FillBuffer(); err != nil {
+		t.Fatal(err)
+	}
 
 	var buf bytes.Buffer
 	writer := bufio.NewWriter(&buf)
@@ -138,7 +144,7 @@ func TestWriteLine_Basic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WriteLine failed: %v", err)
 	}
-	writer.Flush()
+	_ = writer.Flush()
 
 	testutil.AssertEquals(t, "hello world\n", buf.String())
 }
@@ -147,7 +153,9 @@ func TestWriteLine_NoTrailingNewline(t *testing.T) {
 	content := "no newline at end"
 	vf := newMemFile("test.log", content)
 	fh, _ := NewFileHandle(vf, "test", 4096)
-	fh.FillBuffer()
+	if err := fh.FillBuffer(); err != nil {
+		t.Fatal(err)
+	}
 
 	var buf bytes.Buffer
 	writer := bufio.NewWriter(&buf)
@@ -157,7 +165,7 @@ func TestWriteLine_NoTrailingNewline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WriteLine failed: %v", err)
 	}
-	writer.Flush()
+	_ = writer.Flush()
 
 	// Should add a missing newline
 	if !strings.HasSuffix(buf.String(), "\n") {
@@ -172,14 +180,18 @@ func TestWriteLine_UpdatesMetrics(t *testing.T) {
 	content := "abcdef\n"
 	vf := newMemFile("test.log", content)
 	fh, _ := NewFileHandle(vf, "test", 4096)
-	fh.FillBuffer()
+	if err := fh.FillBuffer(); err != nil {
+		t.Fatal(err)
+	}
 
 	var buf bytes.Buffer
 	writer := bufio.NewWriter(&buf)
 	m := metrics.NewMergeMetrics()
 
-	fh.WriteLine(m, writer)
-	writer.Flush()
+	if err := fh.WriteLine(m, writer); err != nil {
+		t.Fatal(err)
+	}
+	_ = writer.Flush()
 
 	if m.BytesWrittenForRawData != 7 { // "abcdef\n" = 7 bytes
 		t.Errorf("expected BytesWrittenForRawData=7, got %d", m.BytesWrittenForRawData)
@@ -190,7 +202,9 @@ func TestWriteLine_MultipleLines(t *testing.T) {
 	content := "first\nsecond\nthird\n"
 	vf := newMemFile("test.log", content)
 	fh, _ := NewFileHandle(vf, "test", 4096)
-	fh.FillBuffer()
+	if err := fh.FillBuffer(); err != nil {
+		t.Fatal(err)
+	}
 
 	var buf bytes.Buffer
 	writer := bufio.NewWriter(&buf)
@@ -203,7 +217,7 @@ func TestWriteLine_MultipleLines(t *testing.T) {
 			t.Fatalf("WriteLine %d failed: %v", i, err)
 		}
 	}
-	writer.Flush()
+	_ = writer.Flush()
 
 	testutil.AssertEquals(t, content, buf.String())
 }
@@ -216,7 +230,9 @@ func TestWriteLine_CRAtEOF(t *testing.T) {
 	content := "hello\r"
 	vf := newMemFile("test.log", content)
 	fh, _ := NewFileHandle(vf, "test", 4096)
-	fh.FillBuffer()
+	if err := fh.FillBuffer(); err != nil {
+		t.Fatal(err)
+	}
 
 	var buf bytes.Buffer
 	writer := bufio.NewWriter(&buf)
@@ -235,7 +251,7 @@ func TestWriteLine_CRAtEOF(t *testing.T) {
 		if err != nil {
 			t.Fatalf("WriteLine failed: %v", err)
 		}
-		writer.Flush()
+		_ = writer.Flush()
 		// CR line ending: the \r is written as content, then \n appended
 		testutil.AssertEquals(t, "hello\r\n", buf.String())
 	case <-timer.C:
@@ -259,7 +275,9 @@ func TestSkipLine_LineLongerThanBuffer(t *testing.T) {
 	content := "abcdefghijklmnop\n"
 	vf := newMemFile("test.log", content)
 	fh, _ := NewFileHandle(vf, "test", 8)
-	fh.FillBuffer()
+	if err := fh.FillBuffer(); err != nil {
+		t.Fatal(err)
+	}
 
 	bytesCount, eolLen, err := fh.SkipLine()
 	if err != nil {
@@ -276,7 +294,9 @@ func TestSkipLine_CRLFSplitAcrossBufferFill(t *testing.T) {
 	content := "abcd\r\nefgh\n"
 	vf := newMemFile("test.log", content)
 	fh, _ := NewFileHandle(vf, "test", 6)
-	fh.FillBuffer()
+	if err := fh.FillBuffer(); err != nil {
+		t.Fatal(err)
+	}
 
 	bytesCount, eolLen, err := fh.SkipLine()
 	if err != nil {
@@ -293,7 +313,9 @@ func TestWriteLine_LineLongerThanBuffer(t *testing.T) {
 	content := "abcdefghijklmnop\n"
 	vf := newMemFile("test.log", content)
 	fh, _ := NewFileHandle(vf, "test", 8)
-	fh.FillBuffer()
+	if err := fh.FillBuffer(); err != nil {
+		t.Fatal(err)
+	}
 
 	var buf bytes.Buffer
 	writer := bufio.NewWriter(&buf)
@@ -312,7 +334,7 @@ func TestWriteLine_LineLongerThanBuffer(t *testing.T) {
 		if err != nil {
 			t.Fatalf("WriteLine failed: %v", err)
 		}
-		writer.Flush()
+		_ = writer.Flush()
 		testutil.AssertEquals(t, "abcdefghijklmnop\n", buf.String())
 	case <-timer.C:
 		t.Fatal("WriteLine hung — possible infinite loop on line longer than buffer")

@@ -18,6 +18,13 @@ linters:
     - unused        # unused code
 
   settings:
+    errcheck:
+      exclude-functions:
+        # Writing to stdout/stderr/log writers in a CLI is intentionally fire-and-forget.
+        # A broken stdout/stderr is not recoverable — checking these errors adds noise.
+        - fmt.Fprint
+        - fmt.Fprintln
+        - fmt.Fprintf
     gocognit:
       min-complexity: 15
     cyclop:

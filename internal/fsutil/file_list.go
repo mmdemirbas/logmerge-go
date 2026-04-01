@@ -275,8 +275,12 @@ type gzFile struct {
 
 func (g *gzFile) Read(p []byte) (int, error) { return g.reader.Read(p) }
 func (g *gzFile) Close() error {
-	g.reader.Close()
-	return g.file.Close()
+	rerr := g.reader.Close()
+	ferr := g.file.Close()
+	if rerr != nil {
+		return rerr
+	}
+	return ferr
 }
 func (g *gzFile) Name() string { return g.name }
 func (g *gzFile) Size() int64  { return g.size }
@@ -288,7 +292,7 @@ func openGzFile(path string) (VirtualFile, error) {
 	}
 	gr, err := gzip.NewReader(f)
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, err
 	}
 	info, _ := f.Stat()
@@ -352,7 +356,7 @@ func openZipFile(path string, matcher *Matcher, m *metrics.ListFilesMetrics) ([]
 	}
 
 	if len(included) == 0 {
-		zr.Close()
+		_ = zr.Close()
 		return nil, nil
 	}
 
@@ -362,7 +366,7 @@ func openZipFile(path string, matcher *Matcher, m *metrics.ListFilesMetrics) ([]
 		virtualPath := path + "!/" + f.Name
 		rc, err := f.Open()
 		if err != nil {
-			shared.release() // decrement if we fail to open one
+			_ = shared.release() // decrement if we fail to open one
 			continue
 		}
 		m.FilesMatched++
@@ -424,7 +428,7 @@ func openXzFile(path string) (VirtualFile, error) {
 	}
 	xr, err := xz.NewReader(f)
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, err
 	}
 	info, _ := f.Stat()
@@ -459,7 +463,7 @@ func openTarFile(path string, matcher *Matcher, m *metrics.ListFilesMetrics, dec
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var r io.Reader = f
 	if decomp != nil {
