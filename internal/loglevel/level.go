@@ -125,58 +125,44 @@ func ParseLevel(buffer []byte, tsStart int, tsEnd int) ParseResult {
 	return ParseResult{Level: Unknown}
 }
 
+// levelKeywords maps lowercase level keyword abbreviations to their Level values.
+// SEVERE and CRITICAL are normalised to ERROR and FATAL respectively.
+// Go optimises m[string(byteSlice)] map lookups to avoid heap allocation.
+var levelKeywords = map[string]Level{
+	"info": Info, "warn": Warn, "warning": Warn,
+	"error": Error, "debug": Debug, "trace": Trace,
+	"fatal": Fatal, "notice": Notice,
+	"severe": Error, "critical": Fatal,
+}
+
 // matchLevelWord checks if buffer[start:limit] begins with a known level keyword.
 // Returns the normalized level and the end position of the matched word.
 // Only matches if the word is followed by a non-alpha boundary (space, |, ], etc.).
 func matchLevelWord(buf []byte, start, limit int) (Level, int) {
-	remaining := limit - start
-	if remaining < 2 {
+	if limit-start < 2 {
 		return Unknown, start
 	}
-
-	// Check first byte to quickly dispatch
-	switch buf[start] {
-	case 'I', 'i':
-		if remaining >= 4 && eqFold4(buf[start:], "INFO") && !isAlpha(buf, start+4, limit) {
-			return Info, start + 4
+	// Collect lowercase alpha bytes (up to 9) into a fixed array.
+	// b|0x20 maps ASCII uppercase to lowercase; values outside 'a'–'z' stop the loop.
+	var lower [9]byte
+	wordLen := 0
+	for wordLen < 9 && start+wordLen < limit {
+		b := buf[start+wordLen] | 0x20
+		if b < 'a' || b > 'z' {
+			break
 		}
-	case 'W', 'w':
-		if remaining >= 7 && eqFold7(buf[start:], "WARNING") && !isAlpha(buf, start+7, limit) {
-			return Warn, start + 7
-		}
-		if remaining >= 4 && eqFold4(buf[start:], "WARN") && !isAlpha(buf, start+4, limit) {
-			return Warn, start + 4
-		}
-	case 'E', 'e':
-		if remaining >= 5 && eqFold5(buf[start:], "ERROR") && !isAlpha(buf, start+5, limit) {
-			return Error, start + 5
-		}
-	case 'D', 'd':
-		if remaining >= 5 && eqFold5(buf[start:], "DEBUG") && !isAlpha(buf, start+5, limit) {
-			return Debug, start + 5
-		}
-	case 'T', 't':
-		if remaining >= 5 && eqFold5(buf[start:], "TRACE") && !isAlpha(buf, start+5, limit) {
-			return Trace, start + 5
-		}
-	case 'F', 'f':
-		if remaining >= 5 && eqFold5(buf[start:], "FATAL") && !isAlpha(buf, start+5, limit) {
-			return Fatal, start + 5
-		}
-	case 'N', 'n':
-		if remaining >= 6 && eqFold6(buf[start:], "NOTICE") && !isAlpha(buf, start+6, limit) {
-			return Notice, start + 6
-		}
-	case 'S', 's':
-		if remaining >= 6 && eqFold6(buf[start:], "SEVERE") && !isAlpha(buf, start+6, limit) {
-			return Error, start + 6 // normalize SEVERE → ERROR
-		}
-	case 'C', 'c':
-		if remaining >= 8 && eqFold8(buf[start:], "CRITICAL") && !isAlpha(buf, start+8, limit) {
-			return Fatal, start + 8 // normalize CRITICAL → FATAL
-		}
+		lower[wordLen] = b
+		wordLen++
 	}
-	return Unknown, start
+	// Reject if too short or if more alpha chars follow (not a word boundary).
+	if wordLen < 2 || isAlpha(buf, start+wordLen, limit) {
+		return Unknown, start
+	}
+	lvl, ok := levelKeywords[string(lower[:wordLen])]
+	if !ok {
+		return Unknown, start
+	}
+	return lvl, start + wordLen
 }
 
 // isAlphaNum returns true if buf[pos] is a letter or digit (meaning the match
@@ -205,20 +191,3 @@ func glogLevel(b byte) Level {
 	return Unknown
 }
 
-// Case-insensitive comparison helpers (fixed-length, no allocation).
-func eqFold4(b []byte, s string) bool {
-	return (b[0]|0x20) == (s[0]|0x20) && (b[1]|0x20) == (s[1]|0x20) &&
-		(b[2]|0x20) == (s[2]|0x20) && (b[3]|0x20) == (s[3]|0x20)
-}
-func eqFold5(b []byte, s string) bool {
-	return eqFold4(b, s) && (b[4]|0x20) == (s[4]|0x20)
-}
-func eqFold6(b []byte, s string) bool {
-	return eqFold5(b, s) && (b[5]|0x20) == (s[5]|0x20)
-}
-func eqFold7(b []byte, s string) bool {
-	return eqFold6(b, s) && (b[6]|0x20) == (s[6]|0x20)
-}
-func eqFold8(b []byte, s string) bool {
-	return eqFold7(b, s) && (b[7]|0x20) == (s[7]|0x20)
-}
