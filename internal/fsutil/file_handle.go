@@ -137,94 +137,105 @@ func (r *FileHandle) SkipLine() (bytesCount int, eolLength int, err error) {
 // WriteLine writes the current line from the buffer to the writer, ensuring
 // it ends with a newline. Updates byte and line-length metrics.
 func (r *FileHandle) WriteLine(m *metrics.MergeMetrics, writer *bufio.Writer) error {
+	mt := r.Metrics // cache nil check — avoids 10 method calls per line when nil
+	count, eol, err := r.writeLineChunks(mt, writer)
+	if err != nil {
+		return err
+	}
+	// Ensure \n is written at the end of the line
+	if eol != container.LF && eol != container.CRLF {
+		if err := r.timedWriteNewline(mt, writer, m); err != nil {
+			return fmt.Errorf("failed to write newline: %v", err)
+		}
+	}
+	lineLengthWithoutEol := count
+	switch eol {
+	case container.None:
+	case container.CR, container.LF:
+		lineLengthWithoutEol--
+	case container.CRLF:
+		lineLengthWithoutEol -= 2
+	}
+	m.BytesWrittenForRawData += int64(count)
+	m.LineLengths.UpdateBucketCount(lineLengthWithoutEol)
+	return nil
+}
+
+// writeLineChunks drains the buffer until an EOL is found, writing chunks to
+// writer. Returns total bytes written and the EOL type encountered.
+func (r *FileHandle) writeLineChunks(mt *metrics.MetricsTree, writer *bufio.Writer) (int, container.EOLType, error) {
 	var (
 		count           = 0
 		latestCharWasCR = false
 		eol             = container.None
 		chunk           []byte
-		err             error = nil
 	)
-	mt := r.Metrics // cache nil check — avoids 10 method calls per line when nil
-
 	for !r.Buffer.IsEmpty() || latestCharWasCR {
-		var startTime time.Time
-		if mt != nil {
-			startTime = mt.Start("PeekNextLineSlice")
-		}
-		chunk, eol = r.Buffer.PeekNextLineSlice(&latestCharWasCR)
-		if mt != nil {
-			mt.Stop(startTime)
-		}
-
+		chunk, eol = r.timedPeekLine(mt, &latestCharWasCR)
 		if chunk != nil {
-			if mt != nil {
-				startTime = mt.Start("WriteLinePartial")
+			n, err := r.timedWriteChunk(mt, writer, chunk, eol)
+			if err != nil {
+				return 0, container.None, fmt.Errorf("failed to write line to output: %v", err)
 			}
-			var n int
-			n, err = writer.Write(chunk)
-			if err == nil {
-				if eol == container.CRLF && len(chunk) == 1 && chunk[0] == '\n' {
-					r.Buffer.Skip(1)
-				} else {
-					r.Buffer.Skip(n)
-				}
-				count += n
-			}
-			if mt != nil {
-				mt.Stop(startTime)
-			}
-		}
-
-		if err != nil {
-			return fmt.Errorf("failed to write line to output: %v", err)
+			count += n
 		}
 		if eol != container.None {
 			break
 		}
-
 		if r.Buffer.IsEmpty() && !latestCharWasCR {
-			if mt != nil {
-				startTime = mt.Start("FillBuffer")
-			}
-			err = r.FillBuffer()
-			if err != nil {
-				return fmt.Errorf("failed to fill buffer: %v", err)
-			}
-			if mt != nil {
-				mt.Stop(startTime)
+			if err := r.timedFillBuffer(mt); err != nil {
+				return 0, container.None, fmt.Errorf("failed to fill buffer: %v", err)
 			}
 		}
 	}
+	return count, eol, nil
+}
 
-	// Ensure \n is written at the end of the line
-	if eol != container.LF && eol != container.CRLF {
-		var startTime time.Time
-		if mt != nil {
-			startTime = mt.Start("WriteMissingNewline")
-		}
-		_, err = writer.Write(newline)
-		m.BytesWrittenForMissingNewlines++
-		if err != nil {
-			return fmt.Errorf("failed to write newline: %v", err)
-		}
-		if mt != nil {
-			mt.Stop(startTime)
-		}
+func (r *FileHandle) timedPeekLine(mt *metrics.MetricsTree, latestCharWasCR *bool) ([]byte, container.EOLType) {
+	if mt == nil {
+		return r.Buffer.PeekNextLineSlice(latestCharWasCR)
 	}
+	start := mt.Start("PeekNextLineSlice")
+	chunk, eol := r.Buffer.PeekNextLineSlice(latestCharWasCR)
+	mt.Stop(start)
+	return chunk, eol
+}
 
-	lineLengthWithoutEol := count
-	switch eol {
-	case container.None:
-	case container.CR, container.LF:
-		lineLengthWithoutEol -= 1
-	case container.CRLF:
-		lineLengthWithoutEol -= 2
+func (r *FileHandle) timedWriteChunk(mt *metrics.MetricsTree, writer *bufio.Writer, chunk []byte, eol container.EOLType) (int, error) {
+	if mt != nil {
+		start := mt.Start("WriteLinePartial")
+		defer mt.Stop(start)
 	}
+	n, err := writer.Write(chunk)
+	if err != nil {
+		return 0, err
+	}
+	if eol == container.CRLF && len(chunk) == 1 && chunk[0] == '\n' {
+		r.Buffer.Skip(1)
+	} else {
+		r.Buffer.Skip(n)
+	}
+	return n, nil
+}
 
-	m.BytesWrittenForRawData += int64(count)
-	m.LineLengths.UpdateBucketCount(lineLengthWithoutEol)
+func (r *FileHandle) timedFillBuffer(mt *metrics.MetricsTree) error {
+	if mt == nil {
+		return r.FillBuffer()
+	}
+	start := mt.Start("FillBuffer")
+	err := r.FillBuffer()
+	mt.Stop(start)
+	return err
+}
 
-	return nil
+func (r *FileHandle) timedWriteNewline(mt *metrics.MetricsTree, writer *bufio.Writer, m *metrics.MergeMetrics) error {
+	if mt != nil {
+		start := mt.Start("WriteMissingNewline")
+		defer mt.Stop(start)
+	}
+	_, err := writer.Write(newline)
+	m.BytesWrittenForMissingNewlines++
+	return err
 }
 
 // Close closes the underlying VirtualFile.
