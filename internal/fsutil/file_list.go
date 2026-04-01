@@ -78,45 +78,55 @@ func listVirtualFiles(inputPaths []string, c *ListFilesConfig, m *metrics.ListFi
 	if len(inputPaths) == 0 {
 		return nil, fmt.Errorf("no input paths specified")
 	}
-
 	var vfiles []VirtualFile
-	// Track visited real paths to avoid infinite symlink loops
 	var visited map[string]bool
 	if c.FollowSymlinks {
 		visited = make(map[string]bool)
 	}
-
 	for _, basePath := range inputPaths {
-		stat, statErr := os.Stat(basePath) // os.Stat follows symlinks
-		if statErr != nil {
-			return nil, fmt.Errorf("could not stat %s: %v", basePath, statErr)
-		}
-
-		if stat.IsDir() {
-			// Resolve the base path only if it is itself a symlink.
-			// filepath.WalkDir does not follow symlinked roots, so we
-			// must resolve them. But we avoid resolving regular paths
-			// to preserve the original path in file listings/aliases.
-			walkPath := basePath
-			if lstat, err := os.Lstat(basePath); err == nil && lstat.Mode()&os.ModeSymlink != 0 {
-				if resolved, err := filepath.EvalSymlinks(basePath); err == nil {
-					walkPath = resolved
-				}
-			}
-			if c.FollowSymlinks {
-				if realPath, err := filepath.EvalSymlinks(walkPath); err == nil {
-					visited[realPath] = true
-				}
-			}
-			err := walkDir(walkPath, c.FollowSymlinks, visited, m, matcher, &vfiles, logFile)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			visitVirtualFile(matcher, m, basePath, &vfiles, logFile)
+		if err := visitBasePath(basePath, c, visited, m, matcher, &vfiles, logFile); err != nil {
+			return nil, err
 		}
 	}
 	return vfiles, nil
+}
+
+// visitBasePath handles a single input path: stats it, resolves symlink roots,
+// then either walks the directory or visits the file directly.
+func visitBasePath(basePath string, c *ListFilesConfig, visited map[string]bool, m *metrics.ListFilesMetrics, matcher *Matcher, vfiles *[]VirtualFile, logFile *WritableFile) error {
+	stat, err := os.Stat(basePath)
+	if err != nil {
+		return fmt.Errorf("could not stat %s: %v", basePath, err)
+	}
+	if !stat.IsDir() {
+		visitVirtualFile(matcher, m, basePath, vfiles, logFile)
+		return nil
+	}
+	// Resolve the base path only if it is itself a symlink.
+	// filepath.WalkDir does not follow symlinked roots, so we
+	// must resolve them. But we avoid resolving regular paths
+	// to preserve the original path in file listings/aliases.
+	walkPath := resolveSymlinkRoot(basePath)
+	if c.FollowSymlinks {
+		if realPath, err := filepath.EvalSymlinks(walkPath); err == nil {
+			visited[realPath] = true
+		}
+	}
+	return walkDir(walkPath, c.FollowSymlinks, visited, m, matcher, vfiles, logFile)
+}
+
+// resolveSymlinkRoot returns the real path of basePath if it is a symlink,
+// otherwise returns basePath unchanged.
+func resolveSymlinkRoot(basePath string) string {
+	lstat, err := os.Lstat(basePath)
+	if err != nil || lstat.Mode()&os.ModeSymlink == 0 {
+		return basePath
+	}
+	resolved, err := filepath.EvalSymlinks(basePath)
+	if err != nil {
+		return basePath
+	}
+	return resolved
 }
 
 // walkDir traverses a directory. When followSymlinks is true, symlinked
@@ -127,38 +137,9 @@ func walkDir(dirPath string, followSymlinks bool, visited map[string]bool, m *me
 		if err != nil {
 			return fmt.Errorf("could not walk %s: %v", path, err)
 		}
-
-		isSymlink := d.Type()&os.ModeSymlink != 0
-
-		// For symlinks encountered during traversal, resolve to determine
-		// if target is a file or directory.
-		if isSymlink {
-			info, err := os.Stat(path) // follows symlink
-			if err != nil {
-				fmt.Fprintf(logFile, "could not stat symlink %s: %v\n", path, err)
-				return nil // skip broken symlinks
-			}
-			if info.IsDir() {
-				if !followSymlinks {
-					return nil // skip symlinked directories
-				}
-				realPath, err := filepath.EvalSymlinks(path)
-				if err != nil {
-					fmt.Fprintf(logFile, "could not resolve symlink %s: %v\n", path, err)
-					return nil
-				}
-				if visited[realPath] {
-					fmt.Fprintf(logFile, "skipping symlink loop: %s -> %s\n", path, realPath)
-					return nil
-				}
-				visited[realPath] = true
-				return walkDir(realPath, followSymlinks, visited, m, matcher, vfiles, logFile)
-			}
-			// Symlink to a file — treat as regular file
-			visitVirtualFile(matcher, m, path, vfiles, logFile)
-			return nil
+		if d.Type()&os.ModeSymlink != 0 {
+			return handleSymlinkEntry(path, followSymlinks, visited, m, matcher, vfiles, logFile)
 		}
-
 		if d.IsDir() {
 			m.DirsScanned++
 		} else {
@@ -166,6 +147,35 @@ func walkDir(dirPath string, followSymlinks bool, visited map[string]bool, m *me
 		}
 		return nil
 	})
+}
+
+// handleSymlinkEntry handles a symlink encountered during directory traversal.
+// Symlinked files are visited directly; symlinked directories are walked
+// recursively when followSymlinks is true, with loop detection via visited.
+func handleSymlinkEntry(path string, followSymlinks bool, visited map[string]bool, m *metrics.ListFilesMetrics, matcher *Matcher, vfiles *[]VirtualFile, logFile *WritableFile) error {
+	info, err := os.Stat(path) // follows symlink
+	if err != nil {
+		fmt.Fprintf(logFile, "could not stat symlink %s: %v\n", path, err)
+		return nil // skip broken symlinks
+	}
+	if !info.IsDir() {
+		visitVirtualFile(matcher, m, path, vfiles, logFile)
+		return nil
+	}
+	if !followSymlinks {
+		return nil // skip symlinked directories
+	}
+	realPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		fmt.Fprintf(logFile, "could not resolve symlink %s: %v\n", path, err)
+		return nil
+	}
+	if visited[realPath] {
+		fmt.Fprintf(logFile, "skipping symlink loop: %s -> %s\n", path, realPath)
+		return nil
+	}
+	visited[realPath] = true
+	return walkDir(realPath, followSymlinks, visited, m, matcher, vfiles, logFile)
 }
 
 func visitVirtualFile(matcher *Matcher, m *metrics.ListFilesMetrics, path string, vfiles *[]VirtualFile, logFile *WritableFile) {
