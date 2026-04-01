@@ -14,4 +14,7 @@
 
 /conf/default.yaml
 
+/examples/application_*/
+/files.txt
+
 !/examples/small**

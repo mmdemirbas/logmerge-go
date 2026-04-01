@@ -1,8 +1,0 @@
-Log file created at: 2026/03/14 10:24:30
-Running on machine: 172-16-25-123
-Running duration (h:mm:ss): 0:00:00
-Log line format: [IWEF]yyyymmdd hh:mm:ss.uuuuuu threadid file:line] msg
-W20260314 10:24:30.125887 805688 glogger.cpp:66] client_impl.cpp:320 [CM][WARN][0 log skipped] Electing wait connected finish.
-E20260314 15:26:16.070960 805266 glogger.cpp:71] delegation_token_mgr.cpp:116 [CACHE_CORE][ERROR] Verify token failed, token has expired, expired time is 1773473121, current time is 1773473176.
-E20260314 15:26:16.071240 805266 glogger.cpp:71] auth_mgr.cpp:81 [CC][ERROR] Verify delegation token failed, ret is -200, dt len: 92.
-E20260314 15:26:16.071262 805266 glogger.cpp:71] cache_worker.cpp:642 [CACHE_CORE][ERROR] Verify token failed.

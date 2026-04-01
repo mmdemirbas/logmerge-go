@@ -1,3 +1,0 @@
-/Users/md/dev/mmdemirbas/logmerge-go/cmd
-/Users/md/dev/mmdemirbas/logmerge-go/internal
-/Users/md/dev/mmdemirbas/logmerge-go/go.mod
