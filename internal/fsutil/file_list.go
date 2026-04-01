@@ -173,96 +173,66 @@ func visitVirtualFile(matcher *Matcher, m *metrics.ListFilesMetrics, path string
 	if !matcher.ShouldInclude(path) {
 		return
 	}
+	entries, err := openVirtualEntries(path, strings.ToLower(path), matcher, m)
+	if err != nil {
+		fmt.Fprintf(logFile, "failed to open %s: %v\n", path, err)
+		return
+	}
+	*vfiles = append(*vfiles, entries...)
+}
 
-	lower := strings.ToLower(path)
-
-	// Check compound extensions first (tar.gz, tar.bz2, tar.xz)
+// openVirtualEntries dispatches on compound extensions (tar.*) first, then
+// delegates single-extension files to openSingleVirtualFile.
+func openVirtualEntries(path, lower string, matcher *Matcher, m *metrics.ListFilesMetrics) ([]VirtualFile, error) {
 	switch {
 	case strings.HasSuffix(lower, ".tar.gz") || strings.HasSuffix(lower, ".tgz"):
-		entries, err := openTarFile(path, matcher, m, decompressGzip)
-		if err != nil {
-			fmt.Fprintf(logFile, "failed to open tar.gz file %s: %v\n", path, err)
-			return
-		}
-		*vfiles = append(*vfiles, entries...)
-
+		return openTarFile(path, matcher, m, decompressGzip)
 	case strings.HasSuffix(lower, ".tar.bz2") || strings.HasSuffix(lower, ".tbz2"):
-		entries, err := openTarFile(path, matcher, m, decompressBzip2)
-		if err != nil {
-			fmt.Fprintf(logFile, "failed to open tar.bz2 file %s: %v\n", path, err)
-			return
-		}
-		*vfiles = append(*vfiles, entries...)
-
+		return openTarFile(path, matcher, m, decompressBzip2)
 	case strings.HasSuffix(lower, ".tar.xz") || strings.HasSuffix(lower, ".txz"):
-		entries, err := openTarFile(path, matcher, m, decompressXz)
-		if err != nil {
-			fmt.Fprintf(logFile, "failed to open tar.xz file %s: %v\n", path, err)
-			return
-		}
-		*vfiles = append(*vfiles, entries...)
-
+		return openTarFile(path, matcher, m, decompressXz)
 	default:
-		// Single extension
-		ext := strings.ToLower(filepath.Ext(path))
-		switch ext {
-		case ".gz":
-			vf, err := openGzFile(path)
-			if err != nil {
-				fmt.Fprintf(logFile, "failed to open gz file %s: %v\n", path, err)
-				return
-			}
-			m.FilesMatched++
-			m.MatchedFiles = append(m.MatchedFiles, path)
-			*vfiles = append(*vfiles, vf)
-
-		case ".bz2":
-			vf, err := openBz2File(path)
-			if err != nil {
-				fmt.Fprintf(logFile, "failed to open bz2 file %s: %v\n", path, err)
-				return
-			}
-			m.FilesMatched++
-			m.MatchedFiles = append(m.MatchedFiles, path)
-			*vfiles = append(*vfiles, vf)
-
-		case ".xz":
-			vf, err := openXzFile(path)
-			if err != nil {
-				fmt.Fprintf(logFile, "failed to open xz file %s: %v\n", path, err)
-				return
-			}
-			m.FilesMatched++
-			m.MatchedFiles = append(m.MatchedFiles, path)
-			*vfiles = append(*vfiles, vf)
-
-		case ".tar":
-			entries, err := openTarFile(path, matcher, m, nil)
-			if err != nil {
-				fmt.Fprintf(logFile, "failed to open tar file %s: %v\n", path, err)
-				return
-			}
-			*vfiles = append(*vfiles, entries...)
-
-		case ".zip":
-			entries, err := openZipFile(path, matcher, m)
-			if err != nil {
-				fmt.Fprintf(logFile, "failed to open zip file %s: %v\n", path, err)
-				return
-			}
-			*vfiles = append(*vfiles, entries...)
-
-		default:
-			f, err := os.Open(path)
-			if err != nil {
-				fmt.Fprintf(logFile, "failed to open file %s: %v\n", path, err)
-				return
-			}
-			m.FilesMatched++
-			m.MatchedFiles = append(m.MatchedFiles, path)
-			*vfiles = append(*vfiles, &OsFile{F: f})
-		}
+		return openSingleVirtualFile(path, strings.ToLower(filepath.Ext(path)), matcher, m)
 	}
+}
+
+// singleFileOpeners maps single compressed-file extensions to their openers.
+var singleFileOpeners = map[string]func(string) (VirtualFile, error){
+	".gz":  openGzFile,
+	".bz2": openBz2File,
+	".xz":  openXzFile,
+}
+
+// openSingleVirtualFile opens a file by its single extension.
+func openSingleVirtualFile(path, ext string, matcher *Matcher, m *metrics.ListFilesMetrics) ([]VirtualFile, error) {
+	if opener, ok := singleFileOpeners[ext]; ok {
+		vf, err := opener(path)
+		if err != nil {
+			return nil, err
+		}
+		m.FilesMatched++
+		m.MatchedFiles = append(m.MatchedFiles, path)
+		return []VirtualFile{vf}, nil
+	}
+	switch ext {
+	case ".tar":
+		return openTarFile(path, matcher, m, nil)
+	case ".zip":
+		return openZipFile(path, matcher, m)
+	default:
+		return openPlainFile(path, m)
+	}
+}
+
+// openPlainFile opens a regular (non-archive) file and records it in metrics.
+func openPlainFile(path string, m *metrics.ListFilesMetrics) ([]VirtualFile, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	m.FilesMatched++
+	m.MatchedFiles = append(m.MatchedFiles, path)
+	return []VirtualFile{&OsFile{F: f}}, nil
 }
 
 // gzFile wraps a gzip reader as a VirtualFile.
