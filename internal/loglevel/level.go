@@ -59,70 +59,71 @@ type ParseResult struct {
 //
 // The first confident match wins. Lines without a detectable level return Unknown.
 func ParseLevel(buffer []byte, tsStart int, tsEnd int) ParseResult {
+	if r := parseGlogPrefix(buffer, tsStart); r.Level != Unknown {
+		return r
+	}
 	n := len(buffer)
-
-	// --- Strategy 1: glog prefix before the timestamp ---
-	// Format: I20250115 19:29:15... or E20250115 19:29:15...
-	// The letter is at tsStart-1, and tsStart is the first digit of the timestamp.
-	if tsStart > 0 {
-		b := buffer[tsStart-1]
-		// Only match if the letter is at position 0 or preceded by a newline/space
-		if tsStart == 1 || buffer[tsStart-2] == '\n' || buffer[tsStart-2] == ' ' {
-			if lvl := glogLevel(b); lvl != Unknown {
-				return ParseResult{Level: lvl, Start: tsStart - 1, End: tsStart}
-			}
-		}
-	}
-
-	// --- Strategy 2: scan after the timestamp ---
-	// Search a small window for level tokens.
-	searchEnd := tsEnd + 40
-	if searchEnd > n {
-		searchEnd = n
-	}
-	// Stop at newline
-	for i := tsEnd; i < searchEnd; i++ {
-		if buffer[i] == '\n' || buffer[i] == '\r' {
-			searchEnd = i
-			break
-		}
-	}
-
-	i := tsEnd
-	for i < searchEnd {
+	searchEnd := levelSearchEnd(buffer, n, tsEnd)
+	for i := tsEnd; i < searchEnd; {
 		b := buffer[i]
-
-		// Skip whitespace, pipes, colons, brackets, parens — common delimiters
-		if b == ' ' || b == '\t' || b == '|' || b == ':' ||
-			b == '[' || b == ']' || b == '(' || b == ')' {
+		if isLevelDelimiter(b) {
 			i++
 			continue
 		}
-
-		// Try to match a level word starting at position i
 		lvl, end := matchLevelWord(buffer, i, searchEnd)
-		if lvl != Unknown {
-			// Expand start backward to include a leading '[' or '(' if present
-			start := i
-			if start > tsEnd && (buffer[start-1] == '[' || buffer[start-1] == '(') {
-				start--
-			}
-			// Expand end forward to include a trailing ']', ')', or delimiter
-			if end < searchEnd {
-				c := buffer[end]
-				if c == ']' || c == ')' || c == ' ' || c == '|' || c == ':' {
-					end++
-				}
-			}
-			return ParseResult{Level: lvl, Start: start, End: end}
+		if lvl == Unknown {
+			return ParseResult{Level: Unknown}
 		}
+		start := i
+		if start > tsEnd && (buffer[start-1] == '[' || buffer[start-1] == '(') {
+			start--
+		}
+		if end < searchEnd && isTrailingDelimiter(buffer[end]) {
+			end++
+		}
+		return ParseResult{Level: lvl, Start: start, End: end}
+	}
+	return ParseResult{Level: Unknown}
+}
 
-		// Not a level — the first non-delimiter, non-level word means we've
-		// entered message content. Stop searching to avoid false positives.
+// parseGlogPrefix detects glog-style single-letter level prefixes (I, W, E, F, D)
+// that immediately precede the timestamp (e.g. "I20250115 19:29:15...").
+func parseGlogPrefix(buffer []byte, tsStart int) ParseResult {
+	if tsStart == 0 {
 		return ParseResult{Level: Unknown}
 	}
-
+	b := buffer[tsStart-1]
+	if tsStart == 1 || buffer[tsStart-2] == '\n' || buffer[tsStart-2] == ' ' {
+		if lvl := glogLevel(b); lvl != Unknown {
+			return ParseResult{Level: lvl, Start: tsStart - 1, End: tsStart}
+		}
+	}
 	return ParseResult{Level: Unknown}
+}
+
+// levelSearchEnd returns the index at which the level scan should stop:
+// the first newline after tsEnd, or tsEnd+40, whichever comes first.
+func levelSearchEnd(buffer []byte, n, tsEnd int) int {
+	end := min(tsEnd+40, n)
+	for i := tsEnd; i < end; i++ {
+		if buffer[i] == '\n' || buffer[i] == '\r' {
+			return i
+		}
+	}
+	return end
+}
+
+// isLevelDelimiter reports whether b is a character that may appear between
+// the timestamp and the level token (whitespace, pipe, colon, brackets).
+func isLevelDelimiter(b byte) bool {
+	return b == ' ' || b == '\t' || b == '|' || b == ':' ||
+		b == '[' || b == ']' || b == '(' || b == ')'
+}
+
+// isTrailingDelimiter reports whether b is a character that should be consumed
+// after a matched level token (closing bracket, space, pipe, colon).
+func isTrailingDelimiter(b byte) bool {
+	return b == ']' || b == ')' || b == ' ' || b == '|' || b == ':'
 }
 
 // levelKeywords maps lowercase level keyword abbreviations to their Level values.
