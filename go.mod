@@ -1,6 +1,6 @@
 module github.com/mmdemirbas/logmerge
 
-go 1.23.4
+go 1.26.1
 
 require gopkg.in/yaml.v3 v3.0.1
 

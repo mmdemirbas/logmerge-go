@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-LogMerge is a high-performance sequential log aggregator in Go that merges multiple massive log files into a single chronologically-ordered stream (~34 GB/s throughput on M1 Max). Module: `github.com/mmdemirbas/logmerge`. Go 1.23+.
+LogMerge is a high-performance sequential log aggregator in Go that merges multiple massive log files into a single chronologically-ordered stream (~34 GB/s throughput on M1 Max). Module: `github.com/mmdemirbas/logmerge`. Go 1.26+.
 
 ## Build & Development Commands
 
