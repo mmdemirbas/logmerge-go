@@ -503,57 +503,19 @@ func parseCtimeFrom(c *ParseTimestampConfig, buffer []byte, n int, monthPos int,
 	return NewTimestamp(year, month, day, hour, minute, second, 0, 0, 0, 0), tsStart, i
 }
 
+// monthNameIndex maps 3-letter English month abbreviations to 1-based month numbers.
+// Go optimises m[string(byteSlice)] map lookups to avoid heap allocation.
+var monthNameIndex = map[string]int{
+	"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4,
+	"May": 5, "Jun": 6, "Jul": 7, "Aug": 8,
+	"Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
+}
+
 func parseMonthName(buffer []byte, i int) int {
 	if i+3 > len(buffer) {
 		return 0
 	}
-	switch buffer[i] {
-	case 'J':
-		if buffer[i+1] == 'a' && buffer[i+2] == 'n' {
-			return 1
-		}
-		if buffer[i+1] == 'u' && buffer[i+2] == 'n' {
-			return 6
-		}
-		if buffer[i+1] == 'u' && buffer[i+2] == 'l' {
-			return 7
-		}
-	case 'F':
-		if buffer[i+1] == 'e' && buffer[i+2] == 'b' {
-			return 2
-		}
-	case 'M':
-		if buffer[i+1] == 'a' && buffer[i+2] == 'r' {
-			return 3
-		}
-		if buffer[i+1] == 'a' && buffer[i+2] == 'y' {
-			return 5
-		}
-	case 'A':
-		if buffer[i+1] == 'p' && buffer[i+2] == 'r' {
-			return 4
-		}
-		if buffer[i+1] == 'u' && buffer[i+2] == 'g' {
-			return 8
-		}
-	case 'S':
-		if buffer[i+1] == 'e' && buffer[i+2] == 'p' {
-			return 9
-		}
-	case 'O':
-		if buffer[i+1] == 'c' && buffer[i+2] == 't' {
-			return 10
-		}
-	case 'N':
-		if buffer[i+1] == 'o' && buffer[i+2] == 'v' {
-			return 11
-		}
-	case 'D':
-		if buffer[i+1] == 'e' && buffer[i+2] == 'c' {
-			return 12
-		}
-	}
-	return 0
+	return monthNameIndex[string(buffer[i:i+3])]
 }
 
 func isAlpha(b byte) bool {
