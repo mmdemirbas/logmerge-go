@@ -1,20 +1,43 @@
-*.err
-*.log
-*.out
-*.test
-.DS_Store
-
-/.idea/
-/.task/
+# Build
+/bin/
 /build/
 /dist/
-/log/
 /out/
+
+# Go
+*.test
+*.out
+*.prof
+cover.out
+
+# Secrets
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.obsidian/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+*.err
+
+# Syncthing
+.stignore
+.stfolder
+
+# Project-specific
+/.task/
 /vendor/
-
 /conf/default.yaml
-
 /examples/application_*/
 /files.txt
-
 !/examples/small**
