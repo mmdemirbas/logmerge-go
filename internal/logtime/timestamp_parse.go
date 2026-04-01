@@ -1,5 +1,7 @@
 package logtime
 
+import "bytes"
+
 // TODO: Consider supporting other time formats like 1 Jan 2006; Jan 1, 2006; 01/02/2006 etc.
 
 type ParseTimestampConfig struct {
@@ -35,11 +37,8 @@ func ParseTimestampWithEnd(c *ParseTimestampConfig, buffer []byte) (Timestamp, i
 	// Slow path: first attempt failed. Continue scanning, but track the
 	// first newline to avoid returning timestamps from subsequent lines.
 	firstNewline := n
-	for j := 0; j < n; j++ {
-		if buffer[j] == '\n' || buffer[j] == '\r' {
-			firstNewline = j
-			break
-		}
+	if idx := bytes.IndexAny(buffer[:n], "\n\r"); idx >= 0 {
+		firstNewline = idx
 	}
 
 	for i := end; timestamp == ZeroTimestamp && i < n; {
@@ -76,11 +75,8 @@ func ParseTimestampForStrip(c *ParseTimestampConfig, buffer []byte) (Timestamp, 
 
 	// Slow path: continue scanning with newline tracking.
 	firstNewline := n
-	for j := 0; j < n; j++ {
-		if buffer[j] == '\n' || buffer[j] == '\r' {
-			firstNewline = j
-			break
-		}
+	if idx := bytes.IndexAny(buffer[:n], "\n\r"); idx >= 0 {
+		firstNewline = idx
 	}
 
 	var lastI int
@@ -110,38 +106,40 @@ func ParseTimestampForStrip(c *ParseTimestampConfig, buffer []byte) (Timestamp, 
 
 func computeStripBounds(buffer []byte, n int, firstNewline int, tsStart int, end int) (int, int) {
 	// Strip trailing delimiters after the timestamp (up to 3 chars).
+	// scanned=3 in the default case forces loop exit on next iteration.
+	limit := min(n, firstNewline+1)
 	tsEnd := end
-	for scanned := 0; tsEnd < n && tsEnd <= firstNewline && scanned < 3; scanned++ {
-		b := buffer[tsEnd]
-		switch b {
+	for scanned := 0; tsEnd < limit && scanned < 3; scanned++ {
+		switch buffer[tsEnd] {
 		case ' ', '\t', '|', ']', ')', '}', ':', ',':
 			tsEnd++
 		default:
-			goto doneTrailing
+			scanned = 3
 		}
 	}
-doneTrailing:
 
-	// Look backward from tsStart for opening brackets (up to 3 chars).
+	return scanBackwardBracket(buffer, tsStart), tsEnd
+}
+
+// scanBackwardBracket scans backward from tsStart for up to 3 opening brackets ('[' or '('),
+// then verifies the bracket is preceded by whitespace. Returns the adjusted prefix start.
+func scanBackwardBracket(buffer []byte, tsStart int) int {
 	prefixStart := tsStart
 	for back := 0; prefixStart > 0 && back < 3; back++ {
-		b := buffer[prefixStart-1]
-		switch b {
+		switch buffer[prefixStart-1] {
 		case '[', '(':
 			prefixStart--
 		default:
-			goto donePrefix
+			back = 3
 		}
 	}
-donePrefix:
 	if prefixStart > 0 {
 		b := buffer[prefixStart-1]
 		if b != ' ' && b != '\t' {
-			prefixStart = tsStart
+			return tsStart
 		}
 	}
-
-	return prefixStart, tsEnd
+	return prefixStart
 }
 
 func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Timestamp, int) {

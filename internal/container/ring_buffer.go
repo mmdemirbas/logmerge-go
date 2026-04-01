@@ -116,6 +116,28 @@ func (r *RingBuffer) Write(b byte) {
 	r.writeIndex = (r.writeIndex + 1) % r.cap
 }
 
+// realign moves existing data to the start of the buffer to maximize contiguous write space.
+// Called before a fill when data is near-empty or wrapped across the buffer boundary.
+func (r *RingBuffer) realign() {
+	n := r.Len()
+	if n > 0 {
+		if r.writeIndex > r.readIndex {
+			// Contiguous: [--R===W--]
+			copy(r.buf, r.buf[r.readIndex:r.writeIndex])
+		} else {
+			// Wrapped: [==W---R==]
+			// Save head before tail copy overwrites it.
+			tailLen := r.cap - r.readIndex
+			head := make([]byte, r.writeIndex)
+			copy(head, r.buf[:r.writeIndex])
+			copy(r.buf, r.buf[r.readIndex:r.cap])
+			copy(r.buf[tailLen:], head)
+		}
+	}
+	r.readIndex = 0
+	r.writeIndex = n
+}
+
 // Fill reads data from the reader into the buffer until the buffer is full or the reader returns an error.
 func (r *RingBuffer) Fill(reader io.Reader) (int, error) {
 	if r.IsFull() {
@@ -125,23 +147,7 @@ func (r *RingBuffer) Fill(reader io.Reader) (int, error) {
 	// Realignment: If the buffer is nearly empty or data is split,
 	// move existing data to the start to maximize contiguous space.
 	if r.readIndex > 0 && (r.IsEmpty() || r.writeIndex < r.readIndex) {
-		n := r.Len()
-		if n > 0 {
-			if r.writeIndex > r.readIndex {
-				// Contiguous: [--R===W--]
-				copy(r.buf, r.buf[r.readIndex:r.writeIndex])
-			} else {
-				// Wrapped: [==W---R==]
-				// Save head before tail copy overwrites it.
-				tailLen := r.cap - r.readIndex
-				head := make([]byte, r.writeIndex)
-				copy(head, r.buf[:r.writeIndex])
-				copy(r.buf, r.buf[r.readIndex:r.cap])
-				copy(r.buf[tailLen:], head)
-			}
-		}
-		r.readIndex = 0
-		r.writeIndex = n
+		r.realign()
 	}
 
 	readPartSplit := (r.writeIndex - r.readIndex) >> 31 // W--R-- or --W--R or --W--R--
