@@ -42,7 +42,7 @@ MergeConfig:
 PrintProgressConfig:
   PrintProgressEnabled: false
 `
-	err := os.WriteFile(yamlPath, []byte(yamlContent), 0644)
+	err := os.WriteFile(yamlPath, []byte(yamlContent), 0600)
 	if err != nil {
 		t.Fatalf("failed to write test YAML: %v", err)
 	}

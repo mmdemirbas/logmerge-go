@@ -43,7 +43,7 @@ func (f *WritableFile) Initialize() error {
 		return nil
 	}
 
-	if err := os.MkdirAll(filepath.Dir(f.Path), os.ModePerm); err != nil {
+	if err := os.MkdirAll(filepath.Dir(f.Path), 0750); err != nil {
 		return fmt.Errorf("could not create directory for %s: %v", f.Path, err)
 	}
 

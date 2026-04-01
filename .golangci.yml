@@ -28,3 +28,5 @@ linters:
     gosec:
       excludes:
         - G115  # integer overflow on conversion — too noisy for systems code
+        - G304  # file inclusion via variable — this tool's purpose is to open files by path
+        - G204  # subprocess launched with variable — only used in integration tests for the built binary
