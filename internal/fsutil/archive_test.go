@@ -319,13 +319,10 @@ func TestTarEntryContent(t *testing.T) {
 	}
 
 	buf := make([]byte, 1024)
-	n, _ := fh.File.Read(buf)
 	// tarEntryFile is already buffered into memory; after FillBuffer consumed some,
-	// the remaining might be empty. Check via the ring buffer instead.
-	// Just verify we got the file and it has the right name
-	if n == 0 {
-		// Content was consumed by FillBuffer, which is fine
-	}
+	// the remaining might be empty — verify via ring buffer state instead.
+	// Just verify we got the file and it has the right name.
+	_, _ = fh.File.Read(buf)
 
 	// Verify virtual path format
 	expectedSuffix := "test.tar!/test.log"

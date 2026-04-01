@@ -10,7 +10,6 @@ import (
 var (
 	sinkSlice []byte
 	sinkByte  byte
-	sinkInt   int
 	sinkEOL   EOLType
 )
 

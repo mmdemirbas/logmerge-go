@@ -108,13 +108,11 @@ func ParseLevel(buffer []byte, tsStart int, tsEnd int) ParseResult {
 				start--
 			}
 			// Expand end forward to include a trailing ']', ')', or delimiter
-			for end < searchEnd {
+			if end < searchEnd {
 				c := buffer[end]
 				if c == ']' || c == ')' || c == ' ' || c == '|' || c == ':' {
 					end++
-					break
 				}
-				break
 			}
 			return ParseResult{Level: lvl, Start: start, End: end}
 		}
