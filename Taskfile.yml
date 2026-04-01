@@ -71,6 +71,13 @@ tasks:
         cmd:
           GOOS={{.ITEM.os}} GOARCH={{.ITEM.arch}} go build -pgo={{.OUT_DIR}}/{{.CPU_PROF_FILE}} -ldflags="{{.LDFLAGS}}" -o {{.DIST_DIR}}/{{.BINARY_NAME}}-pgo-{{.ITEM.os}}-{{.ITEM.arch}}{{if eq .ITEM.os "windows"}}.exe{{end}} ./cmd/logmerge
 
+  quality:
+    desc: "Quality gate — tests with race+coverage, then lint"
+    cmds:
+      - go test -race -coverprofile=cover.out ./...
+      - go tool cover -func=cover.out | tail -1
+      - golangci-lint run --output.tab.path stdout ./...
+
   test:
     desc: "Run all tests"
     cmds:
