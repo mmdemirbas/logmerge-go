@@ -171,23 +171,8 @@ func matchDoublestar(pattern, filePath string) bool {
 func matchSegments(pat, segs []string) bool {
 	for len(pat) > 0 && len(segs) > 0 {
 		if pat[0] == "**" {
-			pat = pat[1:]
-			// Skip consecutive ** segments
-			for len(pat) > 0 && pat[0] == "**" {
-				pat = pat[1:]
-			}
-			if len(pat) == 0 {
-				return true // trailing ** matches everything
-			}
-			// Try matching remaining pattern at every position in path
-			for i := 0; i <= len(segs); i++ {
-				if matchSegments(pat, segs[i:]) {
-					return true
-				}
-			}
-			return false
+			return matchAfterStar(pat[1:], segs)
 		}
-
 		matched, _ := path.Match(pat[0], segs[0])
 		if !matched {
 			return false
@@ -195,19 +180,40 @@ func matchSegments(pat, segs []string) bool {
 		pat = pat[1:]
 		segs = segs[1:]
 	}
+	return matchSegmentsEnd(pat, segs)
+}
 
-	// If path is exhausted but pattern has only trailing ** left:
-	// trailing /** means "everything inside", so an empty remaining path
-	// (the directory itself) should NOT match.
-	hasTrailingStar := false
+// matchAfterStar handles the case where a "**" pattern segment has been consumed.
+// It skips any consecutive "**" segments, then tries to match the remaining
+// pattern at every position in the path.
+func matchAfterStar(pat, segs []string) bool {
 	for len(pat) > 0 && pat[0] == "**" {
-		hasTrailingStar = true
 		pat = pat[1:]
 	}
-	if hasTrailingStar && len(segs) == 0 {
+	if len(pat) == 0 {
+		return true // trailing ** matches everything
+	}
+	for i := 0; i <= len(segs); i++ {
+		if matchSegments(pat, segs[i:]) {
+			return true
+		}
+	}
+	return false
+}
+
+// matchSegmentsEnd checks whether the remaining pattern and path segments can
+// both be considered exhausted. Trailing "**" segments are consumed, but a
+// trailing "/**" requires at least one path component — so an empty segs after
+// consuming "**" is NOT a match.
+func matchSegmentsEnd(pat, segs []string) bool {
+	hadStar := false
+	for len(pat) > 0 && pat[0] == "**" {
+		hadStar = true
+		pat = pat[1:]
+	}
+	if hadStar && len(segs) == 0 {
 		return false
 	}
-
 	return len(pat) == 0 && len(segs) == 0
 }
 
