@@ -146,105 +146,84 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 	if n < i+c.ShortestTimestampLen {
 		return ZeroTimestamp, n
 	}
-
-	// Fast path: common YYYY-MM-DD HH:MM:SS format starting at position i.
-	// Checks the separator pattern first (cheap), then parses digits inline
-	// without individual parseMax2Digits/parseDigits calls.
-	if n >= i+19 &&
-		buffer[i+4] == '-' && buffer[i+7] == '-' &&
-		(buffer[i+10] == ' ' || buffer[i+10] == 'T' || buffer[i+10] == '_') &&
-		buffer[i+13] == ':' && buffer[i+16] == ':' {
-
-		year := int(buffer[i]-'0')*1000 + int(buffer[i+1]-'0')*100 + int(buffer[i+2]-'0')*10 + int(buffer[i+3]-'0')
-		month := int(buffer[i+5]-'0')*10 + int(buffer[i+6]-'0')
-		day := int(buffer[i+8]-'0')*10 + int(buffer[i+9]-'0')
-		hour := int(buffer[i+11]-'0')*10 + int(buffer[i+12]-'0')
-		minute := int(buffer[i+14]-'0')*10 + int(buffer[i+15]-'0')
-		second := int(buffer[i+17]-'0')*10 + int(buffer[i+18]-'0')
-
-		if year >= 1969 && year <= 2050 &&
-			month >= 1 && month <= 12 && day >= 1 && day <= 31 &&
-			hour <= 23 && minute <= 59 && second <= 59 {
-
-			j := i + 19
-			var nsec int
-			if j < n && (buffer[j] == '.' || buffer[j] == ',') {
-				j++
-				// Inline fractional seconds: parse up to 9 digits without function call
-				ncount := 0
-				for ncount < 9 && j < n {
-					d := buffer[j] - '0'
-					if d > 9 {
-						break
-					}
-					nsec = nsec*10 + int(d)
-					ncount++
-					j++
-				}
-				for ncount < 9 {
-					nsec *= 10
-					ncount++
-				}
-			} else {
-				nsec, j = parseSpaceSeparatedMillis(buffer, n, j)
-			}
-
-			// Inline timezone: always consume timezone characters so they
-			// are included in the strip region. Only apply the offset when
-			// IgnoreTimezoneInfo is false.
-			var tzSign, tzHour, tzMin int
-			if j < n {
-				switch buffer[j] {
-				case 'Z':
-					j++
-				case '+', '-':
-					if !c.IgnoreTimezoneInfo {
-						tzSign = int(',') - int(buffer[j])
-					}
-					j++
-					if j+2 <= n {
-						h1, h2 := buffer[j]-'0', buffer[j+1]-'0'
-						if h1 <= 9 && h2 <= 9 {
-							if !c.IgnoreTimezoneInfo {
-								tzHour = int(h1)*10 + int(h2)
-							}
-							j += 2
-							if j < n && buffer[j] == ':' {
-								j++
-							}
-							if j+2 <= n {
-								m1, m2 := buffer[j]-'0', buffer[j+1]-'0'
-								if m1 <= 9 && m2 <= 9 {
-									if !c.IgnoreTimezoneInfo {
-										tzMin = int(m1)*10 + int(m2)
-									}
-									j += 2
-								}
-							}
-						}
-					}
-				default:
-					j++ // consume non-timezone byte
-				}
-			}
-
-			return NewTimestamp(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin), j
-		}
+	if ts, j := tryParseISO8601Fast(c, buffer, i, n); ts != ZeroTimestamp {
+		return ts, j
 	}
+	return tryParseTimestampSlow(c, buffer, i, n)
+}
 
+// tryParseISO8601Fast is the hot path for "YYYY-MM-DD HH:MM:SS[.nnn][TZ]".
+// Separator pattern is checked first (cheap), then digits are decoded inline.
+// Returns ZeroTimestamp (not an error) when the pattern does not match at i.
+func tryParseISO8601Fast(c *ParseTimestampConfig, buffer []byte, i, n int) (Timestamp, int) {
+	if n < i+19 ||
+		buffer[i+4] != '-' || buffer[i+7] != '-' ||
+		(buffer[i+10] != ' ' && buffer[i+10] != 'T' && buffer[i+10] != '_') ||
+		buffer[i+13] != ':' || buffer[i+16] != ':' {
+		return ZeroTimestamp, 0
+	}
+	year := int(buffer[i]-'0')*1000 + int(buffer[i+1]-'0')*100 + int(buffer[i+2]-'0')*10 + int(buffer[i+3]-'0')
+	month := int(buffer[i+5]-'0')*10 + int(buffer[i+6]-'0')
+	day := int(buffer[i+8]-'0')*10 + int(buffer[i+9]-'0')
+	hour := int(buffer[i+11]-'0')*10 + int(buffer[i+12]-'0')
+	minute := int(buffer[i+14]-'0')*10 + int(buffer[i+15]-'0')
+	second := int(buffer[i+17]-'0')*10 + int(buffer[i+18]-'0')
+	if !isValidDateTime(year, month, day, hour, minute, second) {
+		return ZeroTimestamp, 0
+	}
+	j := i + 19
+	nsec, j := parseNsec(buffer, n, j)
+	tzSign, tzHour, tzMin, j := parseTimezone(c, buffer, n, j)
+	return NewTimestamp(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin), j
+}
+
+// isValidDateTime reports whether the given date/time components are in range.
+func isValidDateTime(year, month, day, hour, minute, second int) bool {
+	return year >= 1969 && year <= 2050 &&
+		month >= 1 && month <= 12 && day >= 1 && day <= 31 &&
+		hour <= 23 && minute <= 59 && second <= 59
+}
+
+// parseNsec parses optional fractional seconds (prefixed by '.' or ',') or
+// space-separated milliseconds. Returns normalised nanoseconds and the next index.
+func parseNsec(buffer []byte, n, j int) (nsec, nextJ int) {
+	if j >= n {
+		return 0, j
+	}
+	if buffer[j] != '.' && buffer[j] != ',' {
+		return parseSpaceSeparatedMillis(buffer, n, j)
+	}
+	j++
+	ncount := 0
+	for ncount < 9 && j < n {
+		d := buffer[j] - '0'
+		if d > 9 {
+			break
+		}
+		nsec = nsec*10 + int(d)
+		ncount++
+		j++
+	}
+	for ncount < 9 {
+		nsec *= 10
+		ncount++
+	}
+	return nsec, j
+}
+
+// tryParseTimestampSlow parses flexible date formats (YYYY-MM-DD, YY/MM/DD, etc.)
+// with a single separator character and time in HH:MM:SS form.
+func tryParseTimestampSlow(c *ParseTimestampConfig, buffer []byte, i, n int) (Timestamp, int) {
 	var hitNewline bool
 	i, hitNewline = skipToFirstDigit(buffer, n, i)
 	if hitNewline {
 		return ZeroTimestamp, i
 	}
-
 	if i >= n || n < i+c.ShortestTimestampLen {
 		return ZeroTimestamp, n
 	}
-
-	// Check for newlines within the timestamp window. When i == 0
-	// (timestamp at line start), the buffer begins at the current line
-	// boundary so no newline can precede the timestamp — skip the scan.
+	// Check for newlines within the timestamp window. When i == 0 the buffer
+	// starts at the current line boundary, so no newline can precede the timestamp.
 	if i > 0 {
 		for j := i + c.ShortestTimestampLen - 1; j >= i; j-- {
 			b := buffer[j]
@@ -253,133 +232,154 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 			}
 		}
 	}
-
-	year, count := parseDigits(buffer, n, i, 4)
-	switch {
-	case count == 0:
-		return ZeroTimestamp, i + 1
-	case count == 2:
-		if year < 69 {
-			year += 2000
-		} else {
-			year += 1900
-		}
-	case year > 2050 || year < 1969:
-		return ZeroTimestamp, i + count
+	year, month, day, nextI, ok := parseFlexDate(buffer, n, i)
+	if !ok {
+		return ZeroTimestamp, nextI
 	}
+	hour, minute, second, nextI, ok := parseFlexTime(buffer, n, nextI)
+	if !ok {
+		return ZeroTimestamp, nextI
+	}
+	nsec, nextI := parseNsec(buffer, n, nextI)
+	tzSign, tzHour, tzMin, nextI := parseTimezone(c, buffer, n, nextI)
+	return NewTimestamp(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin), nextI
+}
 
-	i += count
+// parseFlexDate parses a date in YYYY-MM-DD, YY/MM/DD, or similar flexible format.
+// On failure, failPos indicates where to resume scanning.
+func parseFlexDate(buffer []byte, n, i int) (int, int, int, int, bool) {
+	rawYear, count := parseDigits(buffer, n, i, 4)
+	year, ok := normalizeYear(rawYear, count)
+	if !ok {
+		return 0, 0, 0, i + max(count, 1), false
+	}
+	month, nextI, ok := parseFlexMonth(buffer, n, i+count)
+	if !ok {
+		return 0, 0, 0, nextI, false
+	}
+	day, nextI, ok := parseFlexDay(buffer, n, nextI)
+	if !ok {
+		return 0, 0, 0, nextI, false
+	}
+	return year, month, day, nextI, true
+}
+
+// parseFlexMonth parses an optional separator ('-' or '/') followed by a
+// 1–2 digit month number in [1, 12].
+func parseFlexMonth(buffer []byte, n, i int) (month, nextI int, ok bool) {
 	if i >= n {
-		return ZeroTimestamp, n
+		return 0, n, false
 	}
 	b := buffer[i]
-
-	// if b == '-' || b == '/' { i++ }
 	if b == '-' || b == '/' {
 		i++
 	}
-
 	month, mcount := parseMax2Digits(buffer, n, i)
 	if mcount == 0 {
-		return ZeroTimestamp, i + 1
+		return 0, i + 1, false
 	}
 	if month > 12 || month < 1 {
-		return ZeroTimestamp, i + mcount
+		return 0, i + mcount, false
 	}
+	return month, i + mcount, true
+}
 
-	i += mcount
+// parseFlexDay parses an optional separator ('-' or '/') followed by a
+// 1–2 digit day number in [1, 31].
+func parseFlexDay(buffer []byte, n, i int) (day, nextI int, ok bool) {
 	if i >= n {
-		return ZeroTimestamp, n
+		return 0, n, false
 	}
-	b = buffer[i]
-
-	// if b == '-' || b == '/' { i++ }
+	b := buffer[i]
 	if b == '-' || b == '/' {
 		i++
 	}
-
 	day, dcount := parseMax2Digits(buffer, n, i)
 	if dcount == 0 {
-		return ZeroTimestamp, i + 1
+		return 0, i + 1, false
 	}
 	if day > 31 || day < 1 {
-		return ZeroTimestamp, i + dcount
+		return 0, i + dcount, false
 	}
+	return day, i + dcount, true
+}
 
-	i += dcount
-	if i >= n {
-		return ZeroTimestamp, n
-	}
-	b = buffer[i]
-	i++
-	if i >= n || (b != ' ' && b != 'T' && b != '_') {
-		return ZeroTimestamp, i
-	}
-
-	hour, hcount := parseMax2Digits(buffer, n, i)
-	if hcount == 0 {
-		return ZeroTimestamp, i + 1
-	}
-	if hour > 23 {
-		return ZeroTimestamp, i + hcount
-	}
-
-	i += hcount
-	if i >= n {
-		return ZeroTimestamp, n
-	}
-
-	b = buffer[i]
-	i++
-	if b != ':' && b != '.' && b != '-' {
-		return ZeroTimestamp, i
-	}
-
-	minute, mincount := parseMax2Digits(buffer, n, i)
-	if mincount == 0 {
-		return ZeroTimestamp, i + 1
-	}
-	if minute > 59 {
-		return ZeroTimestamp, i + mincount
-	}
-
-	i += mincount
-	if i >= n {
-		return ZeroTimestamp, n
-	}
-
-	b = buffer[i]
-	i++
-	if b != ':' && b != '.' && b != '-' {
-		return ZeroTimestamp, i
-	}
-
-	second, scount := parseMax2Digits(buffer, n, i)
-	if scount == 0 {
-		return ZeroTimestamp, i + 1
-	}
-	if second > 59 {
-		return ZeroTimestamp, i + scount
-	}
-
-	i += scount
-	var nsec int
-	if i < n && (buffer[i] == '.' || buffer[i] == ',') {
-		i++
-		var ncount int
-		nsec, ncount = parseDigits(buffer, n, i, 9)
-		i += ncount
-		for ncount < 9 {
-			nsec *= 10
-			ncount++
+// normalizeYear converts a raw year value and digit count to a canonical 4-digit
+// year. Two-digit years < 69 map to 2000–2068; ≥ 69 map to 1969–1999.
+// Returns (0, false) for 0-digit or out-of-range 4-digit years.
+func normalizeYear(year, count int) (int, bool) {
+	switch count {
+	case 0:
+		return 0, false
+	case 2:
+		if year < 69 {
+			return year + 2000, true
 		}
-	} else {
-		nsec, i = parseSpaceSeparatedMillis(buffer, n, i)
+		return year + 1900, true
+	default:
+		if year > 2050 || year < 1969 {
+			return 0, false
+		}
+		return year, true
 	}
+}
 
-	tzSign, tzHour, tzMin, i := parseTimezone(c, buffer, n, i)
+// parseFlexTime parses "SHH:MM:SS" where S is a date-time separator
+// (' ', 'T', or '_') and ':' may be replaced by '.' or '-'.
+func parseFlexTime(buffer []byte, n, i int) (hour, minute, second, nextI int, ok bool) {
+	i, ok = readDTSep(buffer, n, i)
+	if !ok {
+		return 0, 0, 0, i, false
+	}
+	hour, i, ok = parseTimeField(buffer, n, i, 23)
+	if !ok {
+		return 0, 0, 0, i + 1, false
+	}
+	i, ok = readTimeSep(buffer, n, i)
+	if !ok {
+		return 0, 0, 0, i, false
+	}
+	minute, i, ok = parseTimeField(buffer, n, i, 59)
+	if !ok {
+		return 0, 0, 0, i + 1, false
+	}
+	i, ok = readTimeSep(buffer, n, i)
+	if !ok {
+		return 0, 0, 0, i, false
+	}
+	second, i, ok = parseTimeField(buffer, n, i, 59)
+	if !ok {
+		return 0, 0, 0, i + 1, false
+	}
+	return hour, minute, second, i, true
+}
 
-	return NewTimestamp(year, month, day, hour, minute, second, nsec, tzSign, tzHour, tzMin), i
+// readDTSep reads a date-time separator (' ', 'T', or '_') at buffer[i],
+// returning the index after it. Returns (i+1, false) if the byte is not a
+// valid separator, or (n, false) if i is out of bounds.
+func readDTSep(buffer []byte, n, i int) (int, bool) {
+	if i >= n {
+		return n, false
+	}
+	b := buffer[i]
+	if b != ' ' && b != 'T' && b != '_' {
+		return i + 1, false
+	}
+	return i + 1, true
+}
+
+// readTimeSep reads a time separator (':', '.', or '-') at buffer[i],
+// returning the index after it. Returns (i+1, false) if the byte is not a
+// valid separator, or (n, false) if i is out of bounds.
+func readTimeSep(buffer []byte, n, i int) (int, bool) {
+	if i >= n {
+		return n, false
+	}
+	b := buffer[i]
+	if b != ':' && b != '.' && b != '-' {
+		return i + 1, false
+	}
+	return i + 1, true
 }
 
 // tryParseCtimeTimestamp scans for ctime-style timestamps:
