@@ -602,33 +602,35 @@ func parseTimezone(c *ParseTimestampConfig, buffer []byte, n int, i int) (tzSign
 	case 'Z':
 		// Already using UTC
 	case '+', '-':
-		if !c.IgnoreTimezoneInfo {
-			tzSign = int(',') - int(b)
-		}
-		if nextI+2 > n {
-			break
-		}
-		var hcount int
-		var h int
-		h, hcount = parseMax2Digits(buffer, n, nextI)
-		if hcount == 0 || h > 23 {
-			break
-		}
-		if !c.IgnoreTimezoneInfo {
-			tzHour = h
-		}
-		nextI += hcount
-		if nextI < n && buffer[nextI] == ':' {
-			nextI++
-		}
-		var mcount int
-		var m int
-		m, mcount = parseMax2Digits(buffer, n, nextI)
-		if !c.IgnoreTimezoneInfo {
-			tzMin = m
-		}
-		nextI += mcount
+		tzSign, tzHour, tzMin, nextI = parseOffsetTZ(c, buffer, n, nextI, b)
 	}
+	return tzSign, tzHour, tzMin, nextI
+}
+
+func parseOffsetTZ(c *ParseTimestampConfig, buffer []byte, n int, i int, sign byte) (tzSign, tzHour, tzMin, nextI int) {
+	nextI = i
+	if !c.IgnoreTimezoneInfo {
+		tzSign = int(',') - int(sign)
+	}
+	if nextI+2 > n {
+		return tzSign, 0, 0, nextI
+	}
+	h, hcount := parseMax2Digits(buffer, n, nextI)
+	if hcount == 0 || h > 23 {
+		return tzSign, 0, 0, nextI
+	}
+	if !c.IgnoreTimezoneInfo {
+		tzHour = h
+	}
+	nextI += hcount
+	if nextI < n && buffer[nextI] == ':' {
+		nextI++
+	}
+	m, mcount := parseMax2Digits(buffer, n, nextI)
+	if !c.IgnoreTimezoneInfo {
+		tzMin = m
+	}
+	nextI += mcount
 	return tzSign, tzHour, tzMin, nextI
 }
 
