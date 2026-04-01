@@ -85,10 +85,4 @@ High complexity in production code — refactor candidates:
 - [x] P3 (8 issues) — fixed (commit eec4e4a)
 - [x] P4 errcheck prod (12 issues) — fixed (commit 1f7adb1)
 - [x] P4 errcheck tests (~38 issues) — fixed (commit 1f7adb1)
-- [ ] P5 complexity — 10 remaining (1 funlen, 9 gocognit):
-  - metrics/main_metrics.go: PrintMetrics funlen:107
-  - cli/app.go: Run gocognit:86
-  - core/file_merge.go: sequentialProcessFiles gocognit:69, writeLine gocognit:65
-  - fsutil/file_handle.go: (*FileHandle).WriteLine gocognit:48
-  - fsutil/file_list.go: listVirtualFiles:26, walkDir:26, visitVirtualFile:31
-  - fsutil/filter.go: matchSegments gocognit:26
+- [x] P5 complexity — all fixed (commits 647cd7f, e58b2b5, 2500887, 633f0fd, a82521e, 21c9c51, 605c2bd)
