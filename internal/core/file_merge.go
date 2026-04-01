@@ -95,6 +95,12 @@ func parallelProcessFiles(
 	return sequentialProcessFiles(c, m, files, writer, logFile, updateTimestamp, ws)
 }
 
+// prefetchResult holds the outcome of an initial timestamp prefetch for one file.
+type prefetchResult struct {
+	file *fsutil.FileHandle
+	err  error
+}
+
 func sequentialProcessFiles(
 	c *MergeConfig,
 	m *metrics.MergeMetrics,
@@ -105,12 +111,51 @@ func sequentialProcessFiles(
 	ws *writeState,
 ) error {
 	h := NewMinHeap(len(files))
+	results := prefetchAll(files, updateTimestamp)
+	buildInitialHeap(h, results, logFile)
 
-	// Parallel prefetch (Step 17 logic)
-	type prefetchResult struct {
-		file *fsutil.FileHandle
-		err  error
+	var lastPrintedAlias []byte
+	for h.Len() > 0 {
+		file := h.Pop()
+
+		skippedCount, err := skipToMinTimestamp(c, m, file, updateTimestamp)
+		if err != nil {
+			return err
+		}
+		m.LinesRead += int64(skippedCount)
+		m.LinesReadAndSkipped += int64(skippedCount)
+		m.SkippedLineCounts.UpdateBucketCount(skippedCount)
+
+		effectiveMax := calcEffectiveMax(c, h)
+
+		blockCount, successiveCount, newAlias, err := writeFileBlock(c, m, ws, writer, file, effectiveMax, lastPrintedAlias, updateTimestamp)
+		if err != nil {
+			return err
+		}
+		lastPrintedAlias = newAlias
+
+		m.LinesRead += int64(blockCount + successiveCount)
+		m.BlockLineCounts.UpdateBucketCount(blockCount + successiveCount)
+		if successiveCount > 0 {
+			m.SuccessiveLineCounts.UpdateBucketCount(successiveCount)
+		}
+
+		if file.LineTimestampParsed && file.LineTimestamp <= c.MaxTimestamp {
+			h.Push(file)
+		} else {
+			if err := file.Close(); err != nil {
+				fmt.Fprintf(logFile, "failed to close file %s: %v\n", file.File.Name(), err)
+			}
+			m.BytesRead += int64(file.BytesRead)
+			m.BytesNotRead += int64(file.Size - file.BytesRead)
+			file.Done = true
+		}
 	}
+	return nil
+}
+
+// prefetchAll launches a goroutine per file to parse the first timestamp in parallel.
+func prefetchAll(files []*fsutil.FileHandle, updateTimestamp func(file *fsutil.FileHandle) error) []prefetchResult {
 	results := make([]prefetchResult, len(files))
 	var wg sync.WaitGroup
 	for i, file := range files {
@@ -121,9 +166,13 @@ func sequentialProcessFiles(
 			results[idx] = prefetchResult{file: f, err: err}
 		}(i, file)
 	}
-
 	wg.Wait()
+	return results
+}
 
+// buildInitialHeap processes prefetch results, pushing parseable files onto the
+// heap and closing files that failed or had no parseable timestamps.
+func buildInitialHeap(h *MinHeap, results []prefetchResult, logFile io.Writer) {
 	for _, r := range results {
 		file := r.file
 		if r.err != nil {
@@ -148,107 +197,105 @@ func sequentialProcessFiles(
 			}
 		}
 	}
+}
 
-	var lastPrintedAlias []byte
-
-	for h.Len() > 0 {
-		file := h.Pop()
-		skippedLineCount := 0
-
-		// Skip lines below MinTimestamp
-		for file.LineTimestampParsed && file.LineTimestamp != logtime.ZeroTimestamp && file.LineTimestamp < c.MinTimestamp {
-			bytesCount, _, skipErr := file.SkipLine()
-			if skipErr != nil {
-				return fmt.Errorf("failed to skip line from %s: %v", file.File.Name(), skipErr)
-			}
-			file.MergeMetrics.BytesReadAndSkipped += int64(bytesCount)
-			skippedLineCount++
-			if err := doUpdateTimestamp(file, file.MergeMetrics, updateTimestamp); err != nil {
-				return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
-			}
+// skipToMinTimestamp skips lines from file whose timestamp is below c.MinTimestamp,
+// returning the number of lines skipped.
+func skipToMinTimestamp(c *MergeConfig, m *metrics.MergeMetrics, file *fsutil.FileHandle, updateTimestamp func(file *fsutil.FileHandle) error) (int, error) {
+	count := 0
+	for file.LineTimestampParsed && file.LineTimestamp != logtime.ZeroTimestamp && file.LineTimestamp < c.MinTimestamp {
+		bytesCount, _, skipErr := file.SkipLine()
+		if skipErr != nil {
+			return 0, fmt.Errorf("failed to skip line from %s: %v", file.File.Name(), skipErr)
 		}
-
-		m.LinesRead += int64(skippedLineCount)
-		m.LinesReadAndSkipped += int64(skippedLineCount)
-		m.SkippedLineCounts.UpdateBucketCount(skippedLineCount)
-
-		effectiveMaxTimestamp := c.MaxTimestamp
-		if h.Len() > 0 {
-			nextFile := h.Peek()
-			if nextFile.LineTimestamp < c.MaxTimestamp {
-				effectiveMaxTimestamp = nextFile.LineTimestamp
-			}
-		}
-
-		shouldWriteAlias := c.WriteAliasPerBlock && !bytes2.Equal(lastPrintedAlias, file.Alias)
-		successiveLineCount := 0
-		blockLineCount := 0
-
-		// Write lines until reaching the known bigger timestamp or a skip-line or the end of the file
-		for file.LineTimestampParsed && file.LineTimestamp <= effectiveMaxTimestamp {
-			if shouldWriteAlias {
-				shouldWriteAlias = false
-				lastPrintedAlias = file.Alias
-				var wsStartTime time.Time
-				if file.Metrics != nil {
-					wsStartTime = file.Metrics.Start("WriteAliasPerBlock")
-				}
-				n, err := writer.Write(file.AliasForBlock)
-				m.BytesWrittenForAliasPerBlock += int64(n)
-				if file.Metrics != nil {
-					file.Metrics.Stop(wsStartTime)
-				}
-				if err != nil {
-					return fmt.Errorf("failed to write alias: %v", err)
-				}
-			}
-
-			successiveLineCount++
-			err := writeLine(c, m, ws, writer, file)
-			if err != nil {
-				return fmt.Errorf("failed to write line: %v", err)
-			}
-
-			err = doUpdateTimestamp(file, file.MergeMetrics, updateTimestamp)
-			if err != nil {
-				return fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
-			}
-
-			if !file.LineTimestampParsed || file.LineTimestamp != logtime.ZeroTimestamp {
-				// Timestamp changed or file ended
-				blockLineCount += successiveLineCount
-				m.SuccessiveLineCounts.UpdateBucketCount(successiveLineCount)
-				successiveLineCount = 0
-
-				// Re-evaluate effectiveMaxTimestamp because we might have a new timestamp in 'file'
-				if file.LineTimestampParsed && file.LineTimestamp > effectiveMaxTimestamp {
-					break
-				}
-			}
-		}
-
-		m.LinesRead += int64(blockLineCount + successiveLineCount)
-		m.BlockLineCounts.UpdateBucketCount(blockLineCount + successiveLineCount)
-		if successiveLineCount > 0 {
-			m.SuccessiveLineCounts.UpdateBucketCount(successiveLineCount)
-		}
-
-		if file.LineTimestampParsed && file.LineTimestamp <= c.MaxTimestamp {
-			h.Push(file)
-		} else {
-			// Close the file
-			err := file.Close()
-			if err != nil {
-				//goland:noinspection GoUnhandledErrorResult
-				fmt.Fprintf(logFile, "failed to close file %s: %v\n", file.File.Name(), err)
-			}
-			// Update metrics
-			m.BytesRead += int64(file.BytesRead)
-			m.BytesNotRead += int64(file.Size - file.BytesRead)
-			file.Done = true
+		file.MergeMetrics.BytesReadAndSkipped += int64(bytesCount)
+		count++
+		if err := doUpdateTimestamp(file, file.MergeMetrics, updateTimestamp); err != nil {
+			return 0, fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
 		}
 	}
+	return count, nil
+}
+
+// calcEffectiveMax returns the effective upper timestamp bound for the current
+// merge pass: the minimum of c.MaxTimestamp and the next file's timestamp in
+// the heap (so we don't overtake it).
+func calcEffectiveMax(c *MergeConfig, h *MinHeap) logtime.Timestamp {
+	if h.Len() == 0 {
+		return c.MaxTimestamp
+	}
+	if next := h.Peek().LineTimestamp; next < c.MaxTimestamp {
+		return next
+	}
+	return c.MaxTimestamp
+}
+
+// writeFileBlock writes lines from file up to effectiveMax, handling per-block
+// alias headers and timestamp-transition bookkeeping.
+// Returns (blockLineCount, successiveLineCount, lastPrintedAlias, error).
+func writeFileBlock(c *MergeConfig, m *metrics.MergeMetrics, ws *writeState, writer *bufio.Writer, file *fsutil.FileHandle, effectiveMax logtime.Timestamp, lastPrintedAlias []byte, updateTimestamp func(file *fsutil.FileHandle) error) (int, int, []byte, error) {
+	shouldWriteAlias := c.WriteAliasPerBlock && !bytes2.Equal(lastPrintedAlias, file.Alias)
+	successiveLineCount := 0
+	blockLineCount := 0
+
+	for file.LineTimestampParsed && file.LineTimestamp <= effectiveMax {
+		if shouldWriteAlias {
+			shouldWriteAlias = false
+			lastPrintedAlias = file.Alias
+			if err := writeBlockAlias(m, writer, file); err != nil {
+				return 0, 0, nil, err
+			}
+		}
+
+		successiveLineCount++
+		if err := writeLine(c, m, ws, writer, file); err != nil {
+			return 0, 0, nil, fmt.Errorf("failed to write line: %v", err)
+		}
+		if err := doUpdateTimestamp(file, file.MergeMetrics, updateTimestamp); err != nil {
+			return 0, 0, nil, fmt.Errorf("failed to read line prefix from %s: %v", file.File.Name(), err)
+		}
+
+		var shouldBreak bool
+		blockLineCount, successiveLineCount, shouldBreak = checkTimestampTransition(file, effectiveMax, m, blockLineCount, successiveLineCount)
+		if shouldBreak {
+			break
+		}
+	}
+	return blockLineCount, successiveLineCount, lastPrintedAlias, nil
+}
+
+// writeBlockAlias writes the per-block alias header to writer.
+func writeBlockAlias(m *metrics.MergeMetrics, writer *bufio.Writer, file *fsutil.FileHandle) error {
+	mt := file.Metrics
+	var start time.Time
+	if mt != nil {
+		start = mt.Start("WriteAliasPerBlock")
+	}
+	n, err := writer.Write(file.AliasForBlock)
+	m.BytesWrittenForAliasPerBlock += int64(n)
+	if mt != nil {
+		mt.Stop(start)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to write alias: %v", err)
+	}
 	return nil
+}
+
+// checkTimestampTransition updates blockLineCount and successiveLineCount when
+// the current line's timestamp changes or the file ends. Returns the updated
+// counts and whether the write loop should break (new timestamp exceeds effectiveMax).
+func checkTimestampTransition(file *fsutil.FileHandle, effectiveMax logtime.Timestamp, m *metrics.MergeMetrics, blockLineCount, successiveLineCount int) (int, int, bool) {
+	// ZeroTimestamp means consecutive line with same timestamp — no transition yet.
+	if file.LineTimestampParsed && file.LineTimestamp == logtime.ZeroTimestamp {
+		return blockLineCount, successiveLineCount, false
+	}
+	blockLineCount += successiveLineCount
+	m.SuccessiveLineCounts.UpdateBucketCount(successiveLineCount)
+	if file.LineTimestampParsed && file.LineTimestamp > effectiveMax {
+		return blockLineCount, 0, true
+	}
+	return blockLineCount, 0, false
 }
 
 func doUpdateTimestamp(file *fsutil.FileHandle, m *metrics.MergeMetrics, updateTimestamp func(file *fsutil.FileHandle) error) error {
@@ -265,142 +312,177 @@ func doUpdateTimestamp(file *fsutil.FileHandle, m *metrics.MergeMetrics, updateT
 }
 
 func writeLine(c *MergeConfig, m *metrics.MergeMetrics, ws *writeState, writer *bufio.Writer, file *fsutil.FileHandle) error {
-	mt := file.Metrics // cache nil check
-
-	if c.WriteTimestampPerLine {
-		var startTime time.Time
-		if mt != nil {
-			startTime = mt.Start("WriteTimestamp")
-		}
-		timestampToLog := file.BlockTimestamp
-
-		var toWrite []byte
-		if timestampToLog != ws.cachedTimestamp {
-			timestampToLog.FormatTo(ws.cachedTimestampString)
-			ws.cachedTimestamp = timestampToLog
-		}
-		toWrite = ws.cachedTimestampString
-
-		n, err := writer.Write(toWrite)
-		if err != nil {
-			return fmt.Errorf("failed to write timestamp: %v", err)
-		}
-		m.BytesWrittenForTimestamps += int64(n)
-		if mt != nil {
-			mt.Stop(startTime)
-		}
+	mt := file.Metrics
+	if err := writeTimestampPrefix(c, m, mt, ws, writer, file); err != nil {
+		return err
 	}
-	if c.WriteLevelPerLine {
-		label := loglevel.Level(file.LineLevel).Label()
-		n, err := writer.Write(label)
-		if err != nil {
-			return fmt.Errorf("failed to write level: %v", err)
-		}
-		m.BytesWrittenForTimestamps += int64(n) // reuse timestamp counter for overhead
+	if err := writeLevelPrefix(c, m, writer, file); err != nil {
+		return err
 	}
-	if c.WriteAliasPerLine {
-		var startTime time.Time
-		if mt != nil {
-			startTime = mt.Start("WriteAliasPerLine")
-		}
-		n, err := writer.Write(file.AliasForLine)
-		m.BytesWrittenForAliasPerLine += int64(n)
-		if err != nil {
-			return fmt.Errorf("failed to write alias: %v", err)
-		}
-		if mt != nil {
-			mt.Stop(startTime)
-		}
+	if err := writeAliasPrefix(c, m, mt, writer, file); err != nil {
+		return err
 	}
-
-	// Strip the original timestamp from the line if configured
-	if c.StripOriginalTimestamp && file.LineTimestampEnd > 0 {
-		var startTime time.Time
-		if mt != nil {
-			startTime = mt.Start("StripTimestamp")
-		}
-
-		// Write prefix bytes before the timestamp section
-		var lastPrefixByte byte
-		if file.LineTimestampStart > 0 {
-			prefixLen := file.LineTimestampStart
-			var prefixBuf [16]byte
-			var prefixSlice []byte
-			if prefixLen <= 16 {
-				prefixSlice = prefixBuf[:prefixLen:prefixLen]
-			} else {
-				prefixSlice = make([]byte, prefixLen)
-			}
-			prefix := file.Buffer.PeekSlice(prefixSlice)
-			lastPrefixByte = prefix[len(prefix)-1]
-			n, err := writer.Write(prefix)
-			if err != nil {
-				return fmt.Errorf("failed to write prefix: %v", err)
-			}
-			m.BytesWrittenForRawData += int64(n)
-		}
-
-		// Skip the entire timestamp section (from start through trailing delimiters)
-		file.Buffer.Skip(file.LineTimestampEnd)
-		m.BytesReadAndSkipped += int64(file.LineTimestampEnd)
-
-		// Insert separator if prefix and remaining content would merge without space
-		if file.LineTimestampStart > 0 && !file.Buffer.IsEmpty() {
-			nextByte := file.Buffer.Peek(0)
-			if lastPrefixByte != ' ' && lastPrefixByte != '\t' &&
-				nextByte != ' ' && nextByte != '\t' && nextByte != '\n' && nextByte != '\r' {
-				_, err := writer.Write([]byte{' '})
-				if err != nil {
-					return fmt.Errorf("failed to write separator: %v", err)
-				}
-				m.BytesWrittenForRawData++
-			}
-		}
-
-		if mt != nil {
-			mt.Stop(startTime)
-		}
+	if err := stripTimestamp(c, m, mt, writer, file); err != nil {
+		return err
 	}
-
-	// Strip the original log level from the line if configured.
-	// Level positions are relative to the original buffer. After timestamp
-	// stripping, the buffer has advanced by LineTimestampEnd bytes, so we
-	// adjust the level positions accordingly.
-	if c.StripOriginalLevel && file.LineLevelEnd > 0 {
-		// Calculate how many bytes were already consumed (by timestamp strip or not)
-		consumed := 0
-		if c.StripOriginalTimestamp && file.LineTimestampEnd > 0 {
-			consumed = file.LineTimestampEnd
-		}
-		// Only strip if the level region is after the already-consumed portion
-		levelStart := file.LineLevelStart - consumed
-		levelEnd := file.LineLevelEnd - consumed
-		if levelStart > 0 && levelEnd > levelStart {
-			// Write bytes before the level
-			var beforeBuf [64]byte
-			var beforeSlice []byte
-			if levelStart <= 64 {
-				beforeSlice = beforeBuf[:levelStart:levelStart]
-			} else {
-				beforeSlice = make([]byte, levelStart)
-			}
-			before := file.Buffer.PeekSlice(beforeSlice)
-			n, err := writer.Write(before)
-			if err != nil {
-				return fmt.Errorf("failed to write pre-level content: %v", err)
-			}
-			m.BytesWrittenForRawData += int64(n)
-		}
-		if levelEnd > 0 {
-			skipBytes := levelEnd
-			if skipBytes < 0 {
-				skipBytes = 0
-			}
-			file.Buffer.Skip(skipBytes)
-			m.BytesReadAndSkipped += int64(skipBytes)
-		}
+	if err := stripLevel(c, m, writer, file); err != nil {
+		return err
 	}
-
-	// Write rest of the line including the new line character
 	return file.WriteLine(m, writer)
+}
+
+func writeTimestampPrefix(c *MergeConfig, m *metrics.MergeMetrics, mt *metrics.MetricsTree, ws *writeState, writer *bufio.Writer, file *fsutil.FileHandle) error {
+	if !c.WriteTimestampPerLine {
+		return nil
+	}
+	var start time.Time
+	if mt != nil {
+		start = mt.Start("WriteTimestamp")
+	}
+	timestampToLog := file.BlockTimestamp
+	if timestampToLog != ws.cachedTimestamp {
+		timestampToLog.FormatTo(ws.cachedTimestampString)
+		ws.cachedTimestamp = timestampToLog
+	}
+	n, err := writer.Write(ws.cachedTimestampString)
+	if err != nil {
+		return fmt.Errorf("failed to write timestamp: %v", err)
+	}
+	m.BytesWrittenForTimestamps += int64(n)
+	if mt != nil {
+		mt.Stop(start)
+	}
+	return nil
+}
+
+func writeLevelPrefix(c *MergeConfig, m *metrics.MergeMetrics, writer *bufio.Writer, file *fsutil.FileHandle) error {
+	if !c.WriteLevelPerLine {
+		return nil
+	}
+	label := loglevel.Level(file.LineLevel).Label()
+	n, err := writer.Write(label)
+	if err != nil {
+		return fmt.Errorf("failed to write level: %v", err)
+	}
+	m.BytesWrittenForTimestamps += int64(n) // reuse timestamp counter for overhead
+	return nil
+}
+
+func writeAliasPrefix(c *MergeConfig, m *metrics.MergeMetrics, mt *metrics.MetricsTree, writer *bufio.Writer, file *fsutil.FileHandle) error {
+	if !c.WriteAliasPerLine {
+		return nil
+	}
+	var start time.Time
+	if mt != nil {
+		start = mt.Start("WriteAliasPerLine")
+	}
+	n, err := writer.Write(file.AliasForLine)
+	m.BytesWrittenForAliasPerLine += int64(n)
+	if err != nil {
+		return fmt.Errorf("failed to write alias: %v", err)
+	}
+	if mt != nil {
+		mt.Stop(start)
+	}
+	return nil
+}
+
+// stripTimestamp strips the original timestamp region from the line buffer,
+// writing any prefix bytes before the timestamp and inserting a space separator
+// if needed.
+func stripTimestamp(c *MergeConfig, m *metrics.MergeMetrics, mt *metrics.MetricsTree, writer *bufio.Writer, file *fsutil.FileHandle) error {
+	if !c.StripOriginalTimestamp || file.LineTimestampEnd == 0 {
+		return nil
+	}
+	if mt != nil {
+		start := mt.Start("StripTimestamp")
+		defer mt.Stop(start)
+	}
+	var lastPrefixByte byte
+	if file.LineTimestampStart > 0 {
+		b, err := writeTimestampPrefixBytes(m, writer, file)
+		if err != nil {
+			return err
+		}
+		lastPrefixByte = b
+	}
+	file.Buffer.Skip(file.LineTimestampEnd)
+	m.BytesReadAndSkipped += int64(file.LineTimestampEnd)
+	if file.LineTimestampStart > 0 {
+		return writeSeparatorIfNeeded(m, writer, file, lastPrefixByte)
+	}
+	return nil
+}
+
+// writeTimestampPrefixBytes writes the bytes before the timestamp region to writer
+// and returns the last byte written (used to decide whether to insert a separator).
+func writeTimestampPrefixBytes(m *metrics.MergeMetrics, writer *bufio.Writer, file *fsutil.FileHandle) (byte, error) {
+	prefixLen := file.LineTimestampStart
+	var prefixBuf [16]byte
+	var prefixSlice []byte
+	if prefixLen <= 16 {
+		prefixSlice = prefixBuf[:prefixLen:prefixLen]
+	} else {
+		prefixSlice = make([]byte, prefixLen)
+	}
+	prefix := file.Buffer.PeekSlice(prefixSlice)
+	n, err := writer.Write(prefix)
+	if err != nil {
+		return 0, fmt.Errorf("failed to write prefix: %v", err)
+	}
+	m.BytesWrittenForRawData += int64(n)
+	return prefix[len(prefix)-1], nil
+}
+
+// writeSeparatorIfNeeded inserts a single space between the prefix and the
+// post-timestamp content when neither side already has whitespace.
+func writeSeparatorIfNeeded(m *metrics.MergeMetrics, writer *bufio.Writer, file *fsutil.FileHandle, lastPrefixByte byte) error {
+	if file.Buffer.IsEmpty() {
+		return nil
+	}
+	nextByte := file.Buffer.Peek(0)
+	if lastPrefixByte != ' ' && lastPrefixByte != '\t' &&
+		nextByte != ' ' && nextByte != '\t' && nextByte != '\n' && nextByte != '\r' {
+		_, err := writer.Write([]byte{' '})
+		if err != nil {
+			return fmt.Errorf("failed to write separator: %v", err)
+		}
+		m.BytesWrittenForRawData++
+	}
+	return nil
+}
+
+// stripLevel strips the original log-level token from the line buffer.
+// Level positions are relative to the original buffer; after timestamp stripping,
+// the buffer has advanced by LineTimestampEnd bytes, so positions are adjusted.
+func stripLevel(c *MergeConfig, m *metrics.MergeMetrics, writer *bufio.Writer, file *fsutil.FileHandle) error {
+	if !c.StripOriginalLevel || file.LineLevelEnd == 0 {
+		return nil
+	}
+	consumed := 0
+	if c.StripOriginalTimestamp && file.LineTimestampEnd > 0 {
+		consumed = file.LineTimestampEnd
+	}
+	levelStart := file.LineLevelStart - consumed
+	levelEnd := file.LineLevelEnd - consumed
+	if levelStart > 0 && levelEnd > levelStart {
+		var beforeBuf [64]byte
+		var beforeSlice []byte
+		if levelStart <= 64 {
+			beforeSlice = beforeBuf[:levelStart:levelStart]
+		} else {
+			beforeSlice = make([]byte, levelStart)
+		}
+		before := file.Buffer.PeekSlice(beforeSlice)
+		n, err := writer.Write(before)
+		if err != nil {
+			return fmt.Errorf("failed to write pre-level content: %v", err)
+		}
+		m.BytesWrittenForRawData += int64(n)
+	}
+	if levelEnd > 0 {
+		file.Buffer.Skip(levelEnd)
+		m.BytesReadAndSkipped += int64(levelEnd)
+	}
+	return nil
 }
