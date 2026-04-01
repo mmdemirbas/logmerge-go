@@ -17,6 +17,15 @@ linters:
     - gocritic      # style and correctness patterns
     - unused        # unused code
 
+  exclusions:
+    rules:
+      # Table-driven tests are idiomatic Go and naturally long.
+      # funlen and cyclop measure production-code complexity, not test complexity.
+      - path: "_test\\.go"
+        linters:
+          - funlen
+          - cyclop
+
   settings:
     errcheck:
       exclude-functions:

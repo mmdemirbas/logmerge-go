@@ -80,9 +80,9 @@ High complexity in production code — refactor candidates:
 
 ## Status
 
-- [ ] P1 (3 issues) — in progress
-- [ ] P2 (4 issues)
-- [ ] P3 (8 issues)
-- [ ] P4 errcheck prod (12 issues)
-- [ ] P4 errcheck tests (~38 issues)
-- [ ] P5 complexity (18+ issues)
+- [x] P1 (3 issues) — fixed (commit f652577)
+- [x] P2 (4 issues) — fixed (commit 2c46b68)
+- [x] P3 (8 issues) — fixed (commit eec4e4a)
+- [x] P4 errcheck prod (12 issues) — fixed (commit 1f7adb1)
+- [x] P4 errcheck tests (~38 issues) — fixed (commit 1f7adb1)
+- [ ] P5 complexity (29 remaining issues: cyclop:6, funlen:4, gocognit:19)
