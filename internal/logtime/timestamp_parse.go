@@ -408,99 +408,132 @@ func tryParseCtimeTimestamp(c *ParseTimestampConfig, buffer []byte, n int) (Time
 
 func parseCtimeFrom(c *ParseTimestampConfig, buffer []byte, n int, monthPos int, month int) (Timestamp, int, int) {
 	i := monthPos + 3
-
-	// Expect space after month name
 	if i >= n || buffer[i] != ' ' {
 		return ZeroTimestamp, 0, 0
 	}
-	i++
+	day, hour, minute, second, nextI, ok := parseCtimeDayAndTime(buffer, n, i+1)
+	if !ok {
+		return ZeroTimestamp, 0, 0
+	}
+	i, ok = parseCtimeTZ(buffer, n, nextI)
+	if !ok {
+		return ZeroTimestamp, 0, 0
+	}
+	year, nextI, ok := parseCtimeYear(buffer, n, i)
+	if !ok {
+		return ZeroTimestamp, 0, 0
+	}
+	return NewTimestamp(year, month, day, hour, minute, second, 0, 0, 0, 0), ctimeTimestampStart(buffer, monthPos), nextI
+}
 
-	// Parse day (1-2 digits, may be space-padded like "Mar  7")
-	if i < n && buffer[i] == ' ' {
+// parseCtimeDayAndTime parses "[space]DD HH:MM:SS" — the portion after the mandatory
+// space that follows the month name. The leading space is optional (handles "Mar  7").
+func parseCtimeDayAndTime(buffer []byte, n, i int) (day, hour, minute, second, nextI int, ok bool) {
+	if i < n && buffer[i] == ' ' { // optional space-pad for single-digit day ("Mar  7")
 		i++
 	}
 	day, dcount := parseMax2Digits(buffer, n, i)
 	if dcount == 0 || day < 1 || day > 31 {
-		return ZeroTimestamp, 0, 0
+		return 0, 0, 0, 0, i, false
 	}
 	i += dcount
-
-	// Expect space
 	if i >= n || buffer[i] != ' ' {
-		return ZeroTimestamp, 0, 0
+		return 0, 0, 0, 0, i, false
 	}
-	i++
+	hour, minute, second, nextI, ok = parseHHMMSS(buffer, n, i+1)
+	return day, hour, minute, second, nextI, ok
+}
 
-	// Parse HH:MM:SS
-	hour, hcount := parseMax2Digits(buffer, n, i)
-	if hcount == 0 || hour > 23 {
-		return ZeroTimestamp, 0, 0
+// parseHHMMSS parses a HH:MM:SS time string starting at buffer[i].
+func parseHHMMSS(buffer []byte, n, i int) (hour, minute, second, nextI int, ok bool) {
+	hour, i, ok = parseTimeField(buffer, n, i, 23)
+	if !ok {
+		return 0, 0, 0, i, false
 	}
-	i += hcount
 	if i >= n || buffer[i] != ':' {
-		return ZeroTimestamp, 0, 0
+		return 0, 0, 0, i, false
 	}
 	i++
-	minute, mincount := parseMax2Digits(buffer, n, i)
-	if mincount == 0 || minute > 59 {
-		return ZeroTimestamp, 0, 0
+	minute, i, ok = parseTimeField(buffer, n, i, 59)
+	if !ok {
+		return 0, 0, 0, i, false
 	}
-	i += mincount
 	if i >= n || buffer[i] != ':' {
-		return ZeroTimestamp, 0, 0
+		return 0, 0, 0, i, false
 	}
 	i++
-	second, scount := parseMax2Digits(buffer, n, i)
-	if scount == 0 || second > 59 {
-		return ZeroTimestamp, 0, 0
+	second, i, ok = parseTimeField(buffer, n, i, 59)
+	if !ok {
+		return 0, 0, 0, i, false
 	}
-	i += scount
+	return hour, minute, second, i, true
+}
 
-	// Expect space
+// parseTimeField parses up to 2 decimal digits from buffer[i:n], returning the
+// value and the index after the last digit. Fails if no digits are found or the
+// value exceeds maxVal.
+func parseTimeField(buffer []byte, n, i, maxVal int) (val, nextI int, ok bool) {
+	val, count := parseMax2Digits(buffer, n, i)
+	if count == 0 || val > maxVal {
+		return 0, i, false
+	}
+	return val, i + count, true
+}
+
+// parseCtimeTZ parses the optional timezone field in a ctime-style timestamp.
+// On entry, i points to the space after the seconds field.
+// On success, returns the index of the first byte of the year field.
+func parseCtimeTZ(buffer []byte, n, i int) (int, bool) {
 	if i >= n || buffer[i] != ' ' {
-		return ZeroTimestamp, 0, 0
+		return i, false
 	}
 	i++
+	tzEnd := scanUppercase(buffer, n, i)
+	tzLen := tzEnd - i
+	if tzLen == 0 {
+		return tzEnd, true // no TZ abbreviation — already at year
+	}
+	if tzLen < 2 || tzLen > 5 {
+		return tzEnd, false // not a valid TZ abbreviation
+	}
+	if tzEnd >= n || buffer[tzEnd] != ' ' {
+		return tzEnd, false
+	}
+	return tzEnd + 1, true
+}
 
-	// Optional timezone name (2-5 uppercase letters)
-	tzStart := i
+// scanUppercase returns the index of the first non-uppercase-letter byte at or
+// after i, bounded by n.
+func scanUppercase(buffer []byte, n, i int) int {
 	for i < n && buffer[i] >= 'A' && buffer[i] <= 'Z' {
 		i++
 	}
-	tzLen := i - tzStart
-	if tzLen >= 2 && tzLen <= 5 {
-		// Valid timezone abbreviation — expect space before year
-		if i >= n || buffer[i] != ' ' {
-			return ZeroTimestamp, 0, 0
-		}
-		i++
-	} else if tzLen > 0 {
-		// Not a valid timezone — revert
-		return ZeroTimestamp, 0, 0
-	}
-	// If tzLen == 0, we're already at the year position
+	return i
+}
 
-	// Parse year (4 digits)
+// parseCtimeYear parses a 4-digit year in the range [1969, 2050] from buffer[i:n].
+func parseCtimeYear(buffer []byte, n, i int) (year, nextI int, ok bool) {
 	year, ycount := parseDigits(buffer, n, i, 4)
 	if ycount != 4 || year < 1969 || year > 2050 {
-		return ZeroTimestamp, 0, 0
+		return 0, i, false
 	}
-	i += ycount
+	return year, i + ycount, true
+}
 
-	// Determine the start of the timestamp section for stripping.
-	// If preceded by a day-of-week like "Sat ", include it.
-	tsStart := monthPos
-	if monthPos >= 4 && buffer[monthPos-1] == ' ' {
-		dow := monthPos - 4
-		if dow >= 0 && isAlpha(buffer[dow]) && isAlpha(buffer[dow+1]) && isAlpha(buffer[dow+2]) {
-			// Looks like a day-of-week abbreviation
-			if dow == 0 || buffer[dow-1] == ' ' || buffer[dow-1] == '\t' {
-				tsStart = dow
-			}
-		}
+// ctimeTimestampStart returns the start index of the ctime timestamp section,
+// expanding backward to include a leading day-of-week abbreviation if present.
+func ctimeTimestampStart(buffer []byte, monthPos int) int {
+	if monthPos < 4 || buffer[monthPos-1] != ' ' {
+		return monthPos
 	}
-
-	return NewTimestamp(year, month, day, hour, minute, second, 0, 0, 0, 0), tsStart, i
+	dow := monthPos - 4
+	if !isAlpha(buffer[dow]) || !isAlpha(buffer[dow+1]) || !isAlpha(buffer[dow+2]) {
+		return monthPos
+	}
+	if dow > 0 && buffer[dow-1] != ' ' && buffer[dow-1] != '\t' {
+		return monthPos
+	}
+	return dow
 }
 
 // monthNameIndex maps 3-letter English month abbreviations to 1-based month numbers.
