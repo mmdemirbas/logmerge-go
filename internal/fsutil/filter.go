@@ -23,42 +23,51 @@ type Matcher struct {
 func NewMatcher(patterns []string) *Matcher {
 	rules := make([]patternRule, 0, len(patterns))
 	for _, p := range patterns {
-		// Trim unescaped trailing spaces: remove trailing spaces, but if the
-		// last non-space char is \, keep one trailing space.
-		p = trimTrailingUnescapedSpaces(p)
-		if p == "" {
-			continue
+		if rule, ok := parsePatternRule(p); ok {
+			rules = append(rules, rule)
 		}
-		// # is a comment unless escaped with backslash
-		if strings.HasPrefix(p, "#") {
-			continue
-		}
-		if strings.HasPrefix(p, "\\#") {
-			p = p[1:] // strip backslash, keep #
-		}
-		// ! is negation unless escaped with backslash
-		negation := false
-		if strings.HasPrefix(p, "!") {
-			negation = true
-			p = p[1:]
-		} else if strings.HasPrefix(p, "\\!") {
-			p = p[1:] // strip backslash, keep !
-		}
-		if p == "" {
-			continue
-		}
-		// Leading / means root-relative: strip and flag
-		rootOnly := false
-		if strings.HasPrefix(p, "/") {
-			rootOnly = true
-			p = p[1:]
-		}
-		if p == "" {
-			continue
-		}
-		rules = append(rules, patternRule{pattern: p, negation: negation, rootOnly: rootOnly})
 	}
 	return &Matcher{rules: rules}
+}
+
+// parsePatternRule parses a single gitignore-style pattern string into a
+// patternRule. Returns (rule, true) when the pattern is valid, or (zero, false)
+// when the line should be skipped (blank, comment, or empty after stripping).
+func parsePatternRule(p string) (patternRule, bool) {
+	// Trim unescaped trailing spaces: remove trailing spaces, but if the
+	// last non-space char is \, keep one trailing space.
+	p = trimTrailingUnescapedSpaces(p)
+	if p == "" {
+		return patternRule{}, false
+	}
+	// # is a comment unless escaped with backslash
+	if strings.HasPrefix(p, "#") {
+		return patternRule{}, false
+	}
+	if strings.HasPrefix(p, "\\#") {
+		p = p[1:] // strip backslash, keep #
+	}
+	// ! is negation unless escaped with backslash
+	negation := false
+	if strings.HasPrefix(p, "!") {
+		negation = true
+		p = p[1:]
+	} else if strings.HasPrefix(p, "\\!") {
+		p = p[1:] // strip backslash, keep !
+	}
+	if p == "" {
+		return patternRule{}, false
+	}
+	// Leading / means root-relative: strip and flag
+	rootOnly := false
+	if strings.HasPrefix(p, "/") {
+		rootOnly = true
+		p = p[1:]
+	}
+	if p == "" {
+		return patternRule{}, false
+	}
+	return patternRule{pattern: p, negation: negation, rootOnly: rootOnly}, true
 }
 
 // trimTrailingUnescapedSpaces removes trailing whitespace, but preserves a
