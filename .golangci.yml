@@ -20,11 +20,13 @@ linters:
   exclusions:
     rules:
       # Table-driven tests are idiomatic Go and naturally long.
-      # funlen and cyclop measure production-code complexity, not test complexity.
+      # funlen, cyclop, and gocognit measure production-code complexity,
+      # not test complexity — test bodies express scenarios, not logic.
       - path: "_test\\.go"
         linters:
           - funlen
           - cyclop
+          - gocognit
 
   settings:
     errcheck:
