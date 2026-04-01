@@ -95,8 +95,8 @@ func (r *RingBuffer) Skip(count int) {
 	// If buffer is empty, reset read/write index to reduce chance of split buffer into two parts.
 	// Buffer split could cause bad performance for other operations.
 	// Below operations are optimized using branchless code to avoid slow conditional branches.
-	//r.readIndex = (newReadIndex == r.writeIndex) ? 0 : newReadIndex
-	//r.writeIndex = (newReadIndex == r.writeIndex) ? 0 : r.writeIndex
+	// r.readIndex = (newReadIndex == r.writeIndex) ? 0 : newReadIndex
+	// r.writeIndex = (newReadIndex == r.writeIndex) ? 0 : r.writeIndex
 	diff := newReadIndex - r.writeIndex
 	nonEmpty := (diff >> 31) ^ ((-diff) >> 31)
 	r.readIndex = nonEmpty & newReadIndex

@@ -91,14 +91,13 @@ func ParseTimestampForStrip(c *ParseTimestampConfig, buffer []byte) (Timestamp, 
 	}
 
 	var tsStart int
-	if end > firstNewline {
-		if timestamp != ZeroTimestamp {
-			timestamp = ZeroTimestamp
-		}
+	switch {
+	case end > firstNewline:
+		timestamp = ZeroTimestamp
 		timestamp, tsStart, end = tryParseCtimeTimestamp(c, buffer, firstNewline)
-	} else if timestamp != ZeroTimestamp {
+	case timestamp != ZeroTimestamp:
 		tsStart, _ = skipToFirstDigit(buffer, n, lastI)
-	} else {
+	default:
 		timestamp, tsStart, end = tryParseCtimeTimestamp(c, buffer, firstNewline)
 	}
 
@@ -258,15 +257,16 @@ func tryParseTimestamp(c *ParseTimestampConfig, buffer []byte, i int, n int) (Ti
 	}
 
 	year, count := parseDigits(buffer, n, i, 4)
-	if count == 0 {
+	switch {
+	case count == 0:
 		return ZeroTimestamp, i + 1
-	} else if count == 2 {
+	case count == 2:
 		if year < 69 {
 			year += 2000
 		} else {
 			year += 1900
 		}
-	} else if year > 2050 || year < 1969 {
+	case year > 2050 || year < 1969:
 		return ZeroTimestamp, i + count
 	}
 

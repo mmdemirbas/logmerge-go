@@ -35,10 +35,10 @@ var daysAfter = [13]int{
 }
 
 // NewTimestamp constructs a Timestamp from date/time components and timezone offset.
-func NewTimestamp(y, M, d, H, m, s, ns, tzSgn, tzH, tzM int) Timestamp {
-	leapDay := -isLeapYear(y) & ((M - 3) >> 31)
-	ed := epochDaysIncludingYear(y) - daysFrom1970 - 1 - daysAfter[M] + d - leapDay
-	return Timestamp(uint64(ed*86400+(H-tzSgn*tzH)*3600+(m-tzSgn*tzM)*60+s)*1e9 + uint64(ns))
+func NewTimestamp(y, mo, d, hr, m, s, ns, tzSgn, tzH, tzM int) Timestamp {
+	leapDay := -isLeapYear(y) & ((mo - 3) >> 31)
+	ed := epochDaysIncludingYear(y) - daysFrom1970 - 1 - daysAfter[mo] + d - leapDay
+	return Timestamp(uint64(ed*86400+(hr-tzSgn*tzH)*3600+(m-tzSgn*tzM)*60+s)*1e9 + uint64(ns))
 }
 
 // endregion: NewTimestamp
